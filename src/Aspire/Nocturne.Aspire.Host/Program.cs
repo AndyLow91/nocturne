@@ -510,13 +510,13 @@ class Program
 
             ConfigureWebEnvironment(viteWeb);
 
-            // Dev auto-login opt-in: when NOCTURNE_DEV_AUTO_LOGIN is true — set
-            // in apphost appsettings or the host environment (e.g.
-            // `NOCTURNE_DEV_AUTO_LOGIN=true aspire start`) — the web login page
+            // Dev auto-login, on unless NOCTURNE_DEV_AUTO_LOGIN is false (apphost
+            // appsettings or the host environment, e.g.
+            // `NOCTURNE_DEV_AUTO_LOGIN=false aspire start`): the web login page
             // redirects through /api/v4/dev-only/auth/login instead of the
-            // passkey UI. Run mode only — the backing controller exists only in
-            // Development.
-            if (builder.Configuration.GetValue("NOCTURNE_DEV_AUTO_LOGIN", false))
+            // passkey UI, since a seeded tenant's passkey is held by no one. Run
+            // mode only — the backing controller exists only in Development.
+            if (builder.Configuration.GetValue("NOCTURNE_DEV_AUTO_LOGIN", true))
             {
                 viteWeb.WithEnvironment("NOCTURNE_DEV_AUTO_LOGIN", "true");
             }

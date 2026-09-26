@@ -417,14 +417,14 @@ public static class TenantCommandExtensions
                 Name = "Slug",
                 InputType = InputType.Text,
                 Required = true,
-                Value = "test123",
+                Value = "sleepy",
             },
             new()
             {
                 Name = "Display Name",
                 InputType = InputType.Text,
                 Required = true,
-                Value = "Test",
+                Value = "Sleepy",
             },
             new()
             {
