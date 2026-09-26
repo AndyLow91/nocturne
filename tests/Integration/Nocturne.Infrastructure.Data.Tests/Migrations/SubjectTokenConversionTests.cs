@@ -70,7 +70,7 @@ public class SubjectTokenConversionFixture : IAsyncLifetime
     private async Task MigrateToAsync(string? targetMigration)
     {
         var options = new DbContextOptionsBuilder<NocturneDbContext>()
-            .UseNpgsql(_migratorConnectionString)
+            .UseNpgsql(_migratorConnectionString, npgsql => npgsql.UseNocturneMigrations())
             .AddInterceptors(new TenantConnectionInterceptor())
             .Options;
 
