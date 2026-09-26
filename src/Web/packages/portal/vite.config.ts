@@ -142,7 +142,11 @@ export default defineConfig({
       allow: [searchForWorkspaceRoot(process.cwd()), resolve(__dirname, 'src/lib/release'), ...pnpmStoreRoots()],
     },
   },
+  // Per-icon imports would each be a new dep, re-optimized with a reload on first render.
+  optimizeDeps: {
+    exclude: ['@lucide/svelte']
+  },
   ssr: {
-    noExternal: ['@nocturne/app', '@nocturne/ui', '@nocturne/cms', 'lucide-svelte']
+    noExternal: ['@nocturne/app', '@nocturne/ui', '@nocturne/cms']
   }
 });
