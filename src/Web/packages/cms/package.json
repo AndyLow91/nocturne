@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@floating-ui/dom": "^1.6.0",
-    "@lucide/svelte": "^0.563.1",
+    "@lucide/svelte": "^1.14.0",
     "@nocturne/eslint-config": "workspace:*",
     "@nocturne/ui": "workspace:*",
     "@sveltejs/kit": "^2.50.2",

@@ -3,7 +3,10 @@
   import * as Card from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
   import { FormError } from "$lib/forms";
-  import { Fingerprint, KeyRound, Loader2, Check } from "lucide-svelte";
+  import Fingerprint from "@lucide/svelte/icons/fingerprint-pattern";
+  import KeyRound from "@lucide/svelte/icons/key-round";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Check from "@lucide/svelte/icons/check";
   import {
     startRegistration,
     type PublicKeyCredentialCreationOptionsJSON,
