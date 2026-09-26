@@ -11,6 +11,7 @@ using Nocturne.Aspire.Host.Publishing;
 using Nocturne.Aspire.Hosting;
 using Nocturne.Core.Constants;
 using Yarp.ReverseProxy.Transforms;
+using PersistenceMode = Nocturne.Aspire.Host.PersistenceMode;
 
 class Program
 {
@@ -139,6 +140,9 @@ class Program
 
             var postgres = builder
                 .AddPostgres(ServiceNames.PostgreSql + "-server")
+                // Aspire's default moves with its releases (18.x from 13.5); a major
+                // Postgres upgrade cannot reuse an existing data volume.
+                .WithImageTag("17.6")
                 .WithUserName(postgresUsername)
                 .WithPassword(postgresPassword)
                 .WithBindMount(pgInitPath, "/docker-entrypoint-initdb.d", isReadOnly: true)
