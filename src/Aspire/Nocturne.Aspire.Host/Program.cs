@@ -314,45 +314,60 @@ class Program
         // ------------------------------------------------------------------
         // Nocturne API
         // ------------------------------------------------------------------
-        var api = builder
-            // Run mode: pin host port 1610 (main checkout only — worktrees stay
-            // dynamic) so dev tooling and docs can target a stable
-            // http://localhost:1610 across restarts. Publish mode: pin the
-            // in-container listen port so the generated compose bakes a
-            // concrete http://nocturne-api:8080 (mirrors the web service's fixed
-            // internal port) instead of an empty NOCTURNE_API_PORT placeholder.
-            // In publish mode this port is never host-published — YARP is the
-            // only entry point.
-            .AddProject<Projects.Nocturne_API>(ServiceNames.NocturneApi, launchProfileName: null)
-            .WithHttpEndpoint(
-                name: "http",
-                port: builder.ExecutionContext.IsRunMode
-                    && persistence == PersistenceMode.Persistent ? 1610 : null,
-                targetPort: builder.ExecutionContext.IsPublishMode ? 8080 : null)
-            .PublishAsDockerComposeService((_, _) => { })
-            .WithRemoteImageName("ghcr.io/nightscout/nocturne/nocturne-api")
-            .WithRemoteImageTag("latest")
-            .WithPublishImageMetadata(
-                imageLabel: "API image",
-                imageDefault: "ghcr.io/nightscout/nocturne/nocturne-api:latest")
-            .WithEnvironment(ServiceNames.ConfigKeys.InstanceKey, instanceKey);
-
+        // Run mode: the API runs under its own dotnet watch, so the AppHost itself is not
+        // watched and a rude edit restarts the API alone (see AddDotnetWatchProject). Its
+        // host port is pinned to 1610 (main checkout only — worktrees stay dynamic) so dev
+        // tooling and docs can target a stable http://localhost:1610 across restarts.
+        //
         // Run mode is a dev tool: force Development so the dev-only surface
         // (api/v4/dev-only/*, seed-tenant, dashboard tenant commands) exists
-        // regardless of shell environment. launchProfileName: null skips
+        // regardless of shell environment. --no-launch-profile skips
         // launchSettings.json, and shell env propagation to the child process
-        // is unreliable across restarts. Publish mode (production images) is
-        // untouched and defaults to Production.
+        // is unreliable across restarts.
+        //
+        // Publish mode: the project resource, with the in-container listen port
+        // pinned so the generated compose bakes a concrete
+        // http://nocturne-api:8080 (mirrors the web service's fixed internal
+        // port) instead of an empty NOCTURNE_API_PORT placeholder. This port is
+        // never host-published — YARP is the only entry point. Production images
+        // default to Production.
+        IResourceBuilder<IResourceWithServiceDiscovery> api;
         if (builder.ExecutionContext.IsRunMode)
         {
-            api.WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+            api = builder
+                .AddDotnetWatchProject(
+                    ServiceNames.NocturneApi,
+                    new Projects.Nocturne_API().ProjectPath,
+                    Path.Combine(solutionRoot, "dev", "msbuild", "dev-fast.targets"))
+                .WithHttpEndpoint(
+                    name: "http",
+                    port: persistence == PersistenceMode.Persistent ? 1610 : null)
+                .WithAspNetCoreUrls("http")
+                .WithHttpHealthCheck("/alive")
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+                .WithOtlpExporter();
         }
+        else
+        {
+            api = builder
+                .AddProject<Projects.Nocturne_API>(ServiceNames.NocturneApi, launchProfileName: null)
+                .WithHttpEndpoint(name: "http", targetPort: 8080)
+                .PublishAsDockerComposeService((_, _) => { })
+                .WithRemoteImageName("ghcr.io/nightscout/nocturne/nocturne-api")
+                .WithRemoteImageTag("latest")
+                .WithPublishImageMetadata(
+                    imageLabel: "API image",
+                    imageDefault: "ghcr.io/nightscout/nocturne/nocturne-api:latest");
+        }
+
+        var apiEnvironment = (IResourceBuilder<IResourceWithEnvironment>)api;
+        apiEnvironment.WithEnvironment(ServiceNames.ConfigKeys.InstanceKey, instanceKey);
 
         // Operator-supplied OTLP export (publish mode only — run mode uses
         // Aspire's auto-injected dashboard endpoint). Empty endpoint = disabled.
         if (builder.ExecutionContext.IsPublishMode)
         {
-            api.WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelExporterEndpoint)
+            apiEnvironment.WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelExporterEndpoint)
                 .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", otelExporterProtocol);
         }
 
@@ -363,17 +378,17 @@ class Program
             && postgresMigratorPassword != null
         )
         {
-            api.WaitFor(managedDatabase)
-                .WithNocturneDatabase(
-                    postgresServer,
-                    dbName,
-                    postgresAppPassword,
-                    postgresMigratorPassword
-                );
+            ((IResourceBuilder<IResourceWithWaitSupport>)api).WaitFor(managedDatabase);
+            apiEnvironment.WithNocturneDatabase(
+                postgresServer,
+                dbName,
+                postgresAppPassword,
+                postgresMigratorPassword
+            );
         }
         else if (remoteAppConnectionString != null && remoteMigratorConnectionString != null)
         {
-            api.WithNocturneRemoteDatabase(
+            apiEnvironment.WithNocturneRemoteDatabase(
                 remoteAppConnectionString,
                 remoteMigratorConnectionString
             );
@@ -557,7 +572,7 @@ class Program
         }
 
         // API needs WEB_URL to POST chat bot alert dispatches to the SvelteKit app
-        api.WithEnvironment("WEB_URL", web.GetEndpoint("http"));
+        apiEnvironment.WithEnvironment("WEB_URL", web.GetEndpoint("http"));
 
         var webEndpoints = (IResourceBuilder<IResourceWithEndpoints>)web;
 
@@ -797,7 +812,7 @@ class Program
         if (!builder.ExecutionContext.IsRunMode)
         {
             // Publish mode: inject from the user-supplied parameter
-            api.WithEnvironment("BASE_DOMAIN", baseDomain);
+            apiEnvironment.WithEnvironment("BASE_DOMAIN", baseDomain);
         }
 
         if (builder.ExecutionContext.IsRunMode)
@@ -814,7 +829,7 @@ class Program
                 );
 
             // Single source of truth for both API and web
-            api.WithEnvironment("BASE_DOMAIN", baseDomainExpr);
+            apiEnvironment.WithEnvironment("BASE_DOMAIN", baseDomainExpr);
 
             ((IResourceBuilder<IResourceWithEnvironment>)web).WithEnvironment(
                 "BASE_DOMAIN",

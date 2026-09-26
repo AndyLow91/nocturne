@@ -19,7 +19,10 @@
         <PackageReference Include="YamlDotNet" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\API\Nocturne.API\Nocturne.API.csproj" />
+        <!-- Not built with the AppHost: in run mode the API builds under its own dotnet watch (with dev
+             build flags, so an AppHost build would compile it a second time), and publish mode only
+             needs its path. -->
+        <ProjectReference Include="..\..\API\Nocturne.API\Nocturne.API.csproj" BuildReference="false" />
         <ProjectReference Include="..\..\Core\Nocturne.Core.Constants\Nocturne.Core.Constants.csproj" IsAspireProjectResource="false" />
         <ProjectReference Include="..\Nocturne.Aspire.ServiceDefaults\Nocturne.Aspire.ServiceDefaults.csproj" IsAspireProjectResource="false" />
         <ProjectReference Include="..\Nocturne.Aspire.Hosting\Nocturne.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
