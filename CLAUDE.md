@@ -52,7 +52,7 @@ dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=tru
 
 # EF Core migrations (must disable NSwag first)
 dotnet build -p:GenerateNSwagClient=false
-dotnet ef migrations add <Name> -p src/Infrastructure/Nocturne.Infrastructure.Data -s src/API/Nocturne.API
+dotnet ef migrations add <Name> -p src/Infrastructure/Nocturne.Infrastructure.Data.Migrations -s src/API/Nocturne.API
 ```
 
 Aspire orchestrates everything: PostgreSQL, the API, the SvelteKit frontend, and background services. A YARP gateway is the single external HTTPS endpoint; API and Web run as plain HTTP behind it. You only need to restart Aspire if its `Program.cs` changes. The NSwag client is regenerated automatically on the initial Aspire startup build; subsequent `dotnet watch` rebuilds during the hot loop **skip** the codegen pipeline (NSwag + Zod + remote functions) for performance. If you change a controller/DTO and need the TS client to catch up, force a regen with `dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true`. If you come across a roadblock from the `.dll`s being in use, just kill the dotnet processes.
@@ -134,6 +134,7 @@ Domain models use **mills-first** timestamps. `Entry.Mills` (Unix milliseconds) 
 
 - **PostgreSQL** via Entity Framework Core with 70+ migrations
 - Domain models → Database entities via mappers in `Infrastructure.Data/Mappers/`
+- EF migrations live in `Nocturne.Infrastructure.Data.Migrations`, which no project references at compile time; the API loads it at runtime from its output directory (so `dotnet watch` never loads the ~1.7M lines of migration Designer files). `dotnet watch` does not see that directory, so after adding a migration restart the API: `aspire resource nocturne-api restart`
 - Tables use snake_case (`entries`, `treatments`)
 - UUID v7 for new records; `OriginalId` preserved for MongoDB migration compatibility
 - Row Level Security for multitenancy

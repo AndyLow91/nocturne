@@ -157,4 +157,31 @@
     <Exec Command="pnpm run generate-remote-functions" WorkingDirectory="$(WebMonorepoRoot)" ContinueOnError="false" />
     <Message Importance="high" Text="Remote function generation complete." />
   </Target>
+  <!-- The EF migrations assembly is built and copied beside the API, never compiled against (see
+       NocturneMigrationsAssembly). It is not a ProjectReference, even with
+       ReferenceOutputAssembly=false, because dotnet watch loads every project in the reference graph
+       into its Roslyn workspace, and this one is 1.7M lines of designer files. Its RID-agnostic build
+       drops the same properties a ProjectReference to a class library would. -->
+  <PropertyGroup>
+    <NocturneMigrationsProjectDir>$(MSBuildProjectDirectory)/../../Infrastructure/Nocturne.Infrastructure.Data.Migrations/</NocturneMigrationsProjectDir>
+    <NocturneMigrationsAssetsFile Condition="'$(UseArtifactsOutput)' == 'true'">$(ArtifactsPath)/obj/Nocturne.Infrastructure.Data.Migrations/project.assets.json</NocturneMigrationsAssetsFile>
+    <NocturneMigrationsAssetsFile Condition="'$(UseArtifactsOutput)' != 'true'">$(NocturneMigrationsProjectDir)obj/project.assets.json</NocturneMigrationsAssetsFile>
+  </PropertyGroup>
+  <Target Name="BuildNocturneMigrations" BeforeTargets="AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
+    <!-- Outside the reference graph, so an API-only restore does not reach it. A distinct global
+         property gives the restore its own evaluation, as dotnet build -restore does. -->
+    <MSBuild Projects="$(NocturneMigrationsProjectDir)Nocturne.Infrastructure.Data.Migrations.csproj"
+             Targets="Restore"
+             Properties="MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;PublishDir;PublishProfile;_IsPublishing"
+             Condition="!Exists('$(NocturneMigrationsAssetsFile)')" />
+    <MSBuild Projects="$(NocturneMigrationsProjectDir)Nocturne.Infrastructure.Data.Migrations.csproj"
+             Targets="Build"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;PublishDir;PublishProfile;_IsPublishing">
+      <Output TaskParameter="TargetOutputs" ItemName="_NocturneMigrationsAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <Content Include="@(_NocturneMigrationsAssembly)" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
 </Project>

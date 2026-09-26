@@ -231,12 +231,13 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ```bash
 # Create a new migration
-cd src/Infrastructure/Nocturne.Infrastructure.Data
-dotnet ef migrations add YourMigrationName
+dotnet ef migrations add YourMigrationName -p src/Infrastructure/Nocturne.Infrastructure.Data.Migrations -s src/API/Nocturne.API
 
 # Apply migrations
-dotnet ef database update
+dotnet ef database update -p src/Infrastructure/Nocturne.Infrastructure.Data.Migrations -s src/API/Nocturne.API
 ```
+
+The API loads the migrations project at runtime and applies pending migrations on startup. `dotnet watch` does not see that project, so after adding a migration restart the API: `aspire resource nocturne-api restart`.
 
 ## API Documentation
 

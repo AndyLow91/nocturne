@@ -111,6 +111,7 @@ Domain models use **mills-first** timestamps - Unix milliseconds is canonical:
 
 - **PostgreSQL** via Entity Framework Core
 - Domain models (`Entry`) → Database entities (`EntryEntity`) via mappers in `Infrastructure.Data/Mappers/`
+- EF migrations live in `Nocturne.Infrastructure.Data.Migrations` (loaded by the API at runtime, not referenced at compile time): `dotnet ef migrations add <Name> -p src/Infrastructure/Nocturne.Infrastructure.Data.Migrations -s src/API/Nocturne.API`. `dotnet watch` does not see that project, so restart the API afterwards: `aspire resource nocturne-api restart`
 - Tables use snake_case: `entries`, `treatments`
 - UUID v7 for new records, preserve `OriginalId` for MongoDB migration compatibility
 
