@@ -199,14 +199,15 @@ public class SampleDataSeeder
                 treatmentBatch.Clear();
             }
 
+            // One batch per flush, as a migration backfills device statuses: decomposed one at a
+            // time, each status is several round trips with a duplicate check per snapshot, and
+            // a week of them outlasts a client's request timeout.
             async Task FlushStatusesAsync()
             {
-                foreach (var status in statusBatch)
-                {
-                    await _deviceStatusDecomposer.DecomposeAsync(
-                        status, dataSource, WriteOrigin.Backfill, ct);
-                    deviceStatusCount++;
-                }
+                if (statusBatch.Count == 0) return;
+                await _deviceStatusDecomposer.DecomposeBatchAsync(
+                    statusBatch, dataSource, WriteOrigin.Backfill, ct);
+                deviceStatusCount += statusBatch.Count;
                 statusBatch.Clear();
             }
 
@@ -246,7 +247,7 @@ public class SampleDataSeeder
                         config.TargetGlucose,
                         DemoTherapyProfile.ScheduledRateAt(step.Time, config.BasalRate),
                         step.Scenario);
-                    // Deterministic legacy id so re-seeding updates in place.
+                    // Deterministic legacy id, so a re-seed skips the statuses it already wrote.
                     status.Id = status.Mills.ToString("x24");
                     statusBatch.Add(status);
                 }
