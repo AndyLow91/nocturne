@@ -17,15 +17,21 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var builder = DistributedApplication.CreateBuilder(args);
+        // The Aspire dashboard is off by default in run mode; turn it back on with
+        // Aspire:OptionalServices:AspireDashboard:Enabled=true (apphost appsettings,
+        // user-secrets or Aspire__OptionalServices__AspireDashboard__Enabled=true).
+        // It has to be decided before the builder exists, hence the early read.
+        var options = new DistributedApplicationOptions { Args = args };
+        options.DisableDashboard = !IsDashboardEnabledBeforeBuild(options);
+        var builder = DistributedApplication.CreateBuilder(options);
 
         // ------------------------------------------------------------------
         // Optional services (orchestration flags — not Aspire parameters).
         // Configured under "Aspire:OptionalServices" in apphost appsettings.
         // ------------------------------------------------------------------
         var includeDashboard = builder.Configuration.GetValue(
-            "Aspire:OptionalServices:AspireDashboard:Enabled",
-            true
+            DashboardEnabledKey,
+            !builder.ExecutionContext.IsRunMode
         );
         var enableWatchtower = builder.Configuration.GetValue(
             "Aspire:OptionalServices:Watchtower:Enabled",
@@ -334,7 +340,7 @@ class Program
         IResourceBuilder<IResourceWithServiceDiscovery> api;
         if (builder.ExecutionContext.IsRunMode)
         {
-            api = builder
+            var watchedApi = builder
                 .AddDotnetWatchProject(
                     ServiceNames.NocturneApi,
                     new Projects.Nocturne_API().ProjectPath,
@@ -344,8 +350,13 @@ class Program
                     port: persistence == PersistenceMode.Persistent ? 1610 : null)
                 .WithAspNetCoreUrls("http")
                 .WithHttpHealthCheck("/alive")
-                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-                .WithOtlpExporter();
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+            // Without a dashboard there is no collector, and the exporter would retry every second.
+            if (includeDashboard)
+            {
+                watchedApi.WithOtlpExporter();
+            }
+            api = watchedApi;
         }
         else
         {
@@ -897,5 +908,35 @@ class Program
 
         var app = builder.Build();
         await app.RunAsync();
+    }
+
+    private const string DashboardEnabledKey = "Aspire:OptionalServices:AspireDashboard:Enabled";
+
+    /// <summary>
+    /// Reads <see cref="DashboardEnabledKey"/> from the sources the builder will load, with the
+    /// same run/publish rule it applies (<c>--operation</c> / <c>--publisher</c>). Publish mode
+    /// always reports true: there the flag decides the compose file's dashboard service, not
+    /// whether this process starts one.
+    /// </summary>
+    private static bool IsDashboardEnabledBeforeBuild(DistributedApplicationOptions options)
+    {
+        var args = options.Args ?? [];
+        var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
+        var contentRoot = options.ProjectDirectory ?? Directory.GetCurrentDirectory();
+        var config = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(contentRoot, "appsettings.json"), optional: true)
+            .AddJsonFile(Path.Combine(contentRoot, $"appsettings.{environment}.json"), optional: true)
+            .AddUserSecrets(typeof(Program).Assembly, optional: true)
+            .AddEnvironmentVariables()
+            .AddCommandLine(args, new Dictionary<string, string>
+            {
+                ["--operation"] = "AppHost:Operation",
+                ["--publisher"] = "Publishing:Publisher",
+            })
+            .Build();
+
+        var isPublish = string.Equals(config["AppHost:Operation"], "publish", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(config["Publishing:Publisher"]);
+        return isPublish || config.GetValue(DashboardEnabledKey, false);
     }
 }
