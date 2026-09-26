@@ -71,7 +71,9 @@ Aspire will automatically:
 - Launch any configured data connectors
 - Set up service discovery, health checks, and a YARP gateway
 
-Once running, open the Aspire dashboard link from the console output to see all services. Access the app at `https://nocturne.localhost:1612`.
+Once running, access the app at `https://nocturne.localhost:1612`. `aspire describe` lists the services and `aspire logs <resource>` tails one. The Aspire dashboard is off by default; start with `Aspire__OptionalServices__AspireDashboard__Enabled=true aspire start` (or set `Aspire:OptionalServices:AspireDashboard:Enabled` in the AppHost appsettings) to get it.
+
+If .NET is installed outside the default location (e.g. Homebrew), set `DOTNET_ROOT` to the directory holding the real `dotnet` binary before `aspire start` (Homebrew: `export DOTNET_ROOT="$(brew --prefix dotnet)/libexec"`).
 
 In run mode the AppHost pins two host ports (main checkout; worktrees stay dynamic):
 

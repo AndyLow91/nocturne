@@ -12,6 +12,15 @@ Nocturne is a .NET 10 rewrite of the Nightscout diabetes management API with 1:1
 # Start the full stack (API + PostgreSQL + Web + services)
 aspire start
 
+# .NET outside the default location: the AppHost's native host needs DOTNET_ROOT
+# (the directory holding the real dotnet binary; for Homebrew, libexec)
+export DOTNET_ROOT="$(brew --prefix dotnet)/libexec"
+
+# Inspect the running stack (the Aspire dashboard is off by default)
+aspire describe
+aspire logs nocturne-api
+aspire resource nocturne-api restart
+
 # Build solution
 dotnet build
 
@@ -42,12 +51,15 @@ curl -X POST http://localhost:1610/api/v4/dev-only/admin/seed-tenant \
 # End-to-end smoke of the local stack (seed -> data -> login link -> tenant UI)
 dotnet run scripts/dev-smoke.cs
 
-# Auto-login: start with NOCTURNE_DEV_AUTO_LOGIN=true and the web login page
-# signs in as the tenant's first owner instead of showing the passkey UI
-# (leave off when testing auth itself). See the dev-tenant-api skill.
-NOCTURNE_DEV_AUTO_LOGIN=true aspire start
+# Auto-login is on by default: the web login page signs in as the tenant's
+# first owner instead of showing the passkey UI. Turn it off when testing auth
+# itself. See the dev-tenant-api skill.
+NOCTURNE_DEV_AUTO_LOGIN=false aspire start
 
-# Regenerate just the NSwag TypeScript client (force, e.g. during `aspire start` hot loop)
+# Aspire dashboard (off by default; or set it in AppHost appsettings/user-secrets)
+Aspire__OptionalServices__AspireDashboard__Enabled=true aspire start
+
+# Force the NSwag TypeScript client regen (e.g. during the `aspire start` hot loop)
 dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true
 
 # EF Core migrations (must disable NSwag first)
@@ -55,7 +67,9 @@ dotnet build -p:GenerateNSwagClient=false
 dotnet ef migrations add <Name> -p src/Infrastructure/Nocturne.Infrastructure.Data.Migrations -s src/API/Nocturne.API
 ```
 
-Aspire orchestrates everything: PostgreSQL, the API, the SvelteKit frontend, and background services. A YARP gateway is the single external HTTPS endpoint; API and Web run as plain HTTP behind it. You only need to restart Aspire if its `Program.cs` changes. The NSwag client is regenerated automatically on the initial Aspire startup build; subsequent `dotnet watch` rebuilds during the hot loop **skip** the codegen pipeline (NSwag + Zod + remote functions) for performance. If you change a controller/DTO and need the TS client to catch up, force a regen with `dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true`. If you come across a roadblock from the `.dll`s being in use, just kill the dotnet processes.
+Aspire orchestrates everything: PostgreSQL, the API, the SvelteKit frontend, and background services. A YARP gateway is the single external HTTPS endpoint; API and Web run as plain HTTP behind it. The AppHost itself does not run under `dotnet watch` (`features.defaultWatchEnabled` is false); in run mode the `nocturne-api` resource is a `dotnet watch` process (`DotnetWatchExtensions`). Method-body edits hot-reload in place; a rude edit restarts only the API process, and Postgres, Web, the gateway and their ports stay up. Changes under `src/Aspire/` need an Aspire restart. Watch builds skip analyzers, the build server, MSBuild node reuse and the OpenAPI XML comment generator (`dev/msbuild/dev-fast.targets`); CI, the IDE and plain `dotnet build` keep them. The API runs with Workstation GC in dev. Publish mode uses the plain project resource.
+
+The codegen pipeline (NSwag + Zod + remote functions) runs in the API build only when the generated client is missing or older than the API's reference assembly, i.e. when the public surface (controllers, DTOs, attributes) changed, so `aspire start` with an up-to-date client skips it. `dotnet watch` rebuilds during the hot loop always **skip** it. If you change a controller/DTO and need the TS client to catch up, force a regen with `dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true`. If you come across a roadblock from the `.dll`s being in use, just kill the dotnet processes.
 
 ### Generated Files
 
