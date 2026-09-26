@@ -16,7 +16,7 @@
 		"lint:ci": "eslint . --max-warnings 0 --report-unused-disable-directives-severity error"
 	},
 	"devDependencies": {
-		"@lucide/svelte": "^0.555.0",
+		"@lucide/svelte": "^1.14.0",
 		"@nocturne/cms": "workspace:*",
 		"@nocturne/eslint-config": "workspace:*",
 		"@nocturne/screenshots": "workspace:*",

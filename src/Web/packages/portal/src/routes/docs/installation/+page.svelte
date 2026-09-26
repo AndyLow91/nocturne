@@ -1,7 +1,10 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
   import { Button } from "@nocturne/ui/ui/button";
-  import { ArrowRight, ChevronDown, ExternalLink, MapPin } from "@lucide/svelte";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
+  import MapPin from "@lucide/svelte/icons/map-pin";
   import SystemRequirements from "$lib/components/docs/SystemRequirements.svelte";
   import PikaPodsVoteCard from "$lib/components/PikaPodsVoteCard.svelte";
 

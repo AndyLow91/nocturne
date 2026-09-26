@@ -10,7 +10,7 @@
     CardHeader,
     CardTitle,
   } from "$lib/components/ui/card";
-  import { ChevronLeft } from "lucide-svelte";
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
   import ConnectorSetup from "$lib/components/connectors/ConnectorSetup.svelte";
 
   const connectorName = $derived(page.params.connector);

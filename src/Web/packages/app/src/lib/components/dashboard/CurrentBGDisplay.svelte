@@ -23,7 +23,7 @@
     minutesAgo,
     prefersHour12,
   } from "$lib/utils/formatting";
-  import { Clock } from "lucide-svelte";
+  import Clock from "@lucide/svelte/icons/clock";
   import { createConnectionIndicator } from "$lib/stores/connection-indicator.svelte";
 
   interface ComponentProps {
