@@ -85,6 +85,15 @@ public class MigrationJobService : IMigrationJobService
         _runGuard = runGuard;
     }
 
+    private static readonly TimeSpan TerminalHolderWait = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TerminalHolderPollInterval = TimeSpan.FromMilliseconds(20);
+
+    private bool IsTerminal(Guid jobId) =>
+        _jobs.TryGetValue(jobId, out var job)
+        && job.GetStatus().State is MigrationJobState.Completed
+            or MigrationJobState.Failed
+            or MigrationJobState.Cancelled;
+
     public async Task<MigrationJobInfo> StartMigrationAsync(
         StartMigrationRequest request,
         TenantContext? tenantContext,
@@ -121,10 +130,21 @@ public class MigrationJobService : IMigrationJobService
         // The lease is held for the whole run and records the job id, so a refused start can report
         // which job it collided with rather than a bare conflict.
         IDisposable lease;
+        var terminalHolderDeadline = DateTime.UtcNow + TerminalHolderWait;
         while ((lease = _runGuard.TryAcquire(tenantId, MigrationRunName, jobId)) is null)
         {
             if (_runGuard.TryGetHolder(tenantId, MigrationRunName, out var runningJobId))
+            {
+                // A job reports its terminal state before it writes its final record and releases
+                // the lease, so a caller who saw it finish must not be refused for that window.
+                if (IsTerminal(runningJobId) && DateTime.UtcNow < terminalHolderDeadline)
+                {
+                    await Task.Delay(TerminalHolderPollInterval, ct);
+                    continue;
+                }
+
                 throw new MigrationAlreadyRunningException(runningJobId);
+            }
 
             // The holder released between the failed acquire and the read; try again.
         }
