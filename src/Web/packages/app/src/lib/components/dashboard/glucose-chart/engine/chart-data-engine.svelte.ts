@@ -12,9 +12,7 @@ import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
 import { getChartData } from "$api/chart-data.remote";
 import { remoteErrorMessage } from "$lib/api/remote-error";
 import { PREDICTIONS_UNAVAILABLE } from "$lib/api/predictions-messages";
-
-/** Shown in place of the chart when its data could not be loaded and the server gave no reason. */
-export const CHART_DATA_UNAVAILABLE = "The chart data could not be loaded.";
+import { CHART_DATA_UNAVAILABLE } from "$lib/api/chart-data-messages";
 import {
   getPredictions,
   getPredictionStatus,
