@@ -143,6 +143,8 @@ public class CountController : ControllerBase
         CancellationToken cancellationToken = default
     )
     {
+        find = LegacyFindQueryString.Resolve(HttpContext?.Request, find);
+
         _logger.LogDebug(
             "Count treatments endpoint requested with find: {Find} from {RemoteIpAddress}",
             find,
@@ -336,7 +338,9 @@ public class CountController : ControllerBase
                     break;
                 case "treatments":
                     count = await _treatmentStore.CountAsync(
-                        LegacyTreatmentDateWindow.Apply(find, _timeProvider.GetUtcNow()), cancellationToken);
+                        LegacyTreatmentDateWindow.Apply(
+                            LegacyFindQueryString.Resolve(HttpContext?.Request, find), _timeProvider.GetUtcNow()),
+                        cancellationToken);
                     break;
                 case "devicestatus":
                     count = await _apsSnapshotRepository.CountAsync(null, null, cancellationToken);

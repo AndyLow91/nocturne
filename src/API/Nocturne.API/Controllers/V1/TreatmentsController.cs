@@ -71,28 +71,7 @@ public class TreatmentsController : ControllerBase
         CancellationToken cancellationToken = default
     )
     {
-        // Get the full query string to handle multiple find parameters correctly
-        var queryString = HttpContext?.Request?.QueryString.ToString() ?? string.Empty;
-
-        // Strip the leading '?' if present
-        if (queryString.StartsWith("?"))
-        {
-            queryString = queryString.Substring(1);
-        }
-
-        // Extract find query from the query string (handles multiple find parameters)
-        string? findQuery = null;
-        if (
-            !string.IsNullOrEmpty(queryString)
-            && (queryString.Contains("find[") || queryString.Contains("find%5B"))
-        )
-        {
-            findQuery = queryString;
-        }
-        else if (!string.IsNullOrEmpty(find))
-        {
-            findQuery = find;
-        }
+        var findQuery = LegacyFindQueryString.Resolve(HttpContext?.Request, find);
 
         _logger.LogDebug(
             "Treatments endpoint requested with count: {Count}, skip: {Skip}, findQuery: {FindQuery} from {RemoteIpAddress}",

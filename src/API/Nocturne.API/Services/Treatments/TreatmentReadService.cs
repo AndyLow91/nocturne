@@ -58,7 +58,7 @@ public class TreatmentReadService : ITreatmentStore
     /// Upper bound on rows fetched into memory when a find query carries field filters, which can
     /// only be applied after projection and therefore defeat limit pushdown.
     /// </summary>
-    private const int MaxFilterFetch = 100_000;
+    internal int MaxFilterFetch { get; set; } = 100_000;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Treatment>> QueryAsync(TreatmentQuery query, CancellationToken ct = default)

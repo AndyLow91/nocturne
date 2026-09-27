@@ -17,6 +17,7 @@ using Nocturne.Core.Contracts.Treatments;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Authorization;
 using Nocturne.Core.Models.Queries;
 using Xunit;
 
@@ -135,17 +136,58 @@ public class TreatmentFindDateWindowTests
             .Callback((string? find, CancellationToken _) => observed = find)
             .ReturnsAsync(0);
 
-        var controller = new CountController(
-            Mock.Of<IEntryStore>(), store.Object, Mock.Of<IApsSnapshotRepository>(),
-            Mock.Of<IProfileProjectionService>(), Mock.Of<IFoodRepository>(),
-            Mock.Of<IActivityService>(), new FakeTimeProvider(Now), NullLogger<CountController>.Instance)
-        {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
-        };
-
-        await controller.CountTreatments("{\"eventType\":\"Note\"}");
+        await NewCountController(store.Object, "").CountTreatments("{\"eventType\":\"Note\"}");
 
         FindQuery.Parse(observed).FromMills.Should().Be(WindowStartMills);
+    }
+
+    [Theory]
+    [InlineData("?find[eventType]=Note")]
+    [InlineData("?find%5BeventType%5D=Note")]
+    public async Task CountTreatments_QueryStringFind_IsFilteredAndWindowed(string queryString)
+    {
+        string? observed = null;
+        var store = new Mock<ITreatmentStore>();
+        store
+            .Setup(s => s.CountAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback((string? find, CancellationToken _) => observed = find)
+            .ReturnsAsync(0);
+
+        await NewCountController(store.Object, queryString).CountTreatments(find: null);
+
+        var parsed = FindQuery.Parse(observed);
+        parsed.HasFieldFilters.Should().BeTrue();
+        parsed.FromMills.Should().Be(WindowStartMills);
+    }
+
+    [Fact]
+    public async Task CountGenericTreatments_QueryStringFind_IsFilteredAndWindowed()
+    {
+        string? observed = null;
+        var store = new Mock<ITreatmentStore>();
+        store
+            .Setup(s => s.CountAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback((string? find, CancellationToken _) => observed = find)
+            .ReturnsAsync(0);
+        var controller = NewCountController(store.Object, "?find[eventType]=Note");
+        controller.HttpContext.Items["GrantedScopes"] = Scope.Normalize([Scope.TreatmentsRead]);
+
+        await controller.CountGeneric("treatments", find: null);
+
+        var parsed = FindQuery.Parse(observed);
+        parsed.HasFieldFilters.Should().BeTrue();
+        parsed.FromMills.Should().Be(WindowStartMills);
+    }
+
+    [Fact]
+    public void JsonFindWithDuplicateKeys_IsWindowedWithoutThrowing()
+    {
+        const string find = "{\"eventType\":\"Note\",\"eventType\":\"Meal Bolus\"}";
+
+        var windowed = LegacyTreatmentDateWindow.Apply(find, Now);
+
+        windowed.Should().StartWith(find[..^1]);
+        FindQuery.Parse(windowed).FromMills.Should().Be(WindowStartMills);
     }
 
     [Fact]
@@ -171,7 +213,7 @@ public class TreatmentFindDateWindowTests
     [Fact]
     public async Task FilteredCount_LogsWhenItHitsTheFetchCap()
     {
-        const int maxFilterFetch = 100_000;
+        const int maxFilterFetch = 3;
         var projected = Enumerable.Range(0, maxFilterFetch)
             .Select(i => new Treatment { EventType = "Note", Mills = i })
             .ToList();
@@ -182,7 +224,10 @@ public class TreatmentFindDateWindowTests
             .ReturnsAsync(projected);
         var logger = new Mock<ILogger<TreatmentReadService>>();
 
-        await NewReadService(projection.Object, logger.Object).CountAsync("{\"eventType\":\"Temp Basal\"}");
+        var service = NewReadService(projection.Object, logger.Object);
+        service.MaxFilterFetch = maxFilterFetch;
+
+        await service.CountAsync("{\"eventType\":\"Temp Basal\"}");
 
         logger.Verify(l => l.Log(
             LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), It.IsAny<Exception?>(),
@@ -196,6 +241,19 @@ public class TreatmentFindDateWindowTests
         return new TreatmentsController(
             service, Mock.Of<IDocumentProcessingService>(), new FakeTimeProvider(Now),
             NullLogger<TreatmentsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext },
+        };
+    }
+
+    private static CountController NewCountController(ITreatmentStore store, string queryString)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.QueryString = new QueryString(queryString);
+        return new CountController(
+            Mock.Of<IEntryStore>(), store, Mock.Of<IApsSnapshotRepository>(),
+            Mock.Of<IProfileProjectionService>(), Mock.Of<IFoodRepository>(),
+            Mock.Of<IActivityService>(), new FakeTimeProvider(Now), NullLogger<CountController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };

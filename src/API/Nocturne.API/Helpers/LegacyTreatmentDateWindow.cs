@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json.Nodes;
 using Nocturne.Core.Models.Queries;
 
 namespace Nocturne.API.Helpers;
@@ -45,9 +44,10 @@ public static class LegacyTreatmentDateWindow
 
         if (find!.TrimStart().StartsWith('{'))
         {
-            var root = JsonNode.Parse(find)!.AsObject();
-            root["created_at"] = new JsonObject { ["$gte"] = minDate };
-            return root.ToJsonString();
+            // Spliced into the text rather than rebuilt through JsonNode, which throws on the
+            // duplicate keys FindQuery.Parse accepts; the original members parse unchanged.
+            var body = find.TrimEnd();
+            return $"{body[..^1]},\"created_at\":{{\"$gte\":\"{minDate}\"}}}}";
         }
 
         return $"{find}&find[created_at][$gte]={Uri.EscapeDataString(minDate)}";
