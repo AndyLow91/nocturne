@@ -7,6 +7,10 @@ namespace Nocturne.Connectors.Core.Interfaces;
 
 public interface ITreatmentPublisher
 {
+    /// <remarks>
+    /// Rows <paramref name="source"/> stored under a treatment's client id (<see cref="TreatmentClientId"/>)
+    /// are moved onto the treatment's own id before the write, unless that id is already stored.
+    /// </remarks>
     Task<bool> PublishTreatmentsAsync(
         IEnumerable<Treatment> treatments,
         string source,

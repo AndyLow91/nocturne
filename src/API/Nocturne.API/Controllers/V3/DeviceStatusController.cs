@@ -10,6 +10,7 @@ using Nocturne.Core.Contracts.Events;
 using Nocturne.Core.Contracts.Legacy;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Serializers;
 
 namespace Nocturne.API.Controllers.V3;
 
@@ -345,7 +346,7 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
         {
             deviceStatus = JsonSerializer.Deserialize<DeviceStatus>(
                 request.GetRawText(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                UploaderIdJsonModifier.CaseInsensitiveReadOptions
             );
         }
         catch (JsonException)
@@ -585,7 +586,7 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
 
                     var deviceStatus = JsonSerializer.Deserialize<DeviceStatus>(
                         element.GetRawText(),
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                        UploaderIdJsonModifier.CaseInsensitiveReadOptions
                     );
                     if (deviceStatus != null)
                     {
@@ -604,7 +605,7 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
 
                 var deviceStatus = JsonSerializer.Deserialize<DeviceStatus>(
                     jsonElement.GetRawText(),
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    UploaderIdJsonModifier.CaseInsensitiveReadOptions
                 );
                 if (deviceStatus != null)
                 {

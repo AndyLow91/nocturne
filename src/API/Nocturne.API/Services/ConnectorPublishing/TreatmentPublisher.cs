@@ -83,7 +83,8 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
     /// <remarks>
     /// Every row written carries the fingerprint of the treatment it came from
     /// (<see cref="UpstreamFingerprintScope"/>), which <see cref="PublishRecentTreatmentsAsync"/>
-    /// compares against.
+    /// compares against. Rows stored under a treatment's client id are moved onto its id first
+    /// (<see cref="ITreatmentDecomposer.RekeyClientIdRecordsAsync"/>), so the write lands on them.
     /// </remarks>
     public async Task<bool> PublishTreatmentsAsync(
         IEnumerable<Treatment> treatments,
@@ -99,6 +100,9 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
                 if (treatment.Id is { Length: > 0 } id)
                     fingerprints[(treatment.DataSource ?? source, id)] = TreatmentDecomposer.UpstreamFingerprint(treatment);
             }
+
+            using (PushSystemAudit())
+                await _treatmentDecomposer.RekeyClientIdRecordsAsync(source, list, cancellationToken);
 
             using var scope = UpstreamFingerprintScope.Open(fingerprints);
             var written = await _treatmentService.CreateTreatmentsAsync(list, cancellationToken);

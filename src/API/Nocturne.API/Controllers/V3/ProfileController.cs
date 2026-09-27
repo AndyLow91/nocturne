@@ -7,6 +7,7 @@ using Nocturne.Core.Models.Authorization;
 using Nocturne.Core.Contracts.Legacy;
 using Nocturne.Core.Contracts.Profiles;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Serializers;
 
 namespace Nocturne.API.Controllers.V3;
 
@@ -433,7 +434,7 @@ public class ProfileController : BaseV3Controller<Profile>
                 {
                     var profile = JsonSerializer.Deserialize<Profile>(
                         element.GetRawText(),
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                        UploaderIdJsonModifier.CaseInsensitiveReadOptions
                     );
                     if (profile != null)
                     {
@@ -445,7 +446,7 @@ public class ProfileController : BaseV3Controller<Profile>
             {
                 var profile = JsonSerializer.Deserialize<Profile>(
                     jsonElement.GetRawText(),
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    UploaderIdJsonModifier.CaseInsensitiveReadOptions
                 );
                 if (profile != null)
                 {
