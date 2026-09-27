@@ -73,6 +73,11 @@ public class NightscoutBaseUriTests
     [InlineData("ftp://ns.example/nightscout?token=synthetic-token", "ftp://ns.example/nightscout")]
     [InlineData("not an address#section", "not an address")]
     [InlineData("not an address", "not an address")]
+    [InlineData("ftp://user:pass@ns.example/nightscout?token=synthetic-token", "ftp://ns.example/nightscout")]
+    [InlineData("ftp://user@ns.example", "ftp://ns.example")]
+    [InlineData("ftp://ns.example/a@b", "ftp://ns.example/a@b")]
+    [InlineData("user:pass@not an address/nightscout", "not an address/nightscout")]
+    [InlineData("", "")]
     public void Display_never_carries_a_query_user_info_or_fragment(string configured, string expected)
     {
         NightscoutBaseUri.Display(configured).Should().Be(expected);

@@ -198,4 +198,23 @@ public class MigrationSourceIdentityTests
             n => n.AddAdminNotificationAsync(It.IsAny<AdminNotification>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public void The_pending_config_offers_the_configured_url_without_its_token()
+    {
+        var service = new MigrationJobService(
+            NullLogger<MigrationJobService>.Instance,
+            new ServiceCollection().BuildServiceProvider(),
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MIGRATION_MODE"] = "Api",
+                ["MIGRATION_NS_URL"] = "https://user:pass@example-nightscout.invalid/nightscout/?token=synthetic-token",
+            }).Build(),
+            new TenantRunGuard());
+
+        var pending = service.GetPendingConfig();
+
+        pending.HasPendingConfig.Should().BeTrue();
+        pending.NightscoutUrl.Should().Be(CleanUrl);
+    }
 }

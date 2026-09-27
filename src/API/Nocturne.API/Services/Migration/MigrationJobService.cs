@@ -418,7 +418,7 @@ public class MigrationJobService : IMigrationJobService
         {
             HasPendingConfig = true,
             Mode = mode,
-            NightscoutUrl = _configuration["MIGRATION_NS_URL"],
+            NightscoutUrl = _configuration["MIGRATION_NS_URL"] is { Length: > 0 } url ? NightscoutBaseUri.Display(url) : null,
             HasApiSecret = !string.IsNullOrEmpty(_configuration["MIGRATION_NS_API_SECRET"]),
             HasMongoConnectionString = !string.IsNullOrEmpty(
                 _configuration["MIGRATION_MONGO_CONNECTION_STRING"]

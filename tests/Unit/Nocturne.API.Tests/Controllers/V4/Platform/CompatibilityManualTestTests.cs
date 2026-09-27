@@ -8,6 +8,7 @@ using Nocturne.API.Configuration;
 using Nocturne.API.Controllers.V4.Platform;
 using Nocturne.API.Helpers;
 using Nocturne.API.Services.Compatibility;
+using Nocturne.Connectors.Nightscout.Configurations;
 using Nocturne.Infrastructure.Data.Abstractions;
 using Xunit;
 
@@ -15,7 +16,7 @@ namespace Nocturne.API.Tests.Controllers.V4.Platform;
 
 /// <summary>
 /// The manual compatibility test reads the Nightscout side under the URL's path, and never with
-/// the URL's query spliced into that path.
+/// the URL's query spliced into that path; the configured URL is never shown with its token.
 /// </summary>
 [Trait("Category", "Unit")]
 public class CompatibilityManualTestTests
@@ -42,7 +43,8 @@ public class CompatibilityManualTestTests
             States.SelectMany(s => s).FirstOrDefault(kv => kv.Key == name).Value;
     }
 
-    private static CompatibilityController Controller(RecordingLogger logger)
+    private static CompatibilityController Controller(
+        RecordingLogger logger, NightscoutConnectorConfiguration? nightscoutConfig = null)
     {
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = "http";
@@ -52,7 +54,8 @@ public class CompatibilityManualTestTests
             Mock.Of<IDiscrepancyPersistenceService>(),
             Mock.Of<IDiscrepancyAnalysisRepository>(),
             Options.Create(new CompatibilityProxyConfiguration()),
-            logger)
+            logger,
+            nightscoutConfig)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };
@@ -89,5 +92,18 @@ public class CompatibilityManualTestTests
         var problem = response.Result.Should().BeOfType<ObjectResult>().Subject;
         problem.StatusCode.Should().Be(400);
         problem.Value.Should().BeOfType<ProblemDetails>().Which.Detail.Should().Be(NightscoutBaseUri.InvalidUrlMessage);
+    }
+
+    [Theory]
+    [InlineData("https://user:pass@ns.example/nightscout/?token=synthetic-token", "https://ns.example/nightscout")]
+    [InlineData("", "")]
+    public void The_configuration_shows_the_nightscout_url_without_its_token(string configured, string expected)
+    {
+        var response = Controller(new RecordingLogger(), new NightscoutConnectorConfiguration { Url = configured })
+            .GetConfiguration();
+
+        response.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<ProxyConfigurationDto>()
+            .Which.NightscoutUrl.Should().Be(expected);
     }
 }

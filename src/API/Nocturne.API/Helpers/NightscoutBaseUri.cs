@@ -53,7 +53,8 @@ public static class NightscoutBaseUri
 
     /// <summary>
     /// <paramref name="nightscoutUrl"/> as it may be stored or shown: the base with no trailing
-    /// slash. A value that does not read as an address is cut at its query or fragment.
+    /// slash. A value that does not read as an address is cut at its query or fragment, and loses
+    /// any user info before its host.
     /// </summary>
     public static string Display(string nightscoutUrl)
     {
@@ -61,6 +62,15 @@ public static class NightscoutBaseUri
             return baseUri.AbsoluteUri.TrimEnd('/');
 
         var end = nightscoutUrl.IndexOfAny(['?', '#']);
-        return end < 0 ? nightscoutUrl : nightscoutUrl[..end];
+        var kept = end < 0 ? nightscoutUrl : nightscoutUrl[..end];
+
+        var schemeEnd = kept.IndexOf("://", StringComparison.Ordinal);
+        var authorityStart = schemeEnd < 0 ? 0 : schemeEnd + 3;
+        var pathStart = kept.IndexOf('/', authorityStart);
+        var authorityEnd = pathStart < 0 ? kept.Length : pathStart;
+        var at = authorityEnd > authorityStart
+            ? kept.LastIndexOf('@', authorityEnd - 1, authorityEnd - authorityStart)
+            : -1;
+        return at < 0 ? kept : kept[..authorityStart] + kept[(at + 1)..];
     }
 }
