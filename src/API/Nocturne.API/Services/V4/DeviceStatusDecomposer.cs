@@ -93,8 +93,10 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             await RegisterCgmDeviceAsync(ds, statusMills, ct);
         }
 
+        var apsAttempted = false;
         if (MapToApsSnapshot(ds, legacyId, source, result.CorrelationId) is { } apsModel)
         {
+            apsAttempted = true;
             await UpsertApsSnapshotAsync(legacyId, apsModel, pumpDeviceId, statusMills, result, origin, ct);
         }
 
@@ -108,7 +110,13 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             await DecomposeOverrideAsync(ds, legacyId, result, origin, ct);
         }
 
-        await DecomposeExtrasAsync(ds, result, origin, ct);
+        var snapshotAttempted = ds.Pump != null || apsAttempted || ds.Uploader != null || ds.UploaderBattery.HasValue;
+        var snapshotWritten = result.CreatedRecords.Concat(result.UpdatedRecords)
+            .Any(r => r is V4Models.ApsSnapshot or V4Models.PumpSnapshot or V4Models.UploaderSnapshot);
+
+        // See the held-snapshot filter in DecomposeBatchAsync.
+        if (!snapshotAttempted || snapshotWritten)
+            await DecomposeExtrasAsync(ds, result, origin, ct);
 
         return result;
     }

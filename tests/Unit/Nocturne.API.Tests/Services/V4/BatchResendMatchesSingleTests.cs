@@ -214,6 +214,39 @@ public class BatchResendMatchesSingleTests : IDisposable
     }
 
     [Fact]
+    public async Task DeviceStatus_SingleResendAfterUserDelete_WritesNoExtrasRow()
+    {
+        var decomposer = new DeviceStatusDecomposer(
+            new ApsSnapshotRepository(_factory, _audit, NullLogger<ApsSnapshotRepository>.Instance),
+            new PumpSnapshotRepository(_factory, _audit, NullLogger<PumpSnapshotRepository>.Instance),
+            new UploaderSnapshotRepository(_factory, _audit, NullLogger<UploaderSnapshotRepository>.Instance),
+            new DeviceStatusExtrasRepository(_factory, _audit, NullLogger<DeviceStatusExtrasRepository>.Instance),
+            Mock.Of<IStateSpanService>(),
+            Mock.Of<IDeviceService>(),
+            _audit,
+            NullLogger<DeviceStatusDecomposer>.Instance);
+
+        const string legacyId = "6500000000000000000000d3";
+        DeviceStatus Status() => new()
+        {
+            Id = legacyId, Mills = At, Device = "phone", UploaderBattery = 80,
+            ExtensionData = new Dictionary<string, JsonElement>
+            {
+                ["configuration"] = JsonDocument.Parse("""{"version":1}""").RootElement,
+            },
+        };
+
+        await decomposer.DecomposeAsync(Status(), source: null, WriteOrigin.Live);
+        await decomposer.DeleteByLegacyIdAsync(legacyId, WriteOrigin.Live);
+
+        var result = await decomposer.DecomposeAsync(Status(), source: null, WriteOrigin.Live);
+
+        result.CreatedRecords.Should().BeEmpty();
+        _context.DeviceStatusExtras.IgnoreQueryFilters().Where(e => e.DeletedAt == null)
+            .Should().BeEmpty("a resend must not revive the deleted group's extras under a fresh correlation id");
+    }
+
+    [Fact]
     public async Task Activity_BatchResend_UpdatesTheHeartRateRow()
     {
         var decomposer = new ActivityDecomposer(
