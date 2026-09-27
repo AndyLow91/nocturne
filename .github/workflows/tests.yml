@@ -9,9 +9,11 @@ on:
 permissions:
   contents: read
 
+# A pull request's new push cancels its previous run. A push to main gets its own group, so every
+# main commit is tested to the end: its coverage becomes the pull requests' baseline.
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  group: tests-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Which parts of the tree the change touches, so a docs-only pull request skips the heavy jobs.
