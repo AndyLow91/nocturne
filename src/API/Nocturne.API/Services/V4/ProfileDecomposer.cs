@@ -121,10 +121,10 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
 
         if (claim.Claims)
         {
-            if (claim.LegacyId is null)
-                await _therapySettingsRepo.SetDefaultAsync(null, ct);
-            else if (anchors.Outcomes.TryGetValue(claim.LegacyId, out var claimed))
-                await _therapySettingsRepo.SetDefaultAsync(claimed.Record.Id, ct);
+            var claimedId = claim.LegacyId is not null && anchors.Outcomes.TryGetValue(claim.LegacyId, out var claimed)
+                ? claimed.Record.Id
+                : (Guid?)null;
+            await _therapySettingsRepo.SetDefaultAsync(claimedId, ct);
         }
 
         var groups = entries
@@ -166,8 +166,9 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
     /// <c>_id</c> desc) as <c>store[defaultProfile]</c>, an exact key lookup. So only the batch's
     /// newest document claims, and only when nothing already stored is newer; a document whose
     /// <c>defaultProfile</c> names none of its stores claims with no store, leaving no default, as
-    /// Nightscout finds none. A batch that does not claim keeps the stored flags as they are, so
-    /// re-syncing an older document neither takes the default nor drops a user's choice.
+    /// Nightscout finds none, and so does a claim whose store row was not written. A batch that does
+    /// not claim keeps the stored flags as they are, so re-syncing an older document neither takes
+    /// the default nor drops a user's choice.
     /// Profile-switch snapshots are not documents, so they neither claim nor count as stored newer.
     /// </remarks>
     private async Task<DefaultClaim> ResolveDefaultClaimAsync(List<StoreEntry> entries, CancellationToken ct)

@@ -43,6 +43,7 @@ public class ProfileControllerSettingsDefaultTests
                     throw new KeyNotFoundException();
                 var row = Clone(m)!;
                 row.Id = id;
+                row.IsDefault = _rows[index].IsDefault;
                 _rows[index] = row;
                 return Clone(row)!;
             });

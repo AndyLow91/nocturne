@@ -108,6 +108,8 @@ public class TherapySettings : V4RecordBase, IProfileScoped
     /// is a tenant-wide singleton, not per-document provenance, so ingest settles it across the
     /// tenant rather than deriving it per document. The profile in effect at a given time is not
     /// this flag: that comes from Profile state spans (profile switches).
+    /// An update never writes it: only <c>ITherapySettingsRepository.SetDefaultAsync</c> moves it, so a
+    /// write carrying a stale read of the flag cannot leave a second default.
     /// </remarks>
     public bool IsDefault { get; set; }
 

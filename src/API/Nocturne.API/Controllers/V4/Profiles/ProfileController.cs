@@ -353,12 +353,6 @@ public class ProfileController : ControllerBase, IWriteScopedController
     {
         if (model.Timestamp == default)
             return Problem(detail: "Timestamp must be set", statusCode: 400, title: "Bad Request");
-        var existing = await _therapyRepo.GetByIdAsync(id, ct);
-        if (existing is null)
-            return NotFound();
-
-        var makeDefault = model.IsDefault;
-        model.IsDefault = existing.IsDefault;
         TherapySettings updated;
         try
         {
@@ -368,7 +362,7 @@ public class ProfileController : ControllerBase, IWriteScopedController
         {
             return NotFound();
         }
-        if (makeDefault)
+        if (model.IsDefault)
         {
             await _therapyRepo.SetDefaultAsync(id, ct);
             updated.IsDefault = true;

@@ -73,4 +73,23 @@ public class TherapySettingsRepositoryDefaultTests : IDisposable
 
         (await _repository.GetDefaultsAsync()).Should().BeEmpty();
     }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Update_LeavesTheStoredFlagAsItIs(bool stored, bool sent)
+    {
+        var id = await SeedAsync("doc:Default", isDefault: stored);
+
+        var updated = await _repository.UpdateAsync(id, new TherapySettings
+        {
+            LegacyId = "doc:Default",
+            Timestamp = new DateTime(2026, 5, 2, 12, 0, 0, DateTimeKind.Utc),
+            ProfileName = "Default",
+            IsDefault = sent,
+        }, WriteOrigin.Live);
+
+        updated.IsDefault.Should().Be(stored);
+        (await _repository.GetByIdAsync(id))!.IsDefault.Should().Be(stored);
+    }
 }
