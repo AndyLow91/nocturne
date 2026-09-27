@@ -94,16 +94,10 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
 
         // Act - read entries from tenant A
         using var clientA = AuthTestHelpers.CreateAuthenticatedTenantClient(Fixture, _slugA, _baseDomain, _accessTokenA);
-        var getResponse = await clientA.GetAsync("/api/v1/entries?count=100");
-        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var content = await getResponse.Content.ReadAsStringAsync();
-        var entries = JsonSerializer.Deserialize<JsonElement>(content);
-
-        // Assert - tenant A should not see the entry with sgv=180 that was seeded in B
-        var hasTenantBEntry = entries.EnumerateArray().Any(e =>
-            e.TryGetProperty("sgv", out var sgv) && sgv.GetInt32() == 180);
-        hasTenantBEntry.Should().BeFalse("tenant A must not see entries belonging to tenant B");
+        // Assert
+        (await ReadsEntryAsync(clientB, 180)).Should().BeTrue("tenant B must read back its own entry");
+        (await ReadsEntryAsync(clientA, 180)).Should().BeFalse("tenant A must not see entries belonging to tenant B");
     }
 
     [Fact]
@@ -127,16 +121,10 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
 
         // Act - read entries from tenant B
         using var clientB = AuthTestHelpers.CreateAuthenticatedTenantClient(Fixture, _slugB, _baseDomain, _accessTokenB);
-        var getResponse = await clientB.GetAsync("/api/v1/entries?count=100");
-        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var content = await getResponse.Content.ReadAsStringAsync();
-        var entries = JsonSerializer.Deserialize<JsonElement>(content);
-
-        // Assert - tenant B should not see the entry with sgv=95 that was seeded in A
-        var hasTenantAEntry = entries.EnumerateArray().Any(e =>
-            e.TryGetProperty("sgv", out var sgv) && sgv.GetInt32() == 95);
-        hasTenantAEntry.Should().BeFalse("tenant B must not see entries belonging to tenant A");
+        // Assert
+        (await ReadsEntryAsync(clientA, 95)).Should().BeTrue("tenant A must read back its own entry");
+        (await ReadsEntryAsync(clientB, 95)).Should().BeFalse("tenant B must not see entries belonging to tenant A");
     }
 
     [Fact]
@@ -163,8 +151,10 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var content = await getResponse.Content.ReadAsStringAsync();
+        var ownContent = await clientB.GetStringAsync("/api/v1/treatments?count=100");
 
         // Assert
+        ownContent.Should().Contain("tenant-b-isolation-marker", "tenant B must read back its own treatment");
         content.Should().NotContain("tenant-b-isolation-marker",
             "tenant A must not see treatments belonging to tenant B");
     }
@@ -227,16 +217,10 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
 
         // Act - read from tenant B
         using var clientB = AuthTestHelpers.CreateAuthenticatedTenantClient(Fixture, _slugB, _baseDomain, _accessTokenB);
-        var getResponse = await clientB.GetAsync("/api/v1/entries?count=100");
-        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var content = await getResponse.Content.ReadAsStringAsync();
-        var entries = JsonSerializer.Deserialize<JsonElement>(content);
 
         // Assert
-        var hasCrossTenantEntry = entries.EnumerateArray().Any(e =>
-            e.TryGetProperty("sgv", out var sgv) && sgv.GetInt32() == 222);
-        hasCrossTenantEntry.Should().BeFalse("entries written in tenant A must not be visible in tenant B");
+        (await ReadsEntryAsync(clientA, 222)).Should().BeTrue("tenant A must read back its own entry");
+        (await ReadsEntryAsync(clientB, 222)).Should().BeFalse("entries written in tenant A must not be visible in tenant B");
     }
 
     [Fact]
@@ -330,8 +314,10 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
                            $"&code_challenge={codeChallenge}&code_challenge_method=S256";
 
         // Act - the same authorize request on each tenant, each as that tenant's own member
-        using var onA = CreateNoRedirectClient(_slugA, _accessTokenA);
-        using var onB = CreateNoRedirectClient(_slugB, _accessTokenB);
+        using var onA = AuthTestHelpers.CreateAuthenticatedTenantClient(
+            Fixture, new HttpClientHandler { AllowAutoRedirect = false }, _slugA, _baseDomain, _accessTokenA);
+        using var onB = AuthTestHelpers.CreateAuthenticatedTenantClient(
+            Fixture, new HttpClientHandler { AllowAutoRedirect = false }, _slugB, _baseDomain, _accessTokenB);
         var responseA = await onA.GetAsync(authorizeUrl);
         var responseB = await onB.GetAsync(authorizeUrl);
 
@@ -346,13 +332,14 @@ public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
             "tenant B must reject the request because the client is unknown to it");
     }
 
-    private HttpClient CreateNoRedirectClient(string slug, string accessToken)
+    /// <summary>Whether <paramref name="client"/>'s tenant lists an entry with this glucose value.</summary>
+    private static async Task<bool> ReadsEntryAsync(HttpClient client, int sgv)
     {
-        var client = Fixture.CreateHttpClient(new HttpClientHandler { AllowAutoRedirect = false });
-        client.DefaultRequestHeaders.Host = $"{slug}.{_baseDomain}";
-        client.DefaultRequestHeaders.Add("api-secret", TestApiSecret);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-        return client;
+        var response = await client.GetAsync("/api/v1/entries?count=100");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var entries = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return entries.EnumerateArray().Any(e =>
+            e.TryGetProperty("sgv", out var value) && value.GetInt32() == sgv);
     }
 
     [Fact]
