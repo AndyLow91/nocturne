@@ -6,13 +6,22 @@ import {
   MIGRATION_ENTRY_COUNT,
   MIGRATION_PAGE_SIZE,
   MIGRATION_PROFILE_NAME,
+  MIGRATION_ALL_TREATMENTS,
+  MIGRATION_BG_CHECKS,
+  MIGRATION_TIED_COUNT,
+  MIGRATION_TIED_FIRST_INDEX,
+  MIGRATION_TIED_MILLS,
   MIGRATION_TREATMENTS,
   migrationEntryDate,
+  sortedByCreatedAt,
 } from "../../mocks/vendors/nightscout-migration.ts";
 
 const SOURCE_SECRET = "e2e-fake-nightscout-secret";
-// At the root of its own host: the job keeps only the origin of the URL it is given.
+// workaround: #1806 - the job drops the path of the URL it is given (a bug), so the fake is
+// migrated from the root of a host of its own rather than from its path on the mocks host.
 const SOURCE_URL = "http://nightscout-migration:8080";
+const SUB_PATH_SOURCE_URL = "http://mocks:8080/nightscout-migration";
+const BG_CHECKS_SINCE = encodeURIComponent("2026-01-01T00:00:00.000Z");
 const COLLECTIONS = ["entries", "treatments", "devicestatus", "profile"];
 
 // MigrationJobState, serialized as its number.
@@ -49,6 +58,11 @@ interface V1Treatment {
   notes?: string;
 }
 
+interface V1BgCheck {
+  created_at: string;
+  glucose: number;
+}
+
 interface V1DeviceStatus {
   created_at: string;
 }
@@ -58,19 +72,19 @@ interface V1Profile {
   store: Record<string, unknown>;
 }
 
-async function migrate(tenant: Tenant): Promise<MigrationJobStatus> {
+async function migrate(tenant: Tenant, nightscoutUrl = SOURCE_URL, collections = COLLECTIONS): Promise<MigrationJobStatus> {
   const job = await tenant.api.ok<MigrationJobInfo>("POST", "/api/v4/migration/start", {
     mode: 0,
-    nightscoutUrl: SOURCE_URL,
+    nightscoutUrl,
     nightscoutApiSecret: SOURCE_SECRET,
-    collections: COLLECTIONS,
+    collections,
   });
   return eventually(
     async () => {
       const status = await tenant.api.ok<MigrationJobStatus>("GET", `/api/v4/migration/${job.id}/status`);
       return TERMINAL.has(status.state) ? status : undefined;
     },
-    { what: "the migration job to finish", timeoutMs: 120_000, intervalMs: 500 },
+    { what: "the migration job to finish", timeoutMs: 180_000, intervalMs: 500 },
   );
 }
 
@@ -83,6 +97,12 @@ async function treatments(tenant: Tenant): Promise<V1Treatment[]> {
   return tenant.api.ok<V1Treatment[]>("GET", "/api/v1/treatments.json?count=100");
 }
 
+/** Naming created_at lifts the v1 four-day window. */
+async function bgCheckCount(tenant: Tenant): Promise<number> {
+  const path = `/api/v1/count/treatments/where?find[eventType]=BG%20Check&find[created_at][$gte]=${BG_CHECKS_SINCE}`;
+  return (await tenant.api.ok<{ count?: number }>("GET", path)).count ?? 0;
+}
+
 async function deviceStatuses(tenant: Tenant): Promise<V1DeviceStatus[]> {
   return tenant.api.ok<V1DeviceStatus[]>("GET", "/api/v1/devicestatus.json?count=100");
 }
@@ -92,14 +112,14 @@ async function migratedProfiles(tenant: Tenant): Promise<V1Profile[]> {
   return profiles.filter((p) => p.defaultProfile === MIGRATION_PROFILE_NAME);
 }
 
-describe("Nightscout migration", { timeout: 240_000 }, () => {
+describe("Nightscout migration", { timeout: 420_000 }, () => {
   let tenant: Tenant;
   let first: MigrationJobStatus;
 
   beforeAll(async () => {
     tenant = await seedTenant();
     first = await migrate(tenant);
-  }, 180_000);
+  }, 240_000);
 
   it("completes every requested collection without failures", () => {
     expect(first.state).toBe(COMPLETED);
@@ -108,7 +128,7 @@ describe("Nightscout migration", { timeout: 240_000 }, () => {
       expect(first.collectionProgress[name], name).toMatchObject({ isComplete: true, documentsFailed: 0, failureReason: null });
     }
     expect(first.collectionProgress.entries!.documentsMigrated).toBe(MIGRATION_ENTRY_COUNT);
-    expect(first.collectionProgress.treatments!.documentsMigrated).toBe(MIGRATION_TREATMENTS.length);
+    expect(first.collectionProgress.treatments!.documentsMigrated).toBe(MIGRATION_ALL_TREATMENTS.length);
     expect(first.collectionProgress.devicestatus!.documentsMigrated).toBe(MIGRATION_DEVICE_STATUSES.length);
   });
 
@@ -121,6 +141,27 @@ describe("Nightscout migration", { timeout: 240_000 }, () => {
       const found = await tenant.api.ok<V1Entry[]>("GET", `/api/v1/entries.json?find[date][$eq]=${date}`);
       expect(found.filter((e) => e.date === date), `entry ${index}`).toHaveLength(1);
     }
+  });
+
+  it("imports every treatment once, across a page boundary inside one millisecond", async () => {
+    const served = sortedByCreatedAt(MIGRATION_ALL_TREATMENTS);
+    expect(served.length).toBeGreaterThan(MIGRATION_PAGE_SIZE);
+    for (const index of [MIGRATION_TIED_FIRST_INDEX, MIGRATION_PAGE_SIZE - 1, MIGRATION_PAGE_SIZE, MIGRATION_TIED_FIRST_INDEX + MIGRATION_TIED_COUNT - 1]) {
+      expect(served[index]!.expectedMills, `served treatment ${index} is a tied check`).toBe(MIGRATION_TIED_MILLS);
+    }
+
+    expect(await bgCheckCount(tenant)).toBe(MIGRATION_BG_CHECKS.length);
+
+    const from = encodeURIComponent(new Date(MIGRATION_TIED_MILLS - 1000).toISOString());
+    const to = encodeURIComponent(new Date(MIGRATION_TIED_MILLS + 1000).toISOString());
+    const stored = await tenant.api.ok<V1BgCheck[]>(
+      "GET",
+      `/api/v1/treatments.json?count=100&find[eventType]=BG%20Check&find[created_at][$gte]=${from}&find[created_at][$lte]=${to}`,
+    );
+    const key = (mills: number, glucose: number) => `${mills} ${glucose}`;
+    const expected = MIGRATION_BG_CHECKS.filter((c) => c.expectedMills === MIGRATION_TIED_MILLS).map((c) => key(c.expectedMills, c.glucose!));
+    expect(expected).toHaveLength(MIGRATION_TIED_COUNT + 1);
+    expect(stored.map((c) => key(Date.parse(c.created_at), c.glucose)).sort()).toEqual(expected.sort());
   });
 
   it("reads treatment times with no offset as UTC and honours an explicit offset", async () => {
@@ -154,11 +195,23 @@ describe("Nightscout migration", { timeout: 240_000 }, () => {
     expect(second.errorMessage).toBeNull();
 
     expect(await entryCount(tenant)).toBe(MIGRATION_ENTRY_COUNT);
+    expect(await bgCheckCount(tenant)).toBe(MIGRATION_BG_CHECKS.length);
     const stored = await treatments(tenant);
     for (const source of MIGRATION_TREATMENTS) {
       expect(stored.filter((t) => t.eventType === source.eventType), source.eventType).toHaveLength(1);
     }
     expect(await deviceStatuses(tenant)).toHaveLength(MIGRATION_DEVICE_STATUSES.length);
+    expect(await migratedProfiles(tenant)).toHaveLength(1);
+  });
+});
+
+describe("Nightscout migration from a sub-path", { timeout: 240_000 }, () => {
+  // Bug #1806: the job drops the path of the URL, so this migration 404s. Flip to `it` once fixed.
+  it.fails("completes when the Nightscout URL carries a path", async () => {
+    const tenant = await seedTenant();
+    const status = await migrate(tenant, SUB_PATH_SOURCE_URL, ["profile"]);
+    expect(status.errorMessage).toBeNull();
+    expect(status.state).toBe(COMPLETED);
     expect(await migratedProfiles(tenant)).toHaveLength(1);
   });
 });

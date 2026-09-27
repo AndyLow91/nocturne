@@ -143,7 +143,9 @@ describe("uploader round-trip", () => {
       });
       expect(res.status).toBe(201);
     }
-    const posted = (await v3<Treatment>(tenant, "/api/v3/treatments?limit=100"))
+    // workaround: #1807 - the identifiers the POSTs returned are not the ones history serves, so the
+    // expected set is read back from search instead.
+    const posted =(await v3<Treatment>(tenant, "/api/v3/treatments?limit=100"))
       .filter((t) => t.eventType === "Carb Correction" && carbs.includes(t.carbs!))
       .map((t) => t.identifier ?? t._id);
     expect(posted).toHaveLength(carbs.length);
@@ -240,7 +242,9 @@ describe("a treatment the user deleted", () => {
       app: "AAPS", device: "AAPS-e2e", utcOffset: 0, isValid: true, type: "NORMAL",
     };
     expect((await tenant.api.request("POST", "/api/v3/treatments", upload)).status).toBe(201);
-    const stored = (await v3<Treatment>(tenant, "/api/v3/treatments?limit=50")).find((t) => t.insulin === 0.85);
+    // workaround: #1807 - the identifier the POST returned is not accepted, so the record is found
+    // through search and deleted by the identifier search serves.
+    const stored =(await v3<Treatment>(tenant, "/api/v3/treatments?limit=50")).find((t) => t.insulin === 0.85);
     expect(stored).toBeDefined();
     expect((await tenant.api.delete(`/api/v3/treatments/${stored!.identifier}`)).status).toBeLessThan(300);
 
@@ -248,5 +252,30 @@ describe("a treatment the user deleted", () => {
     const search = await v3<Treatment>(tenant, "/api/v3/treatments?limit=50");
     expect(search.filter((t) => t.insulin === 0.85)).toEqual([]);
     expect((await v1Treatments(tenant)).filter((t) => t.insulin === 0.85)).toEqual([]);
+  });
+});
+
+describe("a v3 treatment addressed by the identifier its POST returned", () => {
+  let tenant: Tenant;
+
+  beforeAll(async () => {
+    tenant = await seedTenant();
+  });
+
+  // Bug #1807: GET, search and history serve a different identifier. Flip to `it` once fixed.
+  it.fails("can be read and deleted by that identifier", async () => {
+    const created = await tenant.api.request<V3Created>("POST", "/api/v3/treatments", {
+      eventType: "Correction Bolus", insulin: 0.95, date: Math.floor((Date.now() - 20 * MINUTE) / 1000) * 1000,
+      app: "AAPS", device: "AAPS-e2e", utcOffset: 0, isValid: true, type: "NORMAL",
+    });
+    expect(created.status).toBe(201);
+    const identifier = created.body.identifier;
+
+    expect((await tenant.api.get(`/api/v3/treatments/${identifier}`)).status).toBe(200);
+    const search = await v3<Treatment>(tenant, "/api/v3/treatments?limit=50");
+    expect(search.filter((t) => t.insulin === 0.95).map((t) => t.identifier)).toEqual([identifier]);
+
+    expect((await tenant.api.delete(`/api/v3/treatments/${identifier}`)).status).toBeLessThan(300);
+    expect((await v3<Treatment>(tenant, "/api/v3/treatments?limit=50")).filter((t) => t.insulin === 0.95)).toEqual([]);
   });
 });

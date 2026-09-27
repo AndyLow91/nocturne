@@ -2,8 +2,9 @@
 // (`/nightscout/...`), so a connector is pointed at `http://mocks:8080/<vendor>`.
 // Adding a vendor means adding a module under ./vendors and listing it below.
 //
-// A vendor is also served at the root of a host of its own name, for a client that drops a base
-// URL's path; docker-compose.yml gives the container that name as an alias.
+// workaround: #1806 - a vendor is also served at the root of a host of its own name, because the
+// migration job drops a base URL's path (a bug); docker-compose.yml gives the container that name
+// as an alias.
 //
 // Every vendor also answers `GET /<vendor>/__requests` with the requests it has served, and
 // `DELETE /<vendor>/__requests` to clear them, so specs can assert what a connector called.

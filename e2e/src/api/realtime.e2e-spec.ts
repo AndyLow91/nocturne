@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { minutesAgo, postEntries, postTreatments, sgvSeries } from "../helpers/data.ts";
 import { HubConnection } from "../helpers/signalr.ts";
@@ -12,6 +13,17 @@ interface StorageEvent {
 interface V1Treatment {
   _id: string;
   notes?: string;
+  insulin?: number;
+}
+
+interface V1Entry {
+  _id: string;
+  date: number;
+}
+
+interface SensorGlucose {
+  id: string;
+  mills: number;
 }
 
 const storage = (args: unknown[]) => (args[0] ?? {}) as StorageEvent;
@@ -49,18 +61,39 @@ describe("realtime data hub", () => {
   it("pushes a deleted entry as a delete", async () => {
     const [entry] = sgvSeries({ count: 1, end: Date.now() - 60 * 60 * 1000, valueAt: () => 97, device: "e2e-realtime" });
     await postEntries(tenant.api, [entry!]);
-    const [created] = await hub.waitFor("create", (a) => storage(a).colName === "entries" && storage(a).doc?.date === entry!.date, {
+    await hub.waitFor("create", (a) => storage(a).colName === "entries" && storage(a).doc?.date === entry!.date, {
       what: "the entry's create event",
     });
 
-    // Deleted by the id its create event carried, as a realtime client holds it.
-    const del = await tenant.api.delete(`/api/v1/entries/${storage([created]).doc?._id}`);
+    // workaround: #1808 - neither v1 nor v3 deletes an entry by the _id REST serves, so it is
+    // deleted by its v4 id, which stays valid whatever id the socket and REST carry.
+    const readings = await tenant.api.ok<{ data: SensorGlucose[] }>(
+      "GET",
+      `/api/v4/glucose/sensor?from=${encodeURIComponent(new Date(entry!.date).toISOString())}&limit=50`,
+    );
+    const reading = readings.data.find((g) => g.mills === entry!.date);
+    expect(reading).toBeDefined();
+    const del = await tenant.api.delete(`/api/v4/glucose/sensor/${reading!.id}`);
     expect(del.status).toBeLessThan(300);
     await hub.waitFor("delete", (a) => storage(a).colName === "entries" && storage(a).doc?.date === entry!.date, {
       what: "the entry's delete event",
     });
   });
 
+  // Bug #1808: the v1 delete matches legacy ids only. Flip to `it` once fixed.
+  it.fails("deletes an entry by the _id REST serves", async () => {
+    const [entry] = sgvSeries({ count: 1, end: Date.now() - 90 * 60 * 1000, valueAt: () => 98, device: "e2e-realtime" });
+    await postEntries(tenant.api, [entry!]);
+    const [rest] = await tenant.api.ok<V1Entry[]>("GET", `/api/v1/entries.json?find[date][$eq]=${entry!.date}`);
+    expect(rest).toBeDefined();
+
+    expect((await tenant.api.delete(`/api/v1/entries/${rest!._id}`)).status).toBeLessThan(300);
+    await hub.waitFor("delete", (a) => storage(a).colName === "entries" && storage(a).doc?.date === entry!.date, {
+      what: "the entry's delete event",
+    });
+  });
+
+  // workaround: #1809 - the create event is not compared with REST; see the specs expected to fail below.
   it("pushes a treatment create and delete", async () => {
     const notes = `e2e realtime ${Date.now()}`;
     await postTreatments(tenant.api, [{ eventType: "Note", created_at: minutesAgo(15), notes, enteredBy: "e2e" }]);
@@ -76,6 +109,41 @@ describe("realtime data hub", () => {
       what: "the treatment's delete event",
     });
     expect(storage([deleted]).identifier).toBe(rest!._id);
+  });
+
+  // Bug #1809: the create event carries a different _id than REST. Flip to `it` once fixed.
+  it.fails("carries the REST _id on a treatment create", async () => {
+    const notes = `e2e realtime id ${Date.now()}`;
+    await postTreatments(tenant.api, [{ eventType: "Note", created_at: minutesAgo(25), notes, enteredBy: "e2e" }]);
+    const [created] = await hub.waitFor("create", (a) => storage(a).colName === "treatments" && storage(a).doc?.notes === notes, {
+      what: "the treatment's create event",
+    });
+
+    const rest = (await tenant.api.ok<V1Treatment[]>("GET", "/api/v1/treatments.json?count=20")).find((t) => t.notes === notes);
+    expect(rest).toBeDefined();
+    expect(storage([created]).doc?._id).toBe(rest!._id);
+  });
+
+  // Bug #1809: a re-upload refused by the user's delete still broadcasts a create. Flip to `it` once fixed.
+  it.fails("pushes no create when an uploader re-sends a treatment the user deleted", async () => {
+    const upload = [{ eventType: "Correction Bolus", insulin: 0.65, created_at: minutesAgo(35), enteredBy: "loop://e2e-iphone", syncIdentifier: randomUUID() }];
+    const isThis = (a: unknown[]) => storage(a).colName === "treatments" && storage(a).doc?.insulin === 0.65;
+    await tenant.api.ok("POST", "/api/v1/treatments", upload);
+    await hub.waitFor("create", isThis, { what: "the treatment's create event" });
+
+    const rest = (await tenant.api.ok<V1Treatment[]>("GET", "/api/v1/treatments.json?count=20")).find((t) => t.insulin === 0.65);
+    expect(rest).toBeDefined();
+    expect((await tenant.api.delete(`/api/v1/treatments/${rest!._id}`)).status).toBeLessThan(300);
+    await hub.waitFor("delete", isThis, { what: "the treatment's delete event" });
+
+    await tenant.api.request("POST", "/api/v1/treatments", upload);
+    // Writes are broadcast before their request returns, so once a later write has arrived, a
+    // create for the re-upload would have too.
+    const sentinel = `e2e realtime sentinel ${Date.now()}`;
+    await postTreatments(tenant.api, [{ eventType: "Note", created_at: minutesAgo(5), notes: sentinel, enteredBy: "e2e" }]);
+    await hub.waitFor("create", (a) => storage(a).doc?.notes === sentinel, { what: "the later write's create event" });
+
+    expect(hub.events.filter((e) => e.target === "create" && isThis(e.args))).toHaveLength(1);
   });
 
   it("delivers nothing written to another tenant", async () => {
