@@ -63,7 +63,7 @@ public class ClientIdRekeyTests : IDisposable
     [Fact]
     public async Task Carb_equivalents_stored_as_one_row_are_split_into_one_row_each()
     {
-        var stored = await StoreAsync(TrioId, Source, carbs: 12, at: MealAt.AddHours(2));
+        var stored = await StoreAsync(TrioId, Source, carbs: 12, at: MealAt.AddHours(3));
 
         await _publisher.PublishTreatmentsAsync(
         [
@@ -74,7 +74,25 @@ public class ClientIdRekeyTests : IDisposable
 
         var live = await _context.CarbIntakes.AsNoTracking().OrderBy(c => c.LegacyId).ToListAsync();
         live.Select(c => (c.LegacyId, c.Carbs)).Should().Equal((ObjectIdA, 10), (ObjectIdB, 11), (ObjectIdC, 12));
-        live.Should().Contain(c => c.Id == stored, "the stored row is moved, not left beside a copy");
+        live.Single(c => c.Id == stored).LegacyId.Should().Be(ObjectIdC,
+            "the stored row moves to the equivalent at its time, not beside a copy");
+    }
+
+    [Fact]
+    public async Task A_merged_row_the_user_deleted_blocks_every_equivalent()
+    {
+        await StoreAsync(TrioId, Source, carbs: 12, at: MealAt.AddHours(3), deletedByUser: true);
+
+        await _publisher.PublishTreatmentsAsync(
+        [
+            Equivalent(ObjectIdA, 10, MealAt.AddHours(1)),
+            Equivalent(ObjectIdB, 11, MealAt.AddHours(2)),
+            Equivalent(ObjectIdC, 12, MealAt.AddHours(3)),
+        ], Source, WriteOrigin.Live);
+
+        _context.CarbIntakes.Should().BeEmpty();
+        var tombstones = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        tombstones.Select(c => c.LegacyId).Should().BeEquivalentTo([ObjectIdA, ObjectIdB, ObjectIdC]);
     }
 
     [Fact]

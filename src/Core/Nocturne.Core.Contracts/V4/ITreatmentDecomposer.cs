@@ -66,7 +66,8 @@ public interface ITreatmentDecomposer
     /// <summary>
     /// Moves <paramref name="source"/>'s records stored under a treatment's client id
     /// (<see cref="TreatmentClientId"/>) onto the treatment's own id, when nothing is stored under that
-    /// id yet. Of treatments sharing a client id, the first takes the records.
+    /// id yet. Of treatments sharing a client id, the one at the records' time takes them (the first when
+    /// none is), and records the user deleted keep blocking every one of them.
     /// </summary>
     /// <returns>Total number of v4 records moved.</returns>
     Task<int> RekeyClientIdRecordsAsync(
