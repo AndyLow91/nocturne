@@ -129,6 +129,166 @@ async function signInToTheAuthenticatorStep(page: Page): Promise<void> {
 	await page.getByText('Your passkey was accepted.').waitFor();
 }
 
+async function seededAlertRule(
+	{ fetch }: ArrangeContext,
+	name: string,
+): Promise<Record<string, string>> {
+	const rules = await fetch('/api/v4/alert-rules');
+	const rule = Array.isArray(rules) ? rules.find((r) => stringField(r, 'name') === name) : undefined;
+	const ruleId = stringField(rule, 'id');
+	if (!ruleId) throw new Error(`the seeded tenant has no "${name}" alert rule`);
+	return { ruleId };
+}
+
+const seededLowRule = (context: ArrangeContext) => seededAlertRule(context, 'Low');
+
+interface WireCondition {
+	type: string;
+	[payload: string]: unknown;
+}
+
+const glucose = (direction: 'below' | 'above', value: number): WireCondition => ({
+	type: 'threshold',
+	threshold: { direction, value },
+});
+
+const inApp = { channelType: 'in_app' };
+
+/**
+ * Created disabled: the rules exist to be photographed, and one the engine evaluated against the
+ * seeded readings could raise a live alert over every capture after it. The switch that shows it
+ * is on the Identity card, which none of these entries photograph.
+ */
+async function createAlertRule(
+	{ fetch }: ArrangeContext,
+	rule: {
+		name: string;
+		severity: 'critical' | 'warning' | 'info';
+		condition: WireCondition;
+		channels?: Record<string, unknown>[];
+		autoResolve?: WireCondition;
+		clientConfiguration?: Record<string, unknown>;
+	},
+): Promise<Record<string, string>> {
+	const { type, [type]: conditionParams } = rule.condition;
+	const created = await fetch('/api/v4/alert-rules', {
+		method: 'POST',
+		body: {
+			name: rule.name,
+			severity: rule.severity,
+			isEnabled: false,
+			conditionType: type,
+			conditionParams,
+			channels: rule.channels ?? [inApp],
+			autoResolveEnabled: rule.autoResolve !== undefined,
+			autoResolveParams: rule.autoResolve,
+			clientConfiguration: rule.clientConfiguration,
+		},
+	});
+	const ruleId = stringField(created, 'id');
+	if (!ruleId) throw new Error(`creating the "${rule.name}" alert rule returned no id`);
+	return { ruleId };
+}
+
+// Left without a time zone, as the editor shows it once the zone is cleared back to the profile's,
+// so the picture does not carry the capture browser's own zone.
+const lowOvernight = (context: ArrangeContext) =>
+	createAlertRule(context, {
+		name: 'Low overnight',
+		severity: 'warning',
+		condition: {
+			type: 'composite',
+			composite: {
+				operator: 'and',
+				conditions: [
+					{ type: 'sustained', sustained: { minutes: 20, child: glucose('below', 70) } },
+					{ type: 'time_of_day', time_of_day: { from: '22:00', to: '07:00' } },
+				],
+			},
+		},
+		channels: [inApp, { channelType: 'web_push', destinationLabel: 'Bedroom laptop' }],
+	});
+
+const fallingTowardLow = (context: ArrangeContext) =>
+	createAlertRule(context, {
+		name: 'Falling toward low',
+		severity: 'warning',
+		condition: {
+			type: 'composite',
+			composite: {
+				operator: 'or',
+				conditions: [
+					glucose('below', 70),
+					{
+						type: 'composite',
+						composite: {
+							operator: 'and',
+							conditions: [
+								glucose('below', 100),
+								{ type: 'rate_of_change', rate_of_change: { direction: 'falling', rate: 2 } },
+							],
+						},
+					},
+				],
+			},
+		},
+	});
+
+// The docs' own auto-resolve example: one that closes the alert while it still holds. The inverse
+// of the condition would close it no sooner than the condition itself does.
+const highThatClearsItself = (context: ArrangeContext) =>
+	createAlertRule(context, {
+		name: 'High, until it is coming down',
+		severity: 'warning',
+		condition: glucose('above', 250),
+		autoResolve: {
+			type: 'sustained',
+			sustained: { minutes: 15, child: { type: 'rate_of_change', rate_of_change: { direction: 'falling', rate: 1 } } },
+		},
+	});
+
+const lowWithSmartSnooze = (context: ArrangeContext) =>
+	createAlertRule(context, {
+		name: 'Low',
+		severity: 'warning',
+		condition: glucose('below', 70),
+		clientConfiguration: {
+			snooze: {
+				defaultMinutes: 15,
+				options: [5, 15, 30, 60],
+				maxCount: 3,
+				smartSnooze: true,
+				smartSnoozeExtendMinutes: 15,
+				conditions: [{ type: 'trend', trend: { bucket: 'rising' } }],
+			},
+		},
+	});
+
+async function quietHours({ fetch }: ArrangeContext): Promise<Record<string, string>> {
+	await fetch('/api/v4/tenant-alert-settings', {
+		method: 'PUT',
+		body: {
+			dndManualActive: true,
+			dndScheduleEnabled: true,
+			dndScheduleStart: '22:00:00',
+			dndScheduleEnd: '07:00:00',
+		},
+	});
+	return {};
+}
+
+/**
+ * The replay starts playing by itself once its chart has data and sweeps the window over twelve
+ * seconds, so only the playhead standing at the far end is a frame that comes out the same twice.
+ */
+async function replayPlayedThrough(page: Page): Promise<void> {
+	await page.waitForFunction(
+		() =>
+			document.querySelector('[data-testid="playback-tick-strip"] line')?.getAttribute('x1') ===
+			'100',
+	);
+}
+
 /**
  * The screenshots the documentation embeds, by id. An id is a permanent handle: renaming one
  * breaks every page that already points at it, so add rather than rename.
@@ -380,5 +540,132 @@ export const definitions: ScreenshotDefinition[] = [
 		prepare: signInToTheAuthenticatorStep,
 		clip: '[data-testid="sign-in-card"]',
 		alt: 'The second step of signing in on an account that uses an authenticator app. Nocturne says the passkey was accepted and asks for the current six-digit code before it will finish signing you in.',
+	},
+	// The alert entries come last, and among them the ones that create rules follow the ones that
+	// read the seeded set: an arranged rule would otherwise join the alerts list, the simulator's
+	// replay and the lookup of the seeded Low by name. Do Not Disturb is last of all because it
+	// silences every alert after it.
+	{
+		id: 'alert-rule-editor',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: seededLowRule,
+		// The historic firings are the seeded alarm history, so this one image differs every capture.
+		alt: 'The page for editing one alert rule, here the Low rule. The main column starts with an Identity card for its name, description and how serious it is, then a Condition card that reads Notify when all of these are true, with one line saying glucose below 70. Down the right side, a Test alert panel offers Fire saved rule and Replay against history, and under it a list of the times this rule has actually gone off.',
+	},
+	{
+		id: 'alert-rule-identity',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: seededLowRule,
+		clip: '[data-testid="alert-identity-card"]',
+		alt: 'The Identity card of an alert rule. It holds boxes for the name of the rule and an optional description, a Severity menu set to Warning, an Enabled switch in the top corner, and a tick box for Allow through Do Not Disturb with a note that critical rules always get through.',
+		anchors: {
+			severity: '[data-testid="alert-severity"]',
+			'allow-dnd': '[data-testid="alert-allow-dnd"]',
+			enabled: '[data-testid="alert-enabled"]',
+		},
+	},
+	{
+		id: 'alert-rule-add-picker',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: seededLowRule,
+		prepare: async (page) => {
+			await page
+				.getByTestId('alert-condition-card')
+				.getByTestId('alert-add-condition')
+				.click();
+			await page.getByTestId('alert-add-picker').waitFor();
+		},
+		clip: '[data-testid="alert-add-picker"]',
+		alt: 'The list that opens from Add condition, grouped under headings. The top of it shows the glucose conditions: Glucose, Glucose bucket, Predicted glucose, Rate of change, Trend and Sensor stale, each with a coloured icon and a line saying what it checks, with the insulin group starting below.',
+	},
+	{
+		id: 'alerts-history',
+		route: '/alerts/history',
+		scenario: 'patient',
+		// Every row is the seeded alarm history, so this one image differs every capture.
+		alt: 'The Alert history page. Under Recent fires, each row names the rule that went off with a coloured dot and a label for how serious it was, marks the ones someone acknowledged, and gives when the alert started and ended and how long it lasted.',
+	},
+	{
+		id: 'alerts-simulator',
+		route: '/alerts/simulator',
+		scenario: 'patient',
+		prepare: replayPlayedThrough,
+		// The replay covers the last 24 hours of seeded readings, so this one image differs every
+		// capture.
+		alt: 'The Simulator page after a replay of the last 24 hours. A glucose graph fills the top with a marker wherever an alert would have gone off, a playback strip under it shows each event as a tick, a list names every alert and the time it would have fired, and a panel beside them lists your rules.',
+	},
+	{
+		id: 'alert-rule-sustained-low',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: lowOvernight,
+		clip: '[data-testid="alert-condition-card"]',
+		alt: 'The Condition card of a rule called Low overnight. It reads Notify when all of these are true, then two lines: glucose below 70 for at least 20 minutes, and a time of day from 10:00 PM to 07:00 AM in the time zone on the patient record.',
+		anchors: {
+			operator: '[data-testid="alert-condition-card"] [data-testid="alert-operator-toggle"]',
+			sustained: '[data-testid="alert-condition-card"] [data-testid="alert-sustained-minutes"]',
+		},
+	},
+	{
+		id: 'alert-rule-nested-group',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: fallingTowardLow,
+		clip: '[data-testid="alert-condition-card"]',
+		alt: 'The Condition card of a rule called Falling toward low. It reads Notify when any of these are true, then a line for glucose below 70, then an indented group box matching all of two lines inside it: glucose below 100, and a rate of change falling at least 2 mg/dL a minute.',
+		anchors: {
+			group: '[data-testid="alert-condition-card"] [data-testid="alert-condition-group"]',
+		},
+	},
+	{
+		id: 'alert-rule-row-actions',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: fallingTowardLow,
+		// The card sits low on the page, where the menu has no room below the row and opens upwards,
+		// out of the clip. Centred it opens downwards, over the card, and clear of the sticky banner
+		// that would cover a card scrolled to the very top.
+		prepare: async (page) => {
+			const card = page.getByTestId('alert-condition-card');
+			await card.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+			await card.getByTestId('alert-row-actions').first().click();
+			await page.getByTestId('alert-row-actions-menu').waitFor();
+		},
+		clip: '[data-testid="alert-condition-card"]',
+		alt: 'The actions menu opened from the three-dot button at the end of a condition line. It offers Wrap in AND group, Wrap in OR group, Wrap in NOT, Make sustained, and Remove.',
+	},
+	{
+		id: 'alert-rule-channels',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: lowOvernight,
+		clip: '[data-testid="alert-channels-card"]',
+		alt: 'The Channels card of an alert rule, listing where the alert is sent. An In-App entry notes it is routed to your account automatically, a Browser Push entry carries the label Bedroom laptop, and an Add channel button sits underneath.',
+	},
+	{
+		id: 'alert-rule-auto-resolve',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: highThatClearsItself,
+		clip: '[data-testid="alert-auto-resolve-card"]',
+		alt: 'The Auto-resolve card switched on, with a Suggest button beside the switch. Its condition reads Notify when all of these are true, with one line: rate of change falling at least 1 mg/dL a minute, for at least 15 minutes.',
+	},
+	{
+		id: 'alert-rule-smart-snooze',
+		route: '/alerts/{ruleId}',
+		scenario: 'patient',
+		arrange: lowWithSmartSnooze,
+		clip: '[data-testid="alert-smart-snooze-card"]',
+		alt: 'The Smart snooze card switched on. It extends a snooze by 15 minutes at a time while its condition holds, here glucose trending upward, and explains which alerts are extended when no condition is set.',
+	},
+	{
+		id: 'alerts-dnd',
+		route: '/alerts/dnd',
+		scenario: 'patient',
+		arrange: quietHours,
+		alt: 'The Do Not Disturb page. The Manual card has its switch on, with an optional box for when it should switch itself off. The Schedule card has quiet hours switched on from 10:00 PM to 07:00 AM, with a note that the times follow the time zone on your patient record.',
 	},
 ];
