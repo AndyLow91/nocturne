@@ -1194,8 +1194,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
             NormalizeIdentity(treatment);
         using var restated = OpenRestatedScope(treatments);
 
-        var correlationId = Guid.CreateVersion7();
-        var result = new V4Models.DecompositionResult { CorrelationId = correlationId };
+        var result = new V4Models.DecompositionResult();
 
         // Typed collection lists for bulk insert
         var estimatedPerType = Math.Max(1, treatments.Count / 4);
@@ -1208,7 +1207,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         var tempBasalList = new List<V4Models.TempBasal>(estimatedPerType);
 
         // State span treatments are upserted individually (idempotent semantics)
-        var stateSpanTreatments = new List<(Treatment Treatment, bool IsProfileSwitch, bool IsOverride, bool IsTemporaryTarget)>();
+        var stateSpanTreatments = new List<(Treatment Treatment, Guid CorrelationId, bool IsProfileSwitch, bool IsOverride, bool IsTemporaryTarget)>();
 
         // Track treatments that produce both bolus AND bolusCalculation for post-insert linking
         var bolusCalcLinkTreatmentIds = new HashSet<string>();
@@ -1223,11 +1222,16 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         {
             NormalizeIdentity(treatment);
 
+            var correlationId = Guid.CreateVersion7();
             var c = ClassifyTreatment(treatment);
             if (c.ProducesNothing)
             {
                 result.SkippedUnsupported++;
                 unsupportedTypes.Add(treatment.EventType ?? "(none)");
+            }
+            else
+            {
+                result.CorrelationId ??= correlationId;
             }
 
             // Collect state span treatments for individual upsert
@@ -1240,7 +1244,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
                 }
                 else
                 {
-                    stateSpanTreatments.Add((treatment, c.IsProfileSwitch, c.IsOverride, c.IsTemporaryTarget));
+                    stateSpanTreatments.Add((treatment, correlationId, c.IsProfileSwitch, c.IsOverride, c.IsTemporaryTarget));
                 }
             }
 
@@ -1297,7 +1301,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
         // Pre-pass: upsert profile switch StateSpans first (temp basals depend on them for insulin context)
         var batchInsulinTimeline = new SortedDictionary<long, V4Models.TreatmentInsulinContext>();
-        foreach (var (treatment, isPs, _, _) in stateSpanTreatments.Where(t => t.IsProfileSwitch))
+        foreach (var (treatment, correlationId, _, _, _) in stateSpanTreatments.Where(t => t.IsProfileSwitch))
         {
             var spanResult = new V4Models.DecompositionResult { CorrelationId = correlationId };
             await DecomposeProfileSwitchAsync(treatment, spanResult, origin, ct);
@@ -1370,7 +1374,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         }
 
         // Upsert remaining state spans (Override, TemporaryTarget — ProfileSwitch already done in pre-pass)
-        foreach (var (treatment, isPs, isOv, isTt) in stateSpanTreatments.Where(t => !t.IsProfileSwitch))
+        foreach (var (treatment, correlationId, _, isOv, isTt) in stateSpanTreatments.Where(t => !t.IsProfileSwitch))
         {
             // Use a temporary result to collect records from helper methods
             var spanResult = new V4Models.DecompositionResult { CorrelationId = correlationId };

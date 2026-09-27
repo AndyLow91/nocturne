@@ -133,23 +133,22 @@ public class EntryDecomposerBatchTests : IDisposable
     }
 
     [Fact]
-    public async Task DecomposeBatchAsync_ProducedRecordsShareCorrelationId()
+    public async Task DecomposeBatchAsync_GivesEachEntryItsOwnCorrelationId()
     {
-        // Arrange — multiple entries decomposed in one call
         var entries = new List<Entry>
         {
             new() { Id = "sgv1", Type = "sgv", Mills = 1700000000000, Sgv = 100.0 },
             new() { Id = "sgv2", Type = "sgv", Mills = 1700000001000, Sgv = 110.0 },
+            new() { Id = "mbg1", Type = "mbg", Mills = 1700000002000, Mbg = 120.0 },
         };
 
-        // Act
         var result = await _decomposer.DecomposeBatchAsync(entries, WriteOrigin.Live);
 
-        // Assert — all produced records share a single non-empty correlation id
-        result.CorrelationId.Should().NotBeNull().And.NotBe(Guid.Empty);
-        result.CreatedRecords.OfType<IV4Record>()
-            .Should().NotBeEmpty()
-            .And.OnlyContain(r => r.CorrelationId == result.CorrelationId);
+        var records = result.CreatedRecords.OfType<IV4Record>().ToList();
+        records.Should().HaveCount(3);
+        records.Should().OnlyContain(r => r.CorrelationId.HasValue && r.CorrelationId != Guid.Empty);
+        records.Select(r => r.CorrelationId).Should().OnlyHaveUniqueItems("entries are separate source records");
+        result.CorrelationId.Should().Be(records.Single(r => r.LegacyId == "sgv1").CorrelationId);
     }
 
     /// <summary>
