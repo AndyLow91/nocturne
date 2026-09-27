@@ -499,7 +499,9 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
     }
 
     /// <summary>
-    ///     Fetches legacy DeviceStatus records from the v1 API of the remote instance.
+    ///     Fetches legacy DeviceStatus records from the v1 API of the remote instance through
+    ///     <see cref="BackwardTimePager.PageAsync{T}"/>. The remote parses the created_at bound into
+    ///     a time and compares records against it, so a bound admits exactly its own instant.
     /// </summary>
     /// <remarks>A page that never arrives costs the range, for the reason given on
     /// <see cref="FetchPaginatedAsync{T}"/>.</remarks>
@@ -508,39 +510,30 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
         NocturneRemoteConnectorConfiguration config, CancellationToken ct)
     {
         var allStatuses = new List<DeviceStatus>();
-        var currentTo = to;
 
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var statuses = await FetchOrFailAsync<DeviceStatus[]>(
-                BuildV1DeviceStatusUrl(from, currentTo, config), V1DeviceStatusEndpoint, config, ct);
-
-            if (statuses.Length == 0)
-                break;
-
-            allStatuses.AddRange(statuses);
-
-            if (statuses.Length < config.MaxCount)
-                break;
-
-            var oldestDate = statuses
+        var pages = BackwardTimePager.PageAsync<DeviceStatus>(
+            from,
+            to,
+            config.MaxCount,
+            config.MaxCount * BackwardTimePager.MaxPageWidening,
+            async (bound, count) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                var statuses = await FetchOrFailAsync<DeviceStatus[]>(
+                    BuildV1DeviceStatusUrl(from, bound, count), V1DeviceStatusEndpoint, config, ct);
+                return new TimePage<DeviceStatus>(statuses, statuses.Length);
+            },
+            statuses => statuses
                 .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
                 .Where(dt => dt.HasValue)
-                .Min();
+                .Min(),
+            bound => bound,
+            _logger,
+            ConnectorSource,
+            "devicestatus");
 
-            if (!oldestDate.HasValue)
-                break;
-
-            if (currentTo.HasValue && oldestDate.Value >= currentTo.Value)
-                break;
-
-            currentTo = oldestDate.Value.AddMilliseconds(-1);
-
-            if (from.HasValue && currentTo < from)
-                break;
-        }
+        await foreach (var page in pages)
+            allStatuses.AddRange(page);
 
         _logger.LogInformation(
             "[{ConnectorSource}] Fetched {Count} DeviceStatus records from remote v1 API",
@@ -570,10 +563,9 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
 
     private const string V1DeviceStatusEndpoint = "/api/v1/devicestatus.json";
 
-    private static string BuildV1DeviceStatusUrl(
-        DateTime? from, DateTime? to, NocturneRemoteConnectorConfiguration config)
+    private static string BuildV1DeviceStatusUrl(DateTime? from, DateTime? to, int count)
     {
-        var url = $"{V1DeviceStatusEndpoint}?count={config.MaxCount}";
+        var url = $"{V1DeviceStatusEndpoint}?count={count}";
 
         if (from.HasValue)
             url += $"&find[created_at][$gte]={from.Value.ToUniversalTime():o}";

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nocturne.API.Services.Audit;
@@ -88,7 +89,7 @@ internal static class MigrationJobHarness
     /// cancel it mid-fetch the way the user's Cancel button does.
     /// </summary>
     public static async Task<MigrationJobStatus> RunAsync(
-        IServiceProvider provider, Action<MigrationJob>? onCreated, string[] collections)
+        IServiceProvider provider, Action<MigrationJob>? onCreated, string[] collections, ILogger? logger = null)
     {
         var tenant = new TenantContext(
             Guid.CreateVersion7(), "migrated", "Migrated Tenant", true, IsDemo: false);
@@ -109,7 +110,7 @@ internal static class MigrationJobHarness
                 CreatedAt = DateTime.UtcNow,
             },
             tenant,
-            NullLogger.Instance,
+            logger ?? NullLogger.Instance,
             provider);
 
         onCreated?.Invoke(job);

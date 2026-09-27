@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -480,24 +479,10 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <summary>
-    ///     How many times <see cref="NightscoutConnectorConfiguration.MaxCount"/> a page may widen to,
-    ///     never past <see cref="NightscoutConnectorConfiguration.MaxPageSize"/>.
-    /// </summary>
-    private const int MaxPageWidening = 10;
-
-    /// <summary>
-    ///     Streams a paginated Nightscout collection newest-first, one page per iteration,
-    ///     so callers never hold more than a page of a multi-year history in memory. Uploaders
-    ///     write several records at one millisecond, so each full page steps the upper bound to
-    ///     its oldest record inclusively, and a record served again is yielded once by id. A
-    ///     full page made entirely of that millisecond is fetched again at twice the count,
-    ///     up to <see cref="MaxPageWidening"/> times the page size. The crawl steps past it with a
-    ///     warning once the page cannot widen further, or when a widened page comes back short
-    ///     while still all at that millisecond, which is a source capping the count. An unwidened
-    ///     short page is the end of the range. Ids are remembered from the pages served since the
-    ///     bound entered its current second, since a bound can admit that whole second. A page
-    ///     whose oldest record is newer than anything its bound admits sorts differently in the
-    ///     source than it parses here, so the crawl warns and stops there rather than step through it.
+    ///     Streams a paginated Nightscout collection newest-first through
+    ///     <see cref="BackwardTimePager.PageAsync{T}"/>, widening a crowded page up to
+    ///     <see cref="BackwardTimePager.MaxPageWidening"/> times the page size and never past
+    ///     <see cref="NightscoutConnectorConfiguration.MaxPageSize"/>.
     /// </summary>
     /// <param name="from">Optional inclusive lower bound.</param>
     /// <param name="to">Optional inclusive upper bound; anchored to now when both bounds are open.</param>
@@ -518,81 +503,33 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         Func<T[], T[]>? keep = null)
         where T : ProcessableDocumentBase
     {
-        var currentTo = AnchorUnboundedFetch(from, to);
-        var count = _currentConfig.MaxCount;
-        var widest = Math.Min(_currentConfig.MaxCount * MaxPageWidening, NightscoutConnectorConfiguration.MaxPageSize);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var pages = BackwardTimePager.PageAsync<T>(
+            from,
+            AnchorUnboundedFetch(from, to),
+            _currentConfig.MaxCount,
+            Math.Min(_currentConfig.MaxCount * BackwardTimePager.MaxPageWidening, NightscoutConnectorConfiguration.MaxPageSize),
+            async (bound, count) =>
+            {
+                // FetchDataAsync reports failure (retries exhausted, non-retryable HTTP, bad JSON) as
+                // null rather than throwing; <see cref="BaseConnectorService{TConfig}.FetchFailed"/> is
+                // why that is not the end of the range.
+                var page = await FetchDataAsync<T[]>(buildUrl(from, bound, count), operationName)
+                           ?? throw FetchFailed(operationName);
+                return new TimePage<T>(page, page.Length);
+            },
+            oldestOf,
+            admittedThrough,
+            _logger,
+            ConnectorSource,
+            collection);
 
-        while (true)
+        await foreach (var page in pages)
         {
-            var page = await FetchDataAsync<T[]>(buildUrl(from, currentTo, count), operationName);
-
-            // FetchDataAsync reports failure (retries exhausted, non-retryable HTTP, bad JSON) as
-            // null rather than throwing; <see cref="BaseConnectorService{TConfig}.FetchFailed"/> is
-            // why that is not the end of the range.
-            if (page == null)
-                throw FetchFailed(operationName);
-
-            if (page.Length == 0)
-                yield break;
-
-            var fresh = page.Where(r => r.Id is not { Length: > 0 } id || seen.Add(id)).ToArray();
-            var kept = keep is null ? fresh : keep(fresh);
+            var kept = keep is null ? page : keep(page);
             if (kept.Length > 0)
                 yield return kept;
-
-            var widened = count > _currentConfig.MaxCount;
-            if (page.Length < count && !widened)
-                yield break;
-
-            var oldestDate = oldestOf(page);
-            if (!oldestDate.HasValue)
-                yield break;
-
-            if (currentTo is { } bound && oldestDate.Value > admittedThrough(bound))
-            {
-                _logger.LogWarning(
-                    "[{ConnectorSource}] The oldest {Collection} record on a page, {Oldest:o}, is newer than the page's bound {Bound:o}; the source orders these records differently, so the crawl stops here",
-                    ConnectorSource, collection, oldestDate.Value, currentTo);
-                yield break;
-            }
-
-            if (currentTo is null || oldestDate.Value < currentTo.Value)
-            {
-                if (currentTo is null || SecondOf(oldestDate.Value) < SecondOf(currentTo.Value))
-                    seen = page.Where(r => r.Id is { Length: > 0 }).Select(r => r.Id!).ToHashSet(StringComparer.Ordinal);
-
-                currentTo = oldestDate.Value;
-                count = _currentConfig.MaxCount;
-            }
-            else if (page.Length == count && count < widest)
-            {
-                count = Math.Min(count * 2, widest);
-                continue;
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "[{ConnectorSource}] {Returned} {Collection} records at {At:o} came back for {Count} asked; any more at that millisecond are skipped",
-                    ConnectorSource, page.Length, collection, currentTo.Value, count);
-                currentTo = currentTo.Value.AddMilliseconds(-1);
-                count = _currentConfig.MaxCount;
-            }
-
-            if (from.HasValue && currentTo < from)
-                yield break;
-
-            _logger.LogDebug(
-                "[{ConnectorSource}] Paginating {Operation}, next page up to {Before:yyyy-MM-dd HH:mm:ss.fff}",
-                ConnectorSource,
-                operationName,
-                currentTo);
         }
     }
-
-    private static DateTime SecondOf(DateTime at) => at.AddTicks(-(at.Ticks % TimeSpan.TicksPerSecond));
-
-    private static DateTime MillisecondOf(DateTime at) => at.AddTicks(-(at.Ticks % TimeSpan.TicksPerMillisecond));
 
     private static DateTime? OldestEntryTime(Entry[] page)
     {
@@ -666,7 +603,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             anchoredTo + MaxUtcOffset,
             (pageFrom, pageTo, count) => BuildCreatedAtUrl(collection, pageFrom, pageTo, count),
             page => OldestWrittenCreatedAt(page, createdAtOf),
-            CreatedAtBoundAdmitsThrough,
+            BackwardTimePager.CreatedAtAdmittedThrough,
             collection,
             operationName,
             page =>
@@ -1051,22 +988,6 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         return url;
     }
 
-    private static bool IsWholeSecondBound(DateTime bound) => bound.Millisecond == 0;
-
-    /// <summary>The latest created_at the upper bound <see cref="BuildCreatedAtUrl"/> writes for <paramref name="bound"/> admits.</summary>
-    private static DateTime CreatedAtBoundAdmitsThrough(DateTime bound) =>
-        IsWholeSecondBound(bound)
-            ? SecondOf(bound).AddSeconds(1).AddTicks(-1)
-            : MillisecondOf(bound).AddMilliseconds(1).AddTicks(-1);
-
-    /// <remarks>
-    ///     The source compares created_at as a string. It writes it at millisecond precision
-    ///     ("...:00.000Z"), and legacy documents at whole seconds ("...:00Z"), which sorts above
-    ///     every millisecond of that second. The upper bound is written at millisecond precision so
-    ///     a record at the bound's own millisecond compares equal and is included, and at whole
-    ///     seconds when it falls on one, so both spellings of that instant are. Records it serves
-    ///     again above the instant are yielded once by <see cref="FetchPagesAsync{T}"/>.
-    /// </remarks>
     private string BuildCreatedAtUrl(string collection, DateTime? from, DateTime? to, int? count = null)
     {
         var url = $"/api/v1/{collection}.json?count={count ?? _currentConfig.MaxCount}";
@@ -1075,11 +996,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             url += $"&find[created_at][$gte]={from.Value.ToUniversalTime():o}";
 
         if (to.HasValue)
-        {
-            var upper = to.Value.ToUniversalTime();
-            var format = IsWholeSecondBound(upper) ? "yyyy-MM-dd'T'HH:mm:ss'Z'" : "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
-            url += $"&find[created_at][$lte]={upper.ToString(format, CultureInfo.InvariantCulture)}";
-        }
+            url += $"&find[created_at][$lte]={BackwardTimePager.CreatedAtUpperBound(to.Value)}";
 
         return url;
     }
