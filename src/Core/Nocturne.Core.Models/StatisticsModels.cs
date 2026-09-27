@@ -1828,9 +1828,10 @@ public class InsulinDeliveryStatistics
     public double BolusesPerDay { get; set; }
 
     /// <summary>
-    /// Number of days in the analysis period
+    /// Whole days in the requested window, rounded to nearest, at least one; the per-day
+    /// averages over the window divide by it. Not the number of days that hold data.
     /// </summary>
-    public int DayCount { get; set; }
+    public int WindowDays { get; set; }
 
     /// <summary>
     /// Start date of the analysis period (ISO format)
@@ -1946,9 +1947,10 @@ public class DailyBasalBolusRatioResponse
     public double AverageTdd { get; set; }
 
     /// <summary>
-    /// Number of days with data
+    /// Distinct local days this response attributes delivered insulin to; its averages divide
+    /// by it. Not the length of the requested window.
     /// </summary>
-    public int DayCount { get; set; }
+    public int DaysWithData { get; set; }
 }
 
 /// <summary>
@@ -2075,9 +2077,10 @@ public class BasalAnalysisResponse
     public List<HourlyBasalPercentileData> HourlyPercentiles { get; set; } = new();
 
     /// <summary>
-    /// Number of days in the analysis period
+    /// Whole days in the requested window, rounded to nearest, at least one; the per-day
+    /// averages over the window divide by it. Not the number of days that hold data.
     /// </summary>
-    public int DayCount { get; set; }
+    public int WindowDays { get; set; }
 
     /// <summary>
     /// Start date of the analysis period
@@ -2145,9 +2148,10 @@ public class HourlyInsulinDeliveryResponse
     public List<HourlyInsulinDeliveryPoint> Hours { get; set; } = new();
 
     /// <summary>
-    /// Number of distinct days with delivery data the averages are taken over
+    /// Distinct local days this response attributes delivered insulin to. Not the length of the
+    /// requested window.
     /// </summary>
-    public int DayCount { get; set; }
+    public int DaysWithData { get; set; }
 
     /// <summary>
     /// Start date of the analysis period

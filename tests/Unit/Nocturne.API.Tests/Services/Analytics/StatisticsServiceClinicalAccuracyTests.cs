@@ -609,7 +609,7 @@ public class StatisticsServiceClinicalAccuracyTests
         // 4 bolus records
         result.BolusCount.Should().Be(4);
         // Day count = 7
-        result.DayCount.Should().Be(7);
+        result.WindowDays.Should().Be(7);
         // TDD = 15.5 / 7 ≈ 2.2
         result.Tdd.Should().BeApproximately(2.2, 0.1);
     }
