@@ -202,15 +202,15 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         var held = FullStatus("ds-held", 1700000000000, reservoir: 100.0);
         var fresh = FullStatus("ds-fresh", 1700000300000, reservoir: 99.0);
         _apsRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.ApsSnapshot> records, WriteOrigin _, CancellationToken _) =>
                 [.. records.Where(r => r.LegacyId != held.Id)]);
         _pumpRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.PumpSnapshot> records, WriteOrigin _, CancellationToken _) =>
                 [.. records.Where(r => r.LegacyId != held.Id)]);
         _uploaderRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.UploaderSnapshot> records, WriteOrigin _, CancellationToken _) =>
                 [.. records.Where(r => r.LegacyId != held.Id)]);
 
