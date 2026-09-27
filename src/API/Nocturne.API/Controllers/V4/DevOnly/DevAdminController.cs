@@ -887,6 +887,14 @@ public class DevAdminController : ControllerBase
                     });
                 }
 
+                // Invites are not in the snapshot and survive Phase 1; their RoleIds carry no FK,
+                // so a same-tenant re-import would leave them naming the deleted roles.
+                var targetInvites = await _db.MemberInvites.Where(i => i.TenantId == id).ToListAsync(token);
+                foreach (var invite in targetInvites)
+                    invite.RoleIds = invite.RoleIds
+                        .Select(r => roleIds.TryGetValue(r, out var n) ? n : r)
+                        .ToList();
+
                 var inviteIds = snapshot.Members
                     .Where(m => m.CreatedFromInviteId.HasValue)
                     .Select(m => m.CreatedFromInviteId!.Value)

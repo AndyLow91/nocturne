@@ -57,6 +57,8 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
             t.MemberSubjectIds.Should().Equal(SubjectId);
             t.OAuthClientIds.Should().ContainSingle();
             t.ConnectorIds.Should().ContainSingle();
+            t.MemberInviteIds.Should().Equal([null],
+                "the snapshot's invite does not exist in the importing tenant");
         }
 
         var snapshotIds = new[] { OwnerRoleId, ViewerRoleId, MemberId, OAuthClientId, ConnectorId };
@@ -83,6 +85,33 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportScopedSnapshot_ReimportIntoSameTenant_RepointsPendingInviteRoleIds()
+    {
+        (await ImportInto(_tenantA)).Should().BeOfType<OkObjectResult>();
+        var inviteId = await SeedInvite(_tenantA, [OwnerRoleId, ViewerRoleId]);
+
+        (await ImportInto(_tenantA)).Should().BeOfType<OkObjectResult>();
+
+        var a = await ReadTenant(_tenantA);
+        await using var db = _database.CreateContext(_tenantA);
+        var invite = await db.MemberInvites.SingleAsync(i => i.Id == inviteId);
+        invite.RoleIds.Should().BeEquivalentTo(a.RoleIds);
+    }
+
+    [Fact]
+    public async Task ImportScopedSnapshot_MemberFromInviteThatExistsInTargetTenant_KeepsInviteLink()
+    {
+        (await ImportInto(_tenantA)).Should().BeOfType<OkObjectResult>();
+        var inviteId = await SeedInvite(_tenantA, [OwnerRoleId]);
+
+        (await ImportInto(_tenantA, Snapshot(inviteId))).Should().BeOfType<OkObjectResult>();
+
+        await using var db = _database.CreateContext(_tenantA);
+        var member = await db.TenantMembers.SingleAsync(m => m.TenantId == _tenantA);
+        member.CreatedFromInviteId.Should().Be(inviteId);
+    }
+
+    [Fact]
     public async Task ImportScopedSnapshot_MemberRoleLinkToAbsentRole_IsRejected()
     {
         var snapshot = Snapshot();
@@ -99,10 +128,25 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
         result.Should().BeOfType<BadRequestObjectResult>();
     }
 
-    private async Task<ActionResult> ImportInto(Guid tenantId)
+    private async Task<ActionResult> ImportInto(Guid tenantId, TenantSnapshotDto? snapshot = null)
     {
         await using var context = _database.CreateContext();
-        return await NewController(context).ImportScopedSnapshot(tenantId, Snapshot(), CancellationToken.None);
+        return await NewController(context)
+            .ImportScopedSnapshot(tenantId, snapshot ?? Snapshot(), CancellationToken.None);
+    }
+
+    private async Task<Guid> SeedInvite(Guid tenantId, List<Guid> roleIds)
+    {
+        var inviteId = Guid.CreateVersion7();
+        await using var db = _database.CreateContext(tenantId);
+        db.MemberInvites.Add(new()
+        {
+            Id = inviteId, TenantId = tenantId, CreatedBySubjectId = SubjectId,
+            TokenHash = inviteId.ToString("N"), RoleIds = roleIds,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+        });
+        await db.SaveChangesAsync();
+        return inviteId;
     }
 
     private async Task<TenantRows> ReadTenant(Guid tenantId)
@@ -119,14 +163,12 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
         var connectorIds = await db.ConnectorConfigurations
             .Where(c => c.TenantId == tenantId).Select(c => c.Id).ToListAsync();
 
-        members.Should().OnlyContain(m => m.CreatedFromInviteId == null,
-            "the snapshot's invite does not exist in the importing tenant");
-
         return new TenantRows(
-            roleIds, memberIds, members.Select(m => m.SubjectId).ToList(), links, clientIds, connectorIds);
+            roleIds, memberIds, members.Select(m => m.SubjectId).ToList(),
+            members.Select(m => m.CreatedFromInviteId).ToList(), links, clientIds, connectorIds);
     }
 
-    private static TenantSnapshotDto Snapshot() =>
+    private static TenantSnapshotDto Snapshot(Guid? createdFromInviteId = null) =>
         new()
         {
             Tenant = new TenantEntityDto { Id = SourceTenantId, Slug = "source", DisplayName = "Source" },
@@ -149,7 +191,7 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
                 new TenantMemberEntityDto
                 {
                     Id = MemberId, TenantId = SourceTenantId, SubjectId = SubjectId,
-                    CreatedFromInviteId = Guid.CreateVersion7(),
+                    CreatedFromInviteId = createdFromInviteId ?? Guid.CreateVersion7(),
                 },
             ],
             MemberRoles =
@@ -189,6 +231,7 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
         List<Guid> RoleIds,
         List<Guid> MemberIds,
         List<Guid> MemberSubjectIds,
+        List<Guid?> MemberInviteIds,
         List<MemberRoleLink> MemberRoleLinks,
         List<Guid> OAuthClientIds,
         List<Guid> ConnectorIds)
