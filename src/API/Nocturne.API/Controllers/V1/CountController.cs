@@ -6,11 +6,11 @@ using Nocturne.Core.Contracts.Health;
 using Nocturne.Core.Contracts.Profiles;
 using Nocturne.Core.Contracts.Repositories;
 using Nocturne.Core.Contracts.Treatments;
-using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.Authorization;
 using Nocturne.API.Extensions;
 using Nocturne.API.Helpers;
 using Nocturne.API.Authorization;
+using Nocturne.API.Services.Devices;
 
 namespace Nocturne.API.Controllers.V1;
 
@@ -20,7 +20,7 @@ namespace Nocturne.API.Controllers.V1;
 /// </summary>
 /// <seealso cref="IEntryStore"/>
 /// <seealso cref="ITreatmentStore"/>
-/// <seealso cref="IApsSnapshotRepository"/>
+/// <seealso cref="DeviceStatusProjectionService"/>
 /// <seealso cref="IProfileProjectionService"/>
 /// <seealso cref="IFoodRepository"/>
 /// <seealso cref="IActivityService"/>
@@ -39,7 +39,7 @@ public class CountController : ControllerBase
 
     private readonly IEntryStore _entryStore;
     private readonly ITreatmentStore _treatmentStore;
-    private readonly IApsSnapshotRepository _apsSnapshotRepository;
+    private readonly DeviceStatusProjectionService _deviceStatusProjection;
     private readonly IProfileProjectionService _profileProjectionService;
     private readonly IFoodRepository _foodRepository;
     private readonly IActivityService _activityService;
@@ -51,7 +51,7 @@ public class CountController : ControllerBase
     /// </summary>
     /// <param name="entryStore">Store for glucose entry records.</param>
     /// <param name="treatmentStore">Store for treatment records.</param>
-    /// <param name="apsSnapshotRepository">Repository for APS snapshot records (V4 replacement for device status).</param>
+    /// <param name="deviceStatusProjection">Projection of V4 snapshots into legacy device status.</param>
     /// <param name="profileProjectionService">Service for profile projection and counting.</param>
     /// <param name="foodRepository">Repository for food records.</param>
     /// <param name="activityService">Service for activity operations.</param>
@@ -60,7 +60,7 @@ public class CountController : ControllerBase
     public CountController(
         IEntryStore entryStore,
         ITreatmentStore treatmentStore,
-        IApsSnapshotRepository apsSnapshotRepository,
+        DeviceStatusProjectionService deviceStatusProjection,
         IProfileProjectionService profileProjectionService,
         IFoodRepository foodRepository,
         IActivityService activityService,
@@ -70,7 +70,7 @@ public class CountController : ControllerBase
     {
         _entryStore = entryStore;
         _treatmentStore = treatmentStore;
-        _apsSnapshotRepository = apsSnapshotRepository;
+        _deviceStatusProjection = deviceStatusProjection;
         _profileProjectionService = profileProjectionService;
         _foodRepository = foodRepository;
         _activityService = activityService;
@@ -192,6 +192,8 @@ public class CountController : ControllerBase
         CancellationToken cancellationToken = default
     )
     {
+        find = LegacyFindQueryString.Resolve(HttpContext?.Request, find);
+
         _logger.LogDebug(
             "Count device status endpoint requested with find: {Find} from {RemoteIpAddress}",
             find,
@@ -200,7 +202,7 @@ public class CountController : ControllerBase
 
         try
         {
-            var count = await _apsSnapshotRepository.CountAsync(null, null, cancellationToken);
+            var count = await _deviceStatusProjection.CountAsync(find, cancellationToken);
 
             _logger.LogDebug("Found {Count} device status entries matching criteria", count);
             return LegacyCountResult.For(count);
@@ -346,7 +348,8 @@ public class CountController : ControllerBase
                         cancellationToken);
                     break;
                 case "devicestatus":
-                    count = await _apsSnapshotRepository.CountAsync(null, null, cancellationToken);
+                    count = await _deviceStatusProjection.CountAsync(
+                        LegacyFindQueryString.Resolve(HttpContext?.Request, find), cancellationToken);
                     break;
                 case "profile":
                     count = await _profileProjectionService.CountProfilesAsync(find, cancellationToken);

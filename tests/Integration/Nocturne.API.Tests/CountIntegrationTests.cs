@@ -13,7 +13,6 @@ namespace Nocturne.API.Tests.Integration;
 /// legacy aggregate shape and the bracketed <c>find[...]</c> filters.
 /// </summary>
 [Trait("Category", "Integration")]
-[Parity]
 public class CountIntegrationTests : ApiIntegrationTestBase
 {
     public CountIntegrationTests(ApiIntegrationTestFixture fixture, ITestOutputHelper output)
@@ -74,6 +73,30 @@ public class CountIntegrationTests : ApiIntegrationTestBase
 
         (await GetRawAsync("/api/v1/count/treatments/where?find[eventType]=Note"))
             .Should().Be("""[{"_id":null,"count":2}]""");
+    }
+
+    [Fact]
+    public async Task CountDeviceStatus_BracketedFind_Filters()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var statuses = new[]
+        {
+            new { device = "synthetic://pump", created_at = now.AddHours(-3).ToString("O"), pump = new { reservoir = 100 } },
+            new { device = "synthetic://pump", created_at = now.AddMinutes(-5).ToString("O"), pump = new { reservoir = 90 } },
+        };
+        foreach (var status in statuses)
+            (await AuthenticatedClient.PostAsJsonAsync("/api/v1/devicestatus", status)).EnsureSuccessStatusCode();
+
+        var since = Uri.EscapeDataString(now.AddHours(-1).ToString("O"));
+        var until = Uri.EscapeDataString(now.AddHours(-2).ToString("O"));
+
+        (await GetRawAsync("/api/v1/count/devicestatus/where")).Should().Be("""[{"_id":null,"count":2}]""");
+        (await GetRawAsync($"/api/v1/count/devicestatus/where?find[created_at][$gte]={since}"))
+            .Should().Be("""[{"_id":null,"count":1}]""");
+        (await GetRawAsync($"/api/v1/count/devicestatus/where?find[created_at][$gte]={now.AddHours(1).ToUniversalTime():yyyy-MM-ddTHH:mm:ssZ}"))
+            .Should().Be("[]");
+        (await GetRawAsync($"/api/v1/count/devicestatus/where?find[created_at][$lt]={until}"))
+            .Should().Be("""[{"_id":null,"count":1}]""");
     }
 
     private async Task SeedEntriesAsync()

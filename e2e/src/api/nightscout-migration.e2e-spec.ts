@@ -88,11 +88,15 @@ async function migrate(tenant: Tenant, nightscoutUrl = SOURCE_URL, collections =
   );
 }
 
-type LegacyCount = { _id: null; count: number }[];
+/** The count of a legacy `[{_id, count}]` answer, which holds no row when nothing matches. */
+async function countOf(tenant: Tenant, path: string): Promise<number> {
+  const rows = await tenant.api.ok<{ _id: null; count: number }[]>("GET", path);
+  expect(rows, `${path} answered no count row`).toHaveLength(1);
+  return rows[0]!.count;
+}
 
 async function entryCount(tenant: Tenant): Promise<number> {
-  const [row] = await tenant.api.ok<LegacyCount>("GET", "/api/v1/count/entries/where");
-  return row.count;
+  return countOf(tenant, "/api/v1/count/entries/where");
 }
 
 async function treatments(tenant: Tenant): Promise<V1Treatment[]> {
@@ -102,8 +106,7 @@ async function treatments(tenant: Tenant): Promise<V1Treatment[]> {
 /** Naming created_at lifts the v1 four-day window. */
 async function bgCheckCount(tenant: Tenant): Promise<number> {
   const path = `/api/v1/count/treatments/where?find[eventType]=BG%20Check&find[created_at][$gte]=${BG_CHECKS_SINCE}`;
-  const [row] = await tenant.api.ok<LegacyCount>("GET", path);
-  return row.count;
+  return countOf(tenant, path);
 }
 
 async function deviceStatuses(tenant: Tenant): Promise<V1DeviceStatus[]> {

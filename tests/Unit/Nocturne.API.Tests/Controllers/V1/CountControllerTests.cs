@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Nocturne.API.Configuration;
 using Nocturne.API.Controllers.V1;
+using Nocturne.API.Services.Devices;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nocturne.Core.Contracts.Entries;
 using Nocturne.Core.Contracts.Health;
 using Nocturne.Core.Contracts.Profiles;
@@ -26,6 +28,7 @@ public class CountControllerTests
     private readonly Mock<IEntryStore> _mockEntryStore;
     private readonly Mock<ITreatmentStore> _mockTreatmentStore;
     private readonly Mock<IApsSnapshotRepository> _mockApsSnapshotRepository;
+    private readonly Mock<IPumpSnapshotRepository> _mockPumpSnapshotRepository;
     private readonly Mock<IProfileProjectionService> _mockProfileProjectionService;
     private readonly Mock<IFoodRepository> _mockFoodRepository;
     private readonly Mock<IActivityService> _mockActivityService;
@@ -37,6 +40,7 @@ public class CountControllerTests
         _mockEntryStore = new Mock<IEntryStore>();
         _mockTreatmentStore = new Mock<ITreatmentStore>();
         _mockApsSnapshotRepository = new Mock<IApsSnapshotRepository>();
+        _mockPumpSnapshotRepository = new Mock<IPumpSnapshotRepository>();
         _mockProfileProjectionService = new Mock<IProfileProjectionService>();
         _mockFoodRepository = new Mock<IFoodRepository>();
         _mockActivityService = new Mock<IActivityService>();
@@ -45,7 +49,7 @@ public class CountControllerTests
         _controller = new CountController(
             _mockEntryStore.Object,
             _mockTreatmentStore.Object,
-            _mockApsSnapshotRepository.Object,
+            DeviceStatusProjection(_mockApsSnapshotRepository, _mockPumpSnapshotRepository),
             _mockProfileProjectionService.Object,
             _mockFoodRepository.Object,
             _mockActivityService.Object,
@@ -158,6 +162,9 @@ public class CountControllerTests
         _mockApsSnapshotRepository
             .Setup(s => s.CountAsync(null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(4);
+        _mockPumpSnapshotRepository
+            .Setup(s => s.CountAsync(null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(4);
         _mockActivityService
             .Setup(s => s.CountActivitiesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(5L);
@@ -228,6 +235,40 @@ public class CountControllerTests
         (await _controller.CountGeneric("entries")).Result.Should().BeOfType<ObjectResult>()
             .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
+
+    [Fact]
+    public async Task CountDeviceStatus_BracketedFind_BoundsTheCount()
+    {
+        _controller.ControllerContext.HttpContext.Request.QueryString =
+            new QueryString("?find[created_at][$gte]=2026-01-01T00:00:00Z&find[created_at][$lt]=2026-01-02T00:00:00Z");
+        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+        _mockApsSnapshotRepository
+            .Setup(s => s.CountAsync(
+                It.Is<DateTime?>(d => d == from), It.Is<DateTime?>(d => d == to), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        Rows(await _controller.CountDeviceStatus(find: null)).Should().ContainSingle().Which.Count.Should().Be(2L);
+        Rows(await _controller.CountGeneric("devicestatus", find: null)).Should().ContainSingle().Which.Count.Should().Be(2L);
+    }
+
+    [Fact]
+    public async Task CountDeviceStatus_JsonFind_BoundsTheCount()
+    {
+        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        _mockApsSnapshotRepository
+            .Setup(s => s.CountAsync(It.Is<DateTime?>(d => d == from), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        var result = await _controller.CountDeviceStatus("{\"created_at\":{\"$gte\":\"2026-01-01T00:00:00Z\"}}");
+
+        Rows(result).Should().ContainSingle().Which.Count.Should().Be(1L);
+    }
+
+    internal static DeviceStatusProjectionService DeviceStatusProjection(
+        Mock<IApsSnapshotRepository> aps, Mock<IPumpSnapshotRepository> pump) =>
+        new(aps.Object, pump.Object, Mock.Of<IUploaderSnapshotRepository>(), Mock.Of<IStateSpanRepository>(),
+            Mock.Of<IDeviceStatusExtrasRepository>(), NullLogger<DeviceStatusProjectionService>.Instance);
 
     private static LegacyCountResult[] Rows(ActionResult<LegacyCountResult[]> result) =>
         result.Result.Should().BeOfType<OkObjectResult>().Subject
