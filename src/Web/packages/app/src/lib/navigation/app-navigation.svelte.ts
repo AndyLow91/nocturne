@@ -2,8 +2,8 @@
  * The sidebar's navigation, and who sees which of it.
  *
  * Built here rather than in AppSidebar so the entries and the rules that trim them are one
- * source of truth: a title the trims key on cannot be renamed in the component without the
- * rules moving with it.
+ * source of truth. The trims key on {@link NavItemId}, never on a title: titles are translated,
+ * and are built per call so they are read in the current locale (see `reportCategories`).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IconComponent = any;
@@ -41,13 +41,36 @@ import { satisfiesScope } from "$lib/authorization/scopes";
 import { getSidebarReportItems } from "$lib/navigation/report-navigation.svelte";
 import { filterTenantlessNav } from "$lib/navigation/tenantless-navigation";
 
+/** Stable identity of a top-level sidebar entry, independent of its translated title. */
+export type NavItemId =
+  | "dashboard"
+  | "calendar"
+  | "time-spans"
+  | "reports"
+  | "clock"
+  | "tenants"
+  | "food"
+  | "meals"
+  | "tools"
+  | "alerts"
+  | "dev-tools"
+  | "settings";
+
+/** An entry inside a sidebar group; its href is its identity. */
+export interface NavLink {
+  title: string;
+  href: string;
+  icon: IconComponent;
+  strict?: boolean;
+}
+
 export interface NavItem {
+  id: NavItemId;
   title: string;
   href?: string;
   icon: IconComponent;
   strict?: boolean;
-  isActive?: boolean;
-  children?: NavItem[];
+  children?: NavLink[];
 }
 
 /** The viewer the navigation is built for. */
@@ -70,19 +93,13 @@ export interface NavViewer {
   tenantless: boolean;
 }
 
-/** Titles a guest link session keeps. */
-const GUEST_NAV_TITLES: readonly string[] = [
-  "Dashboard",
-  "Calendar",
-  "Time Spans",
-  "Reports",
-  "Clock",
-];
+/** Entries a guest link session keeps. */
+const GUEST_NAV: readonly NavItemId[] = ["dashboard", "calendar", "time-spans", "reports", "clock"];
 
-/** Titles the public share view keeps, each with the read scope its pages need. */
-const PUBLIC_SHARE_NAV: readonly { title: string; scope?: string }[] = [
-  { title: "Dashboard" },
-  { title: "Reports", scope: "reports.read" },
+/** Entries the public share view keeps, each with the read scope its pages need. */
+const PUBLIC_SHARE_NAV: readonly { id: NavItemId; scope?: string }[] = [
+  { id: "dashboard" },
+  { id: "reports", scope: "reports.read" },
 ];
 
 /**
@@ -94,41 +111,42 @@ const PUBLIC_SHARE_NAV: readonly { title: string; scope?: string }[] = [
  * narrower still, holding only the read categories its owner opted into, so a surface is offered
  * only when the share's grant covers it.
  */
-function readOnlyNav(items: NavItem[], viewer: NavViewer): NavItem[] | null {
+export function readOnlyNav(items: NavItem[], viewer: NavViewer): NavItem[] | null {
   if (viewer.isGuestSession) {
-    const titles = new Set(GUEST_NAV_TITLES);
-    return items.filter((item) => titles.has(item.title));
+    return items.filter((item) => GUEST_NAV.includes(item.id));
   }
 
   if (viewer.user) return null;
 
-  const titles = new Set(
-    PUBLIC_SHARE_NAV.filter(
-      (entry) => !entry.scope || satisfiesScope(viewer.grantedScopes, entry.scope)
-    ).map((entry) => entry.title)
-  );
-  return items.filter((item) => titles.has(item.title));
+  const kept = PUBLIC_SHARE_NAV.filter(
+    (entry) => !entry.scope || satisfiesScope(viewer.grantedScopes, entry.scope)
+  ).map((entry) => entry.id);
+  return items.filter((item) => kept.includes(item.id));
 }
 
 export function buildAppNavigation(viewer: NavViewer): NavItem[] {
   const items: NavItem[] = [
     {
+      id: "dashboard",
       title: "Dashboard",
       href: "/",
       icon: Home,
       strict: true,
     },
     {
+      id: "calendar",
       title: "Calendar",
       href: "/calendar",
       icon: Calendar,
     },
     {
+      id: "time-spans",
       title: "Time Spans",
       href: "/time-spans",
       icon: Layers,
     },
     {
+      id: "reports",
       title: "Reports",
       icon: BarChart3,
       children: [
@@ -140,6 +158,7 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
       ],
     },
     {
+      id: "clock",
       title: "Clock",
       href: "/clock",
       icon: Clock,
@@ -151,6 +170,7 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
 
   if (viewer.tenantCount > 1) {
     items.push({
+      id: "tenants",
       title: "Tenants",
       href: "/tenants",
       icon: Users,
@@ -159,16 +179,19 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
 
   items.push(
     {
+      id: "food",
       title: "Food",
       href: "/food",
       icon: Apple,
     },
     {
+      id: "meals",
       title: "Meals",
       href: "/meals",
       icon: Utensils,
     },
     {
+      id: "tools",
       title: "Tools",
       icon: Wrench,
       children: [{ title: "Packing", href: "/tools/packing", icon: Wrench }],
@@ -177,6 +200,7 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
 
   items.push(
     {
+      id: "alerts",
       title: "Alerts",
       icon: Bell,
       children: [
@@ -187,6 +211,7 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
       ],
     },
     {
+      id: "dev-tools",
       title: "Dev Tools",
       icon: Terminal,
       children: [
@@ -204,6 +229,7 @@ export function buildAppNavigation(viewer: NavViewer): NavItem[] {
       ],
     },
     {
+      id: "settings",
       title: "Settings",
       icon: Settings,
       children: [
