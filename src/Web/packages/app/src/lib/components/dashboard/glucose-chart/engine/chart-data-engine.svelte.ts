@@ -12,7 +12,6 @@ import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
 import { getChartData } from "$api/chart-data.remote";
 import { remoteErrorMessage } from "$lib/api/remote-error";
 import { PREDICTIONS_UNAVAILABLE } from "$lib/api/predictions-messages";
-import { CHART_DATA_UNAVAILABLE } from "$lib/api/chart-data-messages";
 import {
   getPredictions,
   getPredictionStatus,
@@ -574,7 +573,7 @@ export function createChartDataEngine(
         if (!cancelled) {
           console.error("Failed to fetch chart data:", err);
           serverChartData = null;
-          chartDataError = remoteErrorMessage(err, CHART_DATA_UNAVAILABLE);
+          chartDataError = remoteErrorMessage(err, "The chart data could not be loaded.");
         }
       });
 
