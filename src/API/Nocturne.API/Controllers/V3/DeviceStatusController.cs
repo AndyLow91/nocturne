@@ -671,7 +671,7 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
         return JsonSerializer.Serialize(conditions);
     }
 
-    private object MapToV3Dto(DeviceStatus status)
+    internal static object MapToV3Dto(DeviceStatus status)
     {
         // Build dictionary with only non-null optional fields to match Nightscout behavior
         var dto = new Dictionary<string, object?>

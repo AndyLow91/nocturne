@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -148,6 +149,38 @@ public class NightscoutWriteBackSinkTests
         handler.Methods[0].Should().Be(HttpMethod.Put);
         handler.Uris[0].AbsolutePath.Should().Be("/api/v1/entries");
         handler.Bodies[0].Should().StartWith("{");
+    }
+
+    /// <summary>
+    /// The upstream instance stores the record under the <c>_id</c> it is sent, and addresses a PUT
+    /// by it. That id is the one Nocturne serves for the record everywhere else — the 24-hex form
+    /// its own V1 entries API returns — never the internal uuid, under any key.
+    /// </summary>
+    [Fact]
+    public async Task WriteBack_SendsTheRecordUnderItsWireId()
+    {
+        const string recordGuid = "0198c2a4-1f3b-7c2d-9e55-6a1b2c3d4e5f";
+        var handler = new RecordingHttpMessageHandler();
+        var sut = CreateSink(handler);
+        var entry = new Entry { Id = recordGuid, Sgv = 120, DataSource = "nocturne" };
+
+        await sut.OnCreatedAsync(new[] { entry });
+        await sut.OnUpdatedAsync(entry);
+
+        var posted = JsonSerializer.Deserialize<JsonElement>(handler.Bodies[0])[0];
+        var put = JsonSerializer.Deserialize<JsonElement>(handler.Bodies[1]);
+        foreach (var body in new[] { posted, put })
+        {
+            body.EnumerateObject()
+                .Where(p => p.Name is "_id" or "id" or "Id" or "identifier")
+                .ToDictionary(p => p.Name, p => p.Value.GetString())
+                .Should()
+                .BeEquivalentTo(new Dictionary<string, string?>
+                {
+                    ["_id"] = MongoObjectId.Coerce(recordGuid),
+                    ["identifier"] = MongoObjectId.Coerce(recordGuid),
+                });
+        }
     }
 
     /// <summary>
