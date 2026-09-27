@@ -155,6 +155,17 @@ public abstract class AuthTokenProviderBase<TConfig>(
     }
 
     /// <summary>
+    ///     What the tenant is told about the last <see cref="GetValidTokenAsync(TConfig, CancellationToken)"/>
+    ///     that returned no token, for the connector service to pass to its sync result.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike the cached sign-in failure, a login that ran out of attempts or threw is reported
+    ///     here too, as the source being unavailable: that run did fail, and only a refusal may send
+    ///     the tenant to their credentials. Read it only right after the null token it explains.
+    /// </remarks>
+    public string SignInFailureReason => SignInFailureMessage(_signInFailure ?? SignInFailure.Unavailable);
+
+    /// <summary>
     ///     Attempts a live authentication with the supplied configuration, bypassing the
     ///     per-tenant token cache entirely: no cached session is read, nothing is stored, and no
     ///     tenant context is required. Used for credential verification, where a cache hit would
