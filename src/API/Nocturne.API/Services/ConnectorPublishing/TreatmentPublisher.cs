@@ -101,7 +101,8 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
                     fingerprints[(treatment.DataSource ?? source, id)] = TreatmentDecomposer.UpstreamFingerprint(treatment);
             }
 
-            await _treatmentDecomposer.RekeyClientIdRecordsAsync(source, list, cancellationToken);
+            using (PushSystemAudit())
+                await _treatmentDecomposer.RekeyClientIdRecordsAsync(source, list, cancellationToken);
 
             using var scope = UpstreamFingerprintScope.Open(fingerprints);
             var written = await _treatmentService.CreateTreatmentsAsync(list, cancellationToken);

@@ -17,6 +17,7 @@ using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data;
+using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Repositories.V4;
 using Nocturne.Tests.Shared.Infrastructure;
@@ -92,7 +93,54 @@ public class ClientIdRekeyTests : IDisposable
 
         _context.CarbIntakes.Should().BeEmpty();
         var tombstones = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().ToListAsync();
-        tombstones.Select(c => c.LegacyId).Should().BeEquivalentTo([ObjectIdA, ObjectIdB, ObjectIdC]);
+        tombstones.Select(c => c.LegacyId).Should().BeEquivalentTo([TrioId, ObjectIdA, ObjectIdB, ObjectIdC]);
+    }
+
+    [Fact]
+    public async Task A_merged_row_the_user_deleted_blocks_an_equivalent_published_later()
+    {
+        await StoreAsync(TrioId, Source, carbs: 12, at: MealAt.AddHours(3), deletedByUser: true);
+
+        await _publisher.PublishTreatmentsAsync(
+        [
+            Equivalent(ObjectIdA, 10, MealAt.AddHours(1)),
+            Equivalent(ObjectIdB, 11, MealAt.AddHours(2)),
+        ], Source, WriteOrigin.Live);
+        await _publisher.PublishTreatmentsAsync(
+            [Equivalent(ObjectIdC, 12, MealAt.AddHours(3))], Source, WriteOrigin.Live);
+        await _publisher.PublishTreatmentsAsync(
+            [Equivalent(ObjectIdC, 12, MealAt.AddHours(3))], Source, WriteOrigin.Live);
+
+        _context.CarbIntakes.Should().BeEmpty();
+        var tombstones = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        tombstones.Select(c => c.LegacyId).Should().BeEquivalentTo([TrioId, ObjectIdA, ObjectIdB, ObjectIdC],
+            "a copy already held is not copied again");
+    }
+
+    [Fact]
+    public async Task A_state_span_the_user_deleted_blocks_an_equivalent_published_later()
+    {
+        var span = new StateSpanEntity
+        {
+            Id = Guid.CreateVersion7(), TenantId = _context.TenantId, Category = "Override", State = "Active",
+            StartTimestamp = MealAt, Source = Source, OriginalId = TrioId, DeletedAt = DateTime.UtcNow,
+        };
+        _context.StateSpans.Add(span);
+        _context.Entry(span).Property("DeletedByUser").CurrentValue = true;
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        await _publisher.PublishTreatmentsAsync(
+        [
+            Equivalent(ObjectIdA, 10, MealAt.AddHours(1)),
+            Equivalent(ObjectIdB, 11, MealAt.AddHours(2)),
+        ], Source, WriteOrigin.Live);
+        await _publisher.PublishTreatmentsAsync(
+            [Equivalent(ObjectIdC, 12, MealAt.AddHours(3))], Source, WriteOrigin.Live);
+
+        var spans = await _context.StateSpans.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        spans.Should().OnlyContain(s => s.DeletedAt != null);
+        spans.Select(s => s.OriginalId).Should().BeEquivalentTo([TrioId, ObjectIdA, ObjectIdB, ObjectIdC]);
     }
 
     [Fact]
@@ -103,8 +151,8 @@ public class ClientIdRekeyTests : IDisposable
         await _publisher.PublishTreatmentsAsync([Equivalent(ObjectIdA, 10, MealAt)], Source, WriteOrigin.Live);
 
         _context.CarbIntakes.Should().BeEmpty();
-        var tombstone = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().SingleAsync();
-        tombstone.LegacyId.Should().Be(ObjectIdA);
+        var tombstones = await _context.CarbIntakes.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+        tombstones.Select(c => c.LegacyId).Should().BeEquivalentTo([TrioId, ObjectIdA]);
     }
 
     [Fact]
