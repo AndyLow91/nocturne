@@ -648,85 +648,38 @@ public class SubjectService : ISubjectService
     }
 
     /// <inheritdoc />
-    public async Task<FactorRemovalResult> TryRemoveOidcIdentityAsync(Guid subjectId, Guid identityId)
-    {
-        // InMemory provider (used in tests) doesn't support transactions; skip in that case.
-        var supportsTx = _dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory";
-        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-        if (supportsTx)
-        {
-            tx = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-        }
-        try
-        {
-            var row = await _dbContext.SubjectOidcIdentities
-                .FirstOrDefaultAsync(x => x.Id == identityId && x.SubjectId == subjectId);
-            if (row == null)
-            {
-                if (tx != null) await tx.RollbackAsync();
-                return FactorRemovalResult.NotFound;
-            }
-
-            var remainingPasskeys = await _dbContext.PasskeyCredentials
-                .CountAsync(p => p.SubjectId == subjectId);
-            var remainingOidc = await _dbContext.WorkingOidcIdentities()
-                .CountAsync(i => i.SubjectId == subjectId && i.Id != identityId);
-            if (remainingPasskeys + remainingOidc < 1)
-            {
-                if (tx != null) await tx.RollbackAsync();
-                return FactorRemovalResult.LastPrimaryFactor;
-            }
-
-            _dbContext.SubjectOidcIdentities.Remove(row);
-            await _dbContext.SaveChangesAsync();
-            if (tx != null) await tx.CommitAsync();
-            return FactorRemovalResult.Removed;
-        }
-        finally
-        {
-            if (tx != null) await tx.DisposeAsync();
-        }
-    }
+    public Task<FactorRemovalResult> TryRemoveOidcIdentityAsync(Guid subjectId, Guid identityId) =>
+        TryRemoveFactorAsync(
+            _dbContext.SubjectOidcIdentities.Where(x => x.Id == identityId && x.SubjectId == subjectId),
+            async () => await _dbContext.PasskeyCredentials.CountAsync(p => p.SubjectId == subjectId)
+                + await _dbContext.WorkingOidcIdentities()
+                    .CountAsync(i => i.SubjectId == subjectId && i.Id != identityId));
 
     /// <inheritdoc />
-    public async Task<FactorRemovalResult> TryRemovePasskeyCredentialAsync(Guid subjectId, Guid credentialId)
-    {
-        var supportsTx = _dbContext.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory";
-        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-        if (supportsTx)
+    public Task<FactorRemovalResult> TryRemovePasskeyCredentialAsync(Guid subjectId, Guid credentialId) =>
+        TryRemoveFactorAsync(
+            _dbContext.PasskeyCredentials.Where(x => x.Id == credentialId && x.SubjectId == subjectId),
+            async () => await _dbContext.PasskeyCredentials
+                    .CountAsync(p => p.SubjectId == subjectId && p.Id != credentialId)
+                + await _dbContext.WorkingOidcIdentities().CountAsync(i => i.SubjectId == subjectId));
+
+    private Task<FactorRemovalResult> TryRemoveFactorAsync<TFactor>(
+        IQueryable<TFactor> factor, Func<Task<int>> countOtherFactors) where TFactor : class =>
+        _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            tx = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-        }
-        try
-        {
-            var row = await _dbContext.PasskeyCredentials
-                .FirstOrDefaultAsync(x => x.Id == credentialId && x.SubjectId == subjectId);
-            if (row == null)
-            {
-                if (tx != null) await tx.RollbackAsync();
+            await using var tx = await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+
+            if (!await factor.AnyAsync())
                 return FactorRemovalResult.NotFound;
-            }
 
-            var remainingPasskeys = await _dbContext.PasskeyCredentials
-                .CountAsync(p => p.SubjectId == subjectId && p.Id != credentialId);
-            var remainingOidc = await _dbContext.WorkingOidcIdentities()
-                .CountAsync(i => i.SubjectId == subjectId);
-            if (remainingPasskeys + remainingOidc < 1)
-            {
-                if (tx != null) await tx.RollbackAsync();
+            if (await countOtherFactors() < 1)
                 return FactorRemovalResult.LastPrimaryFactor;
-            }
 
-            _dbContext.PasskeyCredentials.Remove(row);
-            await _dbContext.SaveChangesAsync();
-            if (tx != null) await tx.CommitAsync();
+            // Untracked, so a retried attempt never inherits a Deleted entry from the failed one.
+            await factor.ExecuteDeleteAsync();
+            await tx.CommitAsync();
             return FactorRemovalResult.Removed;
-        }
-        finally
-        {
-            if (tx != null) await tx.DisposeAsync();
-        }
-    }
+        });
 
     /// <inheritdoc />
     public async Task<int> CountPrimaryAuthFactorsAsync(Guid subjectId)

@@ -24,15 +24,13 @@
   import TrackerDefinitionsTab from "$lib/components/trackers/TrackerDefinitionsTab.svelte";
   import TrackerPresetsTab from "$lib/components/trackers/TrackerPresetsTab.svelte";
   import TrackerEditorDialog from "$lib/components/trackers/TrackerEditorDialog.svelte";
-  import {
-    Timer,
-    AlertTriangle,
-    History,
-    Settings2,
-    Bookmark,
-    Loader2,
-    Activity,
-  } from "lucide-svelte";
+  import Timer from "@lucide/svelte/icons/timer";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import History from "@lucide/svelte/icons/history";
+  import Settings2 from "@lucide/svelte/icons/settings-2";
+  import Bookmark from "@lucide/svelte/icons/bookmark";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Activity from "@lucide/svelte/icons/activity";
   import { tick } from "svelte";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";

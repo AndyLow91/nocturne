@@ -173,9 +173,34 @@ public class TempBasalRepository : ITempBasalRepository
         var entity = TempBasalMapper.ToEntity(model);
         ctx.TempBasals.Add(entity);
         await ctx.SaveChangesAsync(ct);
+        await LinkInsertedAsync([entity], ct);
         var created = TempBasalMapper.ToDomainModel(entity);
         await RaiseBroadcastAsync([created], [], [], origin, ct);
         return created;
+    }
+
+    /// <summary>
+    /// Links committed inserts into canonical groups, best-effort: a failure is logged rather than
+    /// failing a committed write. Only the full dedup job links a row missed here; the reconcile
+    /// pass reads links, so it never sees one.
+    /// </summary>
+    private async Task LinkInsertedAsync(IReadOnlyList<TempBasalEntity> inserted, CancellationToken ct)
+    {
+        try
+        {
+            var dedupInputs = inserted.Select(e => new DeduplicationInput(
+                RecordId: e.Id,
+                Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
+                Criteria: MatchCriteriaMapper.From(e)
+            )).ToList();
+
+            await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", inserted.Count);
+        }
     }
 
     /// <summary>
@@ -250,13 +275,12 @@ public class TempBasalRepository : ITempBasalRepository
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TempBasal>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
+    public async Task<BulkRestoreResult<TempBasal>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var restored = (await ctx.RestoreDeletedAsync<TempBasalEntity>(ids, ct))
-            .Select(TempBasalMapper.ToDomainModel).ToList();
-        await RaiseBroadcastAsync(restored, [], [], origin, ct);
-        return restored;
+        var result = (await ctx.RestoreDeletedAsync<TempBasalEntity>(ids, nameof(TempBasal), ct)).Map(TempBasalMapper.ToDomainModel);
+        await RaiseBroadcastAsync(result.Restored, [], [], origin, ct);
+        return result;
     }
 
     /// <inheritdoc />
@@ -333,55 +357,31 @@ public class TempBasalRepository : ITempBasalRepository
     )
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        var written = await strategy.ExecuteAsync(async () =>
-        {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-            var entities = records.Select(TempBasalMapper.ToEntity).ToList();
-            if (entities.Count == 0)
+        var (entities, skippedDeleted) = await ctx.ExecuteInTransactionAsync(
+            async token =>
             {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], 0);
-            }
+                var entities = records.Select(TempBasalMapper.ToEntity).ToList();
 
-            var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
-                entities,
-                e => e.LegacyId,
-                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, token),
-                ct);
+                var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
+                    entities,
+                    e => e.LegacyId,
+                    (legacyIds, t) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, t),
+                    token);
 
-            if (toInsert.Count == 0)
-            {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], skippedDeleted);
-            }
+                return (toInsert, skippedDeleted);
+            },
+            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            ct: ct);
 
-            await tx.CommitAsync(ct);
+        _logger.LogSkippedDeleted(nameof(TempBasal), skippedDeleted);
+        if (entities.Count == 0)
+            return new BulkWrite<TempBasal>([], skippedDeleted);
 
-            // Cross-connector deduplication: link saved records to canonical groups
-            try
-            {
-                var dedupInputs = toInsert.Select(e => new DeduplicationInput(
-                    RecordId: e.Id,
-                    Mills: new DateTimeOffset(e.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-                    DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
-                    Criteria: MatchCriteriaMapper.From(e)
-                )).ToList();
+        await LinkInsertedAsync(entities, ct);
 
-                await _deduplicationService.DeduplicateBatchAsync(RecordType.TempBasal, dedupInputs, ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Failed to deduplicate {Type} batch of {Count}", "TempBasal", toInsert.Count);
-            }
-
-            var created = toInsert.Select(TempBasalMapper.ToDomainModel).ToList();
-            await RaiseBroadcastAsync(created, [], [], origin, ct);
-            return new BulkWrite<TempBasal>(created, skippedDeleted);
-        });
-
-        _logger.LogSkippedDeleted(nameof(TempBasal), written.SkippedDeleted);
-        return written;
+        var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
+        await RaiseBroadcastAsync(created, [], [], origin, ct);
+        return new BulkWrite<TempBasal>(created, skippedDeleted);
     }
 
     /// <inheritdoc />
