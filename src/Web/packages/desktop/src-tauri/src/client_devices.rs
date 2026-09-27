@@ -18,11 +18,17 @@ pub struct ApiError {
 
 impl ApiError {
     fn network(message: String) -> Self {
-        Self { status: None, message }
+        Self {
+            status: None,
+            message,
+        }
     }
 
     fn http(status: u16, message: String) -> Self {
-        Self { status: Some(status), message }
+        Self {
+            status: Some(status),
+            message,
+        }
     }
 }
 
@@ -144,7 +150,10 @@ pub async fn register(
 
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
-        return Err(ApiError::http(status, format!("device registration returned HTTP {status}")));
+        return Err(ApiError::http(
+            status,
+            format!("device registration returned HTTP {status}"),
+        ));
     }
 
     let device: RegisterResponse = resp
@@ -164,7 +173,9 @@ pub async fn active_intents(
 ) -> Result<Vec<DeviceActionIntent>, ApiError> {
     let server = server.trim_end_matches('/');
     let resp = client
-        .get(format!("{server}/api/v4/client-devices/{device_id}/active-intents"))
+        .get(format!(
+            "{server}/api/v4/client-devices/{device_id}/active-intents"
+        ))
         .bearer_auth(token)
         .send()
         .await
@@ -172,7 +183,10 @@ pub async fn active_intents(
 
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
-        return Err(ApiError::http(status, format!("active-intents returned HTTP {status}")));
+        return Err(ApiError::http(
+            status,
+            format!("active-intents returned HTTP {status}"),
+        ));
     }
 
     resp.json::<Vec<DeviceActionIntent>>()
@@ -201,7 +215,9 @@ pub async fn acknowledge(
 ) -> Result<AcknowledgeResponse, String> {
     let server = server.trim_end_matches('/');
     let resp = client
-        .post(format!("{server}/api/v4/alerts/excursions/{excursion_id}/acknowledge"))
+        .post(format!(
+            "{server}/api/v4/alerts/excursions/{excursion_id}/acknowledge"
+        ))
         .bearer_auth(token)
         .json(&serde_json::json!({ "acknowledgedBy": acknowledged_by }))
         .send()
@@ -209,7 +225,10 @@ pub async fn acknowledge(
         .map_err(|e| format!("Could not reach {server}: {e}"))?;
 
     if !resp.status().is_success() {
-        return Err(format!("acknowledge returned HTTP {}", resp.status().as_u16()));
+        return Err(format!(
+            "acknowledge returned HTTP {}",
+            resp.status().as_u16()
+        ));
     }
     Ok(resp.json().await.unwrap_or_default())
 }
@@ -277,7 +296,11 @@ mod tests {
         };
         assert!(!acked.is_active());
 
-        let resolved = DeviceActionIntent { intent: "resolved".into(), acknowledged: false, ..acked.clone() };
+        let resolved = DeviceActionIntent {
+            intent: "resolved".into(),
+            acknowledged: false,
+            ..acked.clone()
+        };
         assert!(!resolved.is_active());
     }
 }

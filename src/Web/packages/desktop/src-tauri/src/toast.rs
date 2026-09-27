@@ -124,7 +124,9 @@ pub fn show(intent: &DeviceActionIntent, ack: Option<AckContext>) -> Result<(), 
         });
     }
 
-    toast.show().map_err(|e| format!("could not show toast: {e}"))
+    toast
+        .show()
+        .map_err(|e| format!("could not show toast: {e}"))
 }
 
 /// Posts the acknowledge for `ack`, resolving a fresh token at click time. The fresh token is only
@@ -137,8 +139,9 @@ pub fn show(intent: &DeviceActionIntent, ack: Option<AckContext>) -> Result<(), 
 async fn acknowledge_excursion(ack: &AckContext, action: AckAction) {
     let result = async {
         let client = crate::http::client()?;
-        let (server, token) =
-            crate::auth::get_valid_token(&client).await.map_err(|e| e.to_string())?;
+        let (server, token) = crate::auth::get_valid_token(&client)
+            .await
+            .map_err(|e| e.to_string())?;
         check_ack_server(&server, &ack.server)?;
         crate::client_devices::acknowledge(&client, &server, &token, &ack.excursion_id, ACK_BY)
             .await
@@ -152,7 +155,10 @@ async fn acknowledge_excursion(ack: &AckContext, action: AckAction) {
         },
         Err(e) => {
             eprintln!("alert ack: {e}");
-            (format!("ack-failed-{}", ack.excursion_id), action.failure_lines())
+            (
+                format!("ack-failed-{}", ack.excursion_id),
+                action.failure_lines(),
+            )
         }
     };
     let _ = show_notification(&InAppNotification {
@@ -208,7 +214,11 @@ fn notification_lines(notification: &InAppNotification) -> (String, String) {
 
 /// Title line: rule name, prefixed with a severity marker for critical/warning.
 fn title_line(intent: &DeviceActionIntent) -> String {
-    let name = if intent.rule_name.is_empty() { "Glucose alert" } else { &intent.rule_name };
+    let name = if intent.rule_name.is_empty() {
+        "Glucose alert"
+    } else {
+        &intent.rule_name
+    };
     match intent.severity.as_str() {
         "critical" => format!("\u{26A0} {name}"),
         "warning" => format!("\u{26A0} {name}"),
@@ -337,14 +347,21 @@ mod tests {
     #[test]
     fn outcome_notice_only_when_the_server_did_something_else() {
         assert_eq!(AckAction::Mute.outcome_mismatch_lines("muted"), None);
-        assert_eq!(AckAction::Acknowledge.outcome_mismatch_lines("acknowledged"), None);
+        assert_eq!(
+            AckAction::Acknowledge.outcome_mismatch_lines("acknowledged"),
+            None
+        );
         assert_eq!(AckAction::Mute.outcome_mismatch_lines("closed"), None);
         assert_eq!(
-            AckAction::Acknowledge.outcome_mismatch_lines("muted").map(|l| l.0),
+            AckAction::Acknowledge
+                .outcome_mismatch_lines("muted")
+                .map(|l| l.0),
             Some("Alert muted for you only")
         );
         assert_eq!(
-            AckAction::Mute.outcome_mismatch_lines("acknowledged").map(|l| l.0),
+            AckAction::Mute
+                .outcome_mismatch_lines("acknowledged")
+                .map(|l| l.0),
             Some("Alert acknowledged for everyone")
         );
     }
