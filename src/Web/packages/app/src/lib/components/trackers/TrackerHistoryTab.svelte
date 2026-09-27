@@ -7,7 +7,7 @@
     CardHeader,
     CardTitle,
   } from "$lib/components/ui/card";
-  import { History } from "lucide-svelte";
+  import History from "@lucide/svelte/icons/history";
   import { CompletionReason, type TrackerInstanceDto } from "$api";
 
   interface Props {

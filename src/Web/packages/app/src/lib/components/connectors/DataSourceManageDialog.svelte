@@ -7,14 +7,12 @@
   import { Input } from "$lib/components/ui/input";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
-  import {
-    CheckCircle,
-    AlertCircle,
-    AlertTriangle,
-    Loader2,
-    Pencil,
-    Trash2,
-  } from "lucide-svelte";
+  import CheckCircle from "@lucide/svelte/icons/circle-check-big";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import { describeSubmitError, errorStatus } from "$lib/forms";
   import { satisfiesScope } from "$lib/authorization/scopes";
   import { page } from "$app/state";

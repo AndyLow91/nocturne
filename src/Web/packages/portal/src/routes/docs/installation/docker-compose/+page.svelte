@@ -109,7 +109,39 @@
     <p class="text-muted-foreground mb-4">
         Watchtower checks for image updates daily. To update manually:
     </p>
-    <CodeBlock code="docker compose pull && docker compose up -d" class="mb-8" />
+    <CodeBlock code="docker compose pull && docker compose up -d" class="mb-4" />
+    <p class="text-muted-foreground mb-8">
+        Watchtower updates images, not the compose file. If you installed before the
+        restart policy and log rotation below were added, download the new bundle and
+        run <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker compose up -d</code>
+        to pick them up. That first run recreates the containers, which clears their
+        old logs; your database data is kept.
+    </p>
+
+    <h2 class="text-2xl font-bold mt-8 mb-4">Restarts and logs</h2>
+    <p class="text-muted-foreground mb-4">
+        Every service sets <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">restart: unless-stopped</code>,
+        so Docker restarts it when it exits or when the Docker daemon restarts, unless you
+        stopped it. Docker's default policy is <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">no</code>
+        (<a href="https://docs.docker.com/engine/containers/start-containers-automatically/" class="text-primary hover:underline">Docker docs</a>).
+    </p>
+    <p class="text-muted-foreground mb-8">
+        Every service also logs to the <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">json-file</code>
+        driver, rotated at three files of 10 MB. Left to its defaults, that driver never
+        rotates, because <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">max-size</code>
+        defaults to unlimited
+        (<a href="https://docs.docker.com/engine/logging/drivers/json-file/" class="text-primary hover:underline">Docker docs</a>).
+        A logging driver set on a container replaces the daemon's default
+        (<a href="https://docs.docker.com/engine/logging/configure/" class="text-primary hover:underline">Docker docs</a>),
+        so the bundle overrides any <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">log-driver</code>
+        in your <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">daemon.json</code>.
+        To keep yours, set <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">logging</code>
+        on the services in a <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker-compose.override.yaml</code>.
+        Compose reads that file only when you pass no <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
+        (<a href="https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/" class="text-primary hover:underline">Docker docs</a>),
+        so with the bring-your-own-proxy command, also pass
+        <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f docker-compose.override.yaml</code>.
+    </p>
 
     <h2 class="text-2xl font-bold mt-8 mb-4">Troubleshooting</h2>
     <p class="text-muted-foreground mb-4">Check the logs for error details:</p>

@@ -251,24 +251,27 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
     /// <summary>
     /// The insert tail both single-create paths share: the LegacyId guard
-    /// <see cref="BulkCreateAsync"/> applies to its insert set, the insert itself, and the create
-    /// broadcast.
+    /// <see cref="BulkCreateAsync"/> applies to its insert set, the insert itself, dedup linking,
+    /// and the create broadcast. An unlinked row is invisible to every later match, so another
+    /// source's copy of it is never recognised as a duplicate. Legacy treatment creates arrive here
+    /// one record at a time.
     /// </summary>
     /// <exception cref="RecreationBlockedException">
     /// The LegacyId is held by a stored row, per
-    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}"/>.
+    /// <see cref="SoftDeleteDedupExtensions.GetBlockingLegacyIdsAsync{TEntity}(NocturneDbContext, IEnumerable{TEntity}, CancellationToken)"/>.
     /// </exception>
     protected async Task<TModel> InsertAsync(
         NocturneDbContext ctx, TEntity entity, WriteOrigin origin, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(entity.LegacyId)
-            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity.LegacyId], ct)).Held.Count > 0)
+            && (await ctx.GetBlockingLegacyIdsAsync<TEntity>([entity], ct)).Held.Count > 0)
         {
-            throw new RecreationBlockedException(typeof(TModel).Name, $"legacy id '{entity.LegacyId}'");
+            throw new RecreationBlockedException(typeof(TModel).Name, RecreationBlockedException.LegacyIdIdentity(entity.LegacyId));
         }
 
         ctx.Set<TEntity>().Add(entity);
         await ctx.SaveChangesAsync(ct);
+        await PostCommitDedupAsync(ctx, [entity], origin, ct);
         var created = ToDomain(entity);
         await RaiseBroadcastAsync([created], [], [], origin, ct);
         return created;
@@ -365,8 +368,7 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         var skippedDeleted = 0;
         if (inserted.Count > 0)
         {
-            var blocked = await ctx.GetBlockingLegacyIdsAsync<TEntity>(
-                inserted.Select(i => i.LegacyId).ToHashSet(StringComparer.Ordinal), ct);
+            var blocked = await ctx.GetBlockingLegacyIdsAsync(inserted.Select(i => i.Entity), ct);
             skippedDeleted = inserted.Count(i => blocked.DeletedByUser.Contains(i.LegacyId));
             inserted.RemoveAll(i => blocked.Held.Contains(i.LegacyId));
             ctx.Set<TEntity>().AddRange(inserted.Select(i => i.Entity));
@@ -427,12 +429,12 @@ public abstract class V4RepositoryBase<TModel, TEntity>
     }
 
     /// <inheritdoc cref="Core.Contracts.V4.Repositories.IV4Repository{T}.BulkRestoreAsync" />
-    public async Task<IEnumerable<TModel>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
+    public async Task<BulkRestoreResult<TModel>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
     {
         await using var ctx = await ContextFactory.CreateAsync(ct);
-        var restored = (await ctx.RestoreDeletedAsync<TEntity>(ids, ct)).Select(ToDomain).ToList();
-        await RaiseBroadcastAsync(restored, [], [], origin, ct);
-        return restored;
+        var result = (await ctx.RestoreDeletedAsync<TEntity>(ids, typeof(TModel).Name, ct)).Map(ToDomain);
+        await RaiseBroadcastAsync(result.Restored, [], [], origin, ct);
+        return result;
     }
 
     /// <inheritdoc cref="Core.Contracts.V4.Repositories.IV4Repository{T}.GetDeletedAsync" />
@@ -560,41 +562,42 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         var records = recordsParam.ToList();
         if (records.Count == 0) return [];
         await using var ctx = await ContextFactory.CreateAsync(ct);
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        var written = await strategy.ExecuteAsync(async () =>
-        {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-            var entities = records.Select(ToEntity).ToList();
-
-            var split = await SplitUpsertsAsync(ctx, entities, ct);
-
-            var (toInsert, blockedSkipped) = await ctx.InsertUnblockedAsync(
-                split.ToInsert,
-                e => e.LegacyId,
-                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds, token),
-                ct);
-            var skippedDeleted = split.SkippedDeleted + blockedSkipped;
-
-            if (toInsert.Count == 0 && split.UpdatedInPlace.Count == 0)
+        var written = await ctx.ExecuteInTransactionAsync(
+            async token =>
             {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TModel>([], skippedDeleted);
-            }
+                var entities = records.Select(ToEntity).ToList();
 
-            await tx.CommitAsync(ct);
-            await PostCommitDedupAsync(ctx, toInsert, origin, ct);
+                var split = await SplitUpsertsAsync(ctx, entities, token);
+
+                // The entity overload, not the key set: each legacy id's first candidate is both the one
+                // InsertUnblockedAsync keeps and the one whose client id the tombstone exemption reads.
+                var (toInsert, blockedSkipped) = await ctx.InsertUnblockedAsync(
+                    split.ToInsert,
+                    e => e.LegacyId,
+                    (_, t) => ctx.GetBlockingLegacyIdsAsync(split.ToInsert, t),
+                    token);
+                var skippedDeleted = split.SkippedDeleted + blockedSkipped;
+
+                return (split, toInsert, skippedDeleted);
+            },
+            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            ct: ct);
+
+        var (split, inserted, skippedDeleted) = written;
+        if (inserted.Count > 0 || split.UpdatedInPlace.Count > 0)
+        {
+            await PostCommitDedupAsync(ctx, inserted, origin, ct);
             // Inserts broadcast as create; upserts broadcast as update only when materially changed
             // (a connector re-poll of byte-identical rows changes nothing, so it stays silent).
             await RaiseBroadcastAsync(
-                toInsert.Select(ToDomain).ToList(),
+                inserted.Select(ToDomain).ToList(),
                 split.MateriallyChanged.Select(ToDomain).ToList(),
                 [],
                 origin, ct);
-            return new BulkWrite<TModel>(
-                split.UpdatedInPlace.Concat(toInsert).Select(ToDomain).ToList(), skippedDeleted);
-        });
+        }
 
-        Logger.LogSkippedDeleted(typeof(TModel).Name, written.SkippedDeleted);
-        return written;
+        Logger.LogSkippedDeleted(typeof(TModel).Name, skippedDeleted);
+        return new BulkWrite<TModel>(
+            split.UpdatedInPlace.Concat(inserted).Select(ToDomain).ToList(), skippedDeleted);
     }
 }

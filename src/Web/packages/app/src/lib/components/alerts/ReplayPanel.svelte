@@ -13,16 +13,14 @@
   import { Badge } from "$lib/components/ui/badge";
   import GlucoseCalendarPicker from "./GlucoseCalendarPicker.svelte";
   import * as Popover from "$lib/components/ui/popover";
-  import {
-    Loader2,
-    Info,
-    AlertCircle,
-    Calendar as CalendarIcon,
-    CalendarDays,
-    CheckCircle2,
-    BellOff,
-    Bell,
-  } from "lucide-svelte";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Info from "@lucide/svelte/icons/info";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import CalendarIcon from "@lucide/svelte/icons/calendar";
+  import CalendarDays from "@lucide/svelte/icons/calendar-days";
+  import CheckCircle2 from "@lucide/svelte/icons/circle-check";
+  import BellOff from "@lucide/svelte/icons/bell-off";
+  import Bell from "@lucide/svelte/icons/bell";
   import {
     replay,
     replayDryRun,

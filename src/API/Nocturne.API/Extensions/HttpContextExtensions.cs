@@ -1,7 +1,9 @@
+using Nocturne.Core.Contracts.Alerts;
 using Nocturne.Core.Contracts.Multitenancy;
 using Nocturne.API.Middleware;
 using Nocturne.Core.Models;
 using Nocturne.Core.Models.Authorization;
+using Nocturne.Infrastructure.Data;
 using Scope = Nocturne.Core.Models.Authorization.Scope;
 
 namespace Nocturne.API.Extensions;
@@ -195,6 +197,13 @@ public static class HttpContextExtensions
     }
 
     /// <summary>
+    /// The authority this request acknowledges an excursion with, for
+    /// <see cref="IAlertAcknowledgementService.AcknowledgeExcursionAsync"/>.
+    /// </summary>
+    public static AlertAcknowledgementAuthority GetAlertAcknowledgementAuthority(this HttpContext context) =>
+        new(context.GetSubjectId(), context.GetGrantedScopes());
+
+    /// <summary>
     /// The refusal a history-clamped caller reads when an action would give someone more history
     /// than the caller can see.
     /// </summary>
@@ -210,6 +219,19 @@ public static class HttpContextExtensions
     /// </summary>
     public static bool IsCallerHistoryClamped(this HttpContext context) =>
         context.RequestServices?.GetService<ICategoryReadContext>()?.IsHistoryClamped == true;
+
+    /// <summary>
+    /// Clamps every read on the request's services to the last 24 hours: onto
+    /// <see cref="ICategoryReadContext"/>, which the DbContext factory and the PHI caches read, and
+    /// onto the request-scoped context, which was pinned before authentication ran. There is no way
+    /// to lift it.
+    /// </summary>
+    public static void ClampMemberHistory(this HttpContext context)
+    {
+        context.RequestServices.GetService<ICategoryReadContext>()?.ClampMemberHistory();
+        if (context.RequestServices.GetService<NocturneDbContext>() is { } db)
+            db.HistoryClamped = true;
+    }
 
     /// <summary>
     /// The history limit something this caller mints carries: the requested limit, or the

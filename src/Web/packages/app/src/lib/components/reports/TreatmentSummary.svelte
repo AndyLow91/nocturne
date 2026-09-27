@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { Syringe, Apple, Utensils } from "lucide-svelte";
+  import Syringe from "@lucide/svelte/icons/syringe";
+  import Apple from "@lucide/svelte/icons/apple";
+  import Utensils from "@lucide/svelte/icons/utensils";
   import { formatCarbDisplay, formatInsulinDisplay, formatShortDate } from "$lib/utils/formatting";
   import type { DayToDayDailyData } from "./types";
   import type { TreatmentSummary } from "$lib/api";

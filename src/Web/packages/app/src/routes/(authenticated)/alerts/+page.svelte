@@ -36,7 +36,12 @@
   } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
-  import { Bell, Plus, AlertTriangle, Check, ChevronRight, Loader2 } from "lucide-svelte";
+  import Bell from "@lucide/svelte/icons/bell";
+  import Plus from "@lucide/svelte/icons/plus";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Check from "@lucide/svelte/icons/check";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
   import AppLogo from "$lib/components/ui/AppLogo.svelte";
   import { resolve } from "$app/paths";
 
