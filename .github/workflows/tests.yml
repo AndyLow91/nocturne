@@ -165,7 +165,12 @@ jobs:
               *) echo "::error::static web asset root $root is outside the workspace"; exit 1 ;;
             esac
           done
-          tar -cf - tests/*/*/bin/Debug tests/*/*/obj "${paths[@]}" \
+          # coverlet.collector points VSTest at its NuGet package folder instead of copying itself
+          # to the output, so the test jobs, which have no NuGet cache, get it from here.
+          collector="$(dotnet nuget locals global-packages --list | sed 's/^global-packages: //')coverlet.collector"
+          mkdir -p .coverlet
+          cp -R "$collector"/*/build/netstandard2.0/. .coverlet/
+          tar -cf - tests/*/*/bin/Debug tests/*/*/obj .coverlet "${paths[@]}" \
             | zstd -T0 -3 --long=30 -q -o "$RUNNER_TEMP/dotnet-build.tar.zst"
       - uses: actions/upload-artifact@v6
         if: env.BUILD_TESTS == 'true'
@@ -205,6 +210,7 @@ jobs:
             --logger "trx;LogFileName=unit.trx" \
             --settings tests/coverage.runsettings \
             --collect "XPlat Code Coverage" \
+            --test-adapter-path .coverlet \
             --results-directory TestResults/unit
       - uses: actions/upload-artifact@v6
         if: always()
@@ -423,12 +429,14 @@ jobs:
             --logger "trx;LogFileName=integration-db.trx" \
             --settings tests/coverage.runsettings \
             --collect "XPlat Code Coverage" \
+            --test-adapter-path .coverlet \
             --results-directory TestResults/integration
           dotnet test tests/Unit/Nocturne.API.Tests/Nocturne.API.Tests.csproj --no-build \
             --filter "Category=Integration" \
             --logger "trx;LogFileName=integration-api.trx" \
             --settings tests/coverage.runsettings \
             --collect "XPlat Code Coverage" \
+            --test-adapter-path .coverlet \
             --results-directory TestResults/integration
       - uses: actions/upload-artifact@v6
         if: always()
@@ -735,9 +743,14 @@ jobs:
             const body = require("fs").readFileSync("coverage.md", "utf8");
             await post({ github, context, prNumber: Number(process.env.PR_NUMBER), body });
       - name: Patch coverage gate
-        if: steps.report.outputs.status != '0'
+        if: steps.report.outputs.status == '1'
         run: |
           echo "::error::Patch coverage is below the ${COVERAGE_PATCH_THRESHOLD}% gate (see the job summary)."
+          exit 1
+      - name: Coverage report produced
+        if: steps.report.outputs.status != '0' && steps.report.outputs.status != '1'
+        run: |
+          echo "::error::No coverage report was produced (see the Report step)."
           exit 1
 
   # The single check to require on the branch: green when every job it needs passed or was
