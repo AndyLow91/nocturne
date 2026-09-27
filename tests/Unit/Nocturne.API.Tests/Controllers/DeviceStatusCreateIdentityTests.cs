@@ -111,28 +111,6 @@ public class DeviceStatusCreateIdentityTests
         _decomposed.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// A v3 update resolves the path id to the stored record and rewrites it in place under the
-    /// stored id. A delete-then-reinsert would leave tombstones that refuse the re-insert.
-    /// </summary>
-    [Fact]
-    public async Task V3_update_rewrites_the_stored_status_in_place_under_its_stored_id()
-    {
-        var uuid = Guid.CreateVersion7();
-        _uploaderRepo
-            .Setup(r => r.GetByGuidRangeAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new UploaderSnapshot { Id = uuid, Timestamp = DateTime.UtcNow });
-
-        var result = await V3().UpdateDeviceStatus(
-            MongoObjectId.FromGuid(uuid), Json("""{"device":"loop://a","app":"Loop","uploader":{"battery":42}}"""));
-
-        result.Should().BeOfType<OkObjectResult>();
-        _decomposed.Should().ContainSingle().Which.Id.Should().Be(uuid.ToString());
-        _decomposer.Verify(
-            d => d.DeleteByLegacyIdAsync(It.IsAny<string>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
 
     private static T WithContext<T>(T controller) where T : ControllerBase

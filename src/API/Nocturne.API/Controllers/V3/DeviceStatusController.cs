@@ -313,8 +313,8 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
     }
 
     /// <summary>
-    /// Update a device status record by ID with V3 format.
-    /// Deletes old V4 records, decomposes the updated DeviceStatus, and projects back.
+    /// Replace a device status record by ID with V3 format, rewriting its stored V4 snapshots in
+    /// place and projecting the result back.
     /// </summary>
     /// <param name="id">Device status ID to update</param>
     /// <param name="request">Updated device status data</param>
@@ -370,22 +370,21 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
             return CreateV3ErrorResponse(400, "ID mismatch");
         }
 
+        if (string.IsNullOrEmpty(deviceStatus.CreatedAt))
+        {
+            deviceStatus.CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        }
+
+        // The path's wire form may only resolve to the stored id, which is what the stored
+        // snapshots are found by.
         var existing = await _projection.GetByIdAsync(id, cancellationToken);
-        if (existing == null)
+        if (existing?.Id is not { } storedId
+            || await _decomposer.ReplaceAsync(storedId, deviceStatus, WriteOrigin.Live, cancellationToken) is null)
         {
             return CreateV3ErrorResponse(404, "Device status not found");
         }
 
-        // Keyed on the stored id, which the path's wire form may only resolve to, so the decomposer
-        // updates the stored snapshots in place. Deleting them first would leave tombstones that
-        // refuse the re-insert under the same legacy id.
-        deviceStatus.Id = existing.Id;
-        ProcessDeviceStatusForCreation(deviceStatus);
-
-        // Direct v3 update has no connector data source; a live update broadcasts.
-        await _decomposer.DecomposeAsync(deviceStatus, source: null, WriteOrigin.Live, cancellationToken);
-
-        var updated = await _projection.GetByIdAsync(existing.Id!, cancellationToken) ?? deviceStatus;
+        var updated = await _projection.GetByIdAsync(deviceStatus.Id!, cancellationToken) ?? deviceStatus;
 
         // Broadcast via WriteSideEffectsService (cache invalidation + SignalR)
         await _sideEffects.OnUpdatedAsync(

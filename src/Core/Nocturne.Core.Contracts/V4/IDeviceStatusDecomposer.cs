@@ -23,6 +23,22 @@ public interface IDeviceStatusDecomposer
     Task<DecompositionResult> DecomposeAsync(DeviceStatus deviceStatus, string? source, WriteOrigin origin, CancellationToken ct = default);
 
     /// <summary>
+    /// Replaces the stored device status <paramref name="storedId"/> resolves to with
+    /// <paramref name="deviceStatus"/>, as a legacy v3 PUT replaces the whole document: each section
+    /// it carries rewrites the stored snapshot in place, and each section it omits is removed.
+    /// </summary>
+    /// <param name="storedId">The id the stored status projects under: its legacy id, or its anchoring
+    /// snapshot's uuid when it has none.</param>
+    /// <param name="deviceStatus">The replacement document. Its id is set to the legacy id the group is
+    /// written under.</param>
+    /// <param name="origin">Write classification, as for <see cref="DecomposeAsync"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The decomposition, or <see langword="null"/> when nothing is stored under
+    /// <paramref name="storedId"/>.</returns>
+    Task<DecompositionResult?> ReplaceAsync(
+        string storedId, DeviceStatus deviceStatus, WriteOrigin origin, CancellationToken ct = default);
+
+    /// <summary>
     /// Whether decomposing <paramref name="deviceStatus"/> stores an APS, pump or uploader snapshot,
     /// the rows that hold a device status under its legacy id. A status carrying none of them leaves
     /// nothing a later lookup by id can find.

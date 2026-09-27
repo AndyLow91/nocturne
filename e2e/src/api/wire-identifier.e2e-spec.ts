@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eventually } from "../helpers/http.ts";
 import { minutesAgo, postEntries, postTreatments, sgvSeries } from "../helpers/data.ts";
@@ -193,6 +193,46 @@ describe("one wire identifier for entries and devicestatus", () => {
     });
     expect(storage([deleteEvent]).doc?._id).toBe(id);
     expect((await tenant.api.get(`/api/v3/devicestatus/${id}`)).status).toBe(404);
+  });
+
+  it("v3 PUT on a devicestatus stored without a legacy id replaces it in place under the identifier it had", async () => {
+    // Snapshots written through v4 carry no legacy id, as connector statuses do.
+    const device = `e2e-wire-keyless-${objectId().slice(0, 6)}`;
+    const correlationId = randomUUID();
+    const timestamp = minutesAgo(8);
+    const pumps = await tenant.api.post<Doc[]>("/api/v4/device-status/pump", [
+      { timestamp, device, correlationId, dataSource: "e2e-connector", syncIdentifier: `pump-${correlationId}`, manufacturer: "Tandem", model: "t:slim X2", reservoir: 120 },
+    ]);
+    expect(pumps.status, pumps.text).toBe(201);
+    const pumpId = pumps.body[0]!.id as string;
+    const uploaders = await tenant.api.post<Doc[]>("/api/v4/device-status/uploader", [{ timestamp, device, correlationId, battery: 80 }]);
+    expect(uploaders.status, uploaders.text).toBe(201);
+
+    const id = pumpId.replaceAll("-", "").slice(0, 24);
+    expect(unwrap<Doc>(await tenant.api.ok("GET", `/api/v3/devicestatus/${id}`)).uploader).toBeDefined();
+
+    const put = await tenant.api.request("PUT", `/api/v3/devicestatus/${id}`, {
+      device,
+      app: "e2e",
+      created_at: timestamp,
+      pump: { manufacturer: "Tandem", model: "t:slim X2", reservoir: 95 },
+    });
+    expect(put.status, put.text).toBe(200);
+    const replaced = unwrap<Doc>(put.body);
+    expect(replaced.identifier).toBe(id);
+    expect(replaced.pump).toMatchObject({ reservoir: 95 });
+    expect(replaced.uploader).toBeUndefined();
+
+    const listed = await tenant.api.ok<Doc[]>("GET", "/api/v1/devicestatus.json?count=50");
+    const mine = listed.filter((s) => s.device === device);
+    expect(mine.map((s) => s._id)).toEqual([id]);
+    expect(mine[0]!.pump).toMatchObject({ reservoir: 95 });
+    expect(mine[0]!.uploader).toBeUndefined();
+
+    const storedPumps = await tenant.api.ok<{ data: Doc[] }>("GET", `/api/v4/device-status/pump?device=${device}&limit=50`);
+    expect(storedPumps.data.map((p) => [p.id, p.reservoir])).toEqual([[pumpId, 95]]);
+    const storedUploaders = await tenant.api.ok<{ data: Doc[] }>("GET", `/api/v4/device-status/uploader?device=${device}&limit=50`);
+    expect(storedUploaders.data).toEqual([]);
   });
 
   it("serializes no raw id beside _id on v1, v3 and the data hub", async () => {
