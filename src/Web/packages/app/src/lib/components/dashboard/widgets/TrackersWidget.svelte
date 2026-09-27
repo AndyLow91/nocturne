@@ -2,7 +2,7 @@
   import WidgetCard from "./WidgetCard.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
-  import { ListChecks } from "lucide-svelte";
+  import ListChecks from "@lucide/svelte/icons/list-checks";
   import { DashboardVisibility, NotificationUrgency } from "$lib/api";
 
   const realtimeStore = getRealtimeStore();

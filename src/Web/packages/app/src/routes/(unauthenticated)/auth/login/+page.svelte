@@ -1,7 +1,9 @@
 <script lang="ts">
   import * as Card from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
-  import { ArrowLeft, Fingerprint, KeyRound } from "lucide-svelte";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import Fingerprint from "@lucide/svelte/icons/fingerprint-pattern";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import { getAuthState } from "../auth.remote";
   import { getAuthStatus } from "$lib/api/generated";
   import { page } from "$app/state";

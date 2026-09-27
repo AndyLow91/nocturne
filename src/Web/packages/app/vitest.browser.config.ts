@@ -14,8 +14,9 @@ export default defineConfig({
   // the stubs below are vitest aliases, applied only in vite's own pipeline.
   // `entries` makes the dep optimizer crawl every test file before the run. Left to discover deps
   // as files load, it re-bundles mid-run and reloads the browser, and a test file whose import was
-  // in flight then fails with "Failed to fetch dynamically imported module".
-  optimizeDeps: { exclude: ["runed/kit"], entries: ["src/**/*.svelte.test.ts"] },
+  // in flight then fails with "Failed to fetch dynamically imported module". Each
+  // @lucide/svelte/icons/* path is its own dep, so it is excluded rather than pre-bundled.
+  optimizeDeps: { exclude: ["runed/kit", "@lucide/svelte"], entries: ["src/**/*.svelte.test.ts"] },
   test: {
     include: ["src/**/*.svelte.test.ts"],
     setupFiles: ["vitest-browser-svelte", "./vitest.browser.setup.ts"],

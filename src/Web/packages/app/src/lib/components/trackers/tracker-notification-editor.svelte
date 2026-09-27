@@ -5,7 +5,9 @@
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
   import { DurationInput } from "$lib/components/ui/duration-input";
-  import { Plus, Trash2, Bell } from "lucide-svelte";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Bell from "@lucide/svelte/icons/bell";
   import { cn } from "$lib/utils";
   import { NotificationUrgency } from "$api";
   import type { TrackerNotification } from "./types";
