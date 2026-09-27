@@ -31,7 +31,7 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// <typeparam name="TEntity">The EF entity type backing <typeparamref name="TModel"/>.</typeparam>
 public abstract class V4RepositoryBase<TModel, TEntity>
     where TModel : class, IV4Record
-    where TEntity : class, IV4TimeSeriesEntity, IAuditable
+    where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISystemTimestamped
 {
     /// <summary>Tenant-scoped context factory. Exposed so subclasses can implement type-specific queries.</summary>
     protected ITenantDbContextFactory ContextFactory { get; }
@@ -245,6 +245,17 @@ public abstract class V4RepositoryBase<TModel, TEntity>
             .Select(e => new { e.LegacyId, e.CorrelationId })
             .ToListAsync(ct);
         return rows.Select(r => new LegacyCorrelation(r.LegacyId!, r.CorrelationId!.Value)).ToList();
+    }
+
+    /// <inheritdoc cref="ILegacyKeyedRepository{TRecord}.GetHeldLegacyIdsAsync" />
+    public async Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
+        IReadOnlyCollection<string> legacyIds, CancellationToken ct = default)
+    {
+        if (legacyIds.Count == 0)
+            return RecreationBlocks<string>.None.Held;
+
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        return (await ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds.ToHashSet(StringComparer.Ordinal), ct)).Held;
     }
 
     /// <inheritdoc cref="Core.Contracts.V4.Repositories.IV4Repository{T}.GetByGuidRangeAsync" />
@@ -622,7 +633,9 @@ public abstract class V4RepositoryBase<TModel, TEntity>
                     split.SkippedDeleted + blockedSkipped);
                 return (upserts, toInsert);
             },
-            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            (attempt, token) => attempt.toInsert.Count > 0
+                ? ctx.AnyLandedAsync(attempt.toInsert, token)
+                : ctx.AnyUpdateLandedAsync(attempt.upserts.MateriallyChanged, token),
             ct: ct);
 
         var (upserts, inserted) = written;

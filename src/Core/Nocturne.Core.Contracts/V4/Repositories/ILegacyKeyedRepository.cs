@@ -106,6 +106,13 @@ public interface ILegacyKeyedRepository<TRecord>
     Task<IEnumerable<LegacyCorrelation>> GetCorrelationIdsByLegacyIdAsync(
         IEnumerable<string> legacyIds, CancellationToken ct = default);
 
+    /// <summary>
+    /// The ids among <paramref name="legacyIds"/> a re-upload would find held, from any source: by a
+    /// live record, or by one the user deleted.
+    /// </summary>
+    Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
+        IReadOnlyCollection<string> legacyIds, CancellationToken ct = default);
+
     /// <returns>Number of records deleted.</returns>
     Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default);
 }
