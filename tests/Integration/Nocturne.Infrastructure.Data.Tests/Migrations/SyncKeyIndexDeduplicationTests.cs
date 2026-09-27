@@ -17,7 +17,7 @@ namespace Nocturne.Infrastructure.Data.Tests.Migrations;
 public class SyncKeyIndexDeduplicationFixture : IAsyncLifetime
 {
     /// <summary>The migration immediately before the one under test.</summary>
-    private const string PriorMigration = "20260927093001_DropAuthAuditSubjectForeignKeys";
+    private const string PriorMigration = "20260927185944_AddEntryFoodProfileHistoryIndexes";
 
     internal static readonly Guid Tenant = Guid.Parse("44444444-4444-7444-8444-444444444444");
 

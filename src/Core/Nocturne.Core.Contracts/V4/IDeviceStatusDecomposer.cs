@@ -23,6 +23,13 @@ public interface IDeviceStatusDecomposer
     Task<DecompositionResult> DecomposeAsync(DeviceStatus deviceStatus, string? source, WriteOrigin origin, CancellationToken ct = default);
 
     /// <summary>
+    /// Whether decomposing <paramref name="deviceStatus"/> stores an APS, pump or uploader snapshot,
+    /// the rows that hold a device status under its legacy id. A status carrying none of them leaves
+    /// nothing a later lookup by id can find.
+    /// </summary>
+    bool HasLegacyKeyedSnapshot(DeviceStatus deviceStatus);
+
+    /// <summary>
     /// Decomposes a batch of DeviceStatus records into typed v4 snapshot tables using bulk-insert
     /// operations to eliminate N+1 DB round-trips. Pump suspension state spans are processed as a
     /// post-insert sequential pass since transition detection depends on prior committed snapshots.

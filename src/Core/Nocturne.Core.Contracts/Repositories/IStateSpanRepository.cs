@@ -203,6 +203,18 @@ public interface IStateSpanRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the latest <c>StartTimestamp</c> across the state spans written by
+    /// <paramref name="source"/> outside the activity categories, or <c>null</c> when that source
+    /// has written none. Activity spans are left out because they carry their own watermark
+    /// (<see cref="GetLatestActivityTimestampAsync"/>) and would otherwise advance this one.
+    /// </summary>
+    /// <param name="source">The data source to scope to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<DateTime?> GetLatestNonActivityTimestampAsync(
+        string source,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns a single activity state span by its identifier.
     /// </summary>
     /// <param name="id">The state span identifier.</param>

@@ -220,7 +220,7 @@ public class SyncKeyedWriterConformanceTests : IDisposable
         V4RepositoryBase<TModel, TEntity> repository, TModel first, TModel resent,
         Func<TEntity, object?> value, object expected)
         where TModel : class, IV4Record
-        where TEntity : class, IV4TimeSeriesEntity, IAuditable
+        where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISystemTimestamped
     {
         var stored = await repository.CreateAsync(first, WriteOrigin.Live);
 
@@ -234,7 +234,7 @@ public class SyncKeyedWriterConformanceTests : IDisposable
         V4RepositoryBase<TModel, TEntity> repository, TModel first, TModel resent,
         Func<TEntity, object?> value, object expected)
         where TModel : class, IV4Record
-        where TEntity : class, IV4TimeSeriesEntity, IAuditable
+        where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISystemTimestamped
     {
         var stored = await repository.CreateAsync(first, WriteOrigin.Live);
 

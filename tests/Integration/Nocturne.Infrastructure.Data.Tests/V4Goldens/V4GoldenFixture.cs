@@ -80,6 +80,7 @@ public class V4GoldenFixture : IAsyncLifetime
         services.AddScoped<INoteRepository, NoteRepository>();
         services.AddScoped<IDeviceEventRepository, DeviceEventRepository>();
         services.AddScoped<IPatientDeviceRepository, PatientDeviceRepository>();
+        services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IBolusCalculationRepository, BolusCalculationRepository>();
         services.AddScoped<IApsSnapshotRepository, ApsSnapshotRepository>();
         services.AddScoped<IPumpSnapshotRepository, PumpSnapshotRepository>();

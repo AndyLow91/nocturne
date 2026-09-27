@@ -2891,7 +2891,7 @@ public class TreatmentDecomposerTests : IDisposable
         profileDecompResult.CreatedRecords.Add(new V4Models.TherapySettings { ProfileName = "Day Profile@@@@@1700000000000" });
 
         _profileDecomposerMock
-            .Setup(d => d.DecomposeAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.DecomposeProfileSwitchAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(profileDecompResult);
 
         // Act
@@ -2913,7 +2913,7 @@ public class TreatmentDecomposerTests : IDisposable
 
         // Verify profile decomposer was called with the synthetic profile
         _profileDecomposerMock.Verify(
-            d => d.DecomposeAsync(
+            d => d.DecomposeProfileSwitchAsync(
                 It.Is<Profile>(p =>
                     p.Id == "profile-switch-json-1"
                     && p.Mills == 1700000000000
@@ -2952,7 +2952,7 @@ public class TreatmentDecomposerTests : IDisposable
 
         // Assert -- profile decomposer should NOT be called
         _profileDecomposerMock.Verify(
-            d => d.DecomposeAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
+            d => d.DecomposeProfileSwitchAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -3190,7 +3190,7 @@ public class TreatmentDecomposerTests : IDisposable
             .ReturnsAsync((StateSpan ss, CancellationToken _) => ss);
 
         _tempBasalRepoMock
-            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.TempBasal>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.TempBasal>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.TempBasal> list, WriteOrigin origin, CancellationToken _) => [.. list]);
 
         // Act

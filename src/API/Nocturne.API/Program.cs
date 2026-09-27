@@ -156,6 +156,9 @@ builder.Services.AddControllers(options =>
 .ConfigureApplicationPartManager(manager =>
     AuthorizationConfiguration.ConfigureControllerDiscovery(
         manager, DevOnlyEndpoints.AreEnabled(builder.Environment, builder.Configuration)));
+builder.Services.AddTransient<
+    Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Mvc.MvcOptions>,
+    NightscoutJsonInputFormatterSetup>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddProblemDetails();

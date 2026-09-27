@@ -29,7 +29,6 @@ public static class StateSpanMapper
             SupersededById = !string.IsNullOrEmpty(stateSpan.SupersededById)
                 ? MapperHelpers.ParseIdToGuid(stateSpan.SupersededById)
                 : null,
-            UpdatedAt = DateTime.UtcNow,
         };
     }
 

@@ -27,7 +27,6 @@ public static class TempBasalMapper
             DataSource = model.DataSource,
             CorrelationId = model.CorrelationId,
             LegacyId = model.LegacyId,
-            SysUpdatedAt = DateTime.UtcNow,
             Rate = model.Rate,
             ScheduledRate = model.ScheduledRate,
             Origin = model.Origin.ToString(),

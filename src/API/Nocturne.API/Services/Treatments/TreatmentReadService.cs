@@ -58,7 +58,7 @@ public class TreatmentReadService : ITreatmentStore
     /// Upper bound on rows fetched into memory when a find query carries field filters, which can
     /// only be applied after projection and therefore defeat limit pushdown.
     /// </summary>
-    private const int MaxFilterFetch = 100_000;
+    internal int MaxFilterFetch { get; set; } = 100_000;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Treatment>> QueryAsync(TreatmentQuery query, CancellationToken ct = default)
@@ -298,8 +298,12 @@ public class TreatmentReadService : ITreatmentStore
         {
             // Field filters only exist on the projected shape; count matches within the
             // (bounded) window instead of delegating to per-repo counts.
-            var projected = await _projection.GetProjectedTreatmentsAsync(
-                findQuery.FromMills, findQuery.ToMills, MaxFilterFetch, nativeOnly: false, ct: ct);
+            var projected = (await _projection.GetProjectedTreatmentsAsync(
+                findQuery.FromMills, findQuery.ToMills, MaxFilterFetch, nativeOnly: false, ct: ct)).ToList();
+            if (projected.Count >= MaxFilterFetch)
+                _logger.LogWarning(
+                    "Find-filtered treatment count hit the {MaxFetch}-row window; older matches are not counted",
+                    MaxFilterFetch);
             return projected.Count(findQuery.Matches);
         }
 
