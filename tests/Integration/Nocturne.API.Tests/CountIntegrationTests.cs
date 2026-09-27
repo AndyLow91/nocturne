@@ -99,6 +99,33 @@ public class CountIntegrationTests : ApiIntegrationTestBase
             .Should().Be("""[{"_id":null,"count":1}]""");
     }
 
+    [Theory]
+    [InlineData("", 3)]
+    [InlineData("find[device]=synthetic://loop-a", 2)]
+    [InlineData("find[device]=synthetic://loop-b", 1)]
+    [InlineData("find[device]=synthetic://none", 0)]
+    public async Task CountDeviceStatus_EqualsTheListLength(string query, int expected)
+    {
+        var now = DateTimeOffset.UtcNow;
+        object Loop(DateTimeOffset at) => new { name = "Loop", timestamp = at.ToString("O"), iob = new { iob = 1.5, timestamp = at.ToString("O") } };
+        var statuses = new object[]
+        {
+            new { device = "synthetic://loop-a", created_at = now.AddMinutes(-15).ToString("O"), loop = Loop(now.AddMinutes(-15)), pump = new { reservoir = 100 } },
+            new { device = "synthetic://loop-a", created_at = now.AddMinutes(-10).ToString("O"), loop = Loop(now.AddMinutes(-10)) },
+            new { device = "synthetic://loop-b", created_at = now.AddMinutes(-5).ToString("O"), pump = new { reservoir = 90 } },
+        };
+        foreach (var status in statuses)
+            (await AuthenticatedClient.PostAsJsonAsync("/api/v1/devicestatus", status)).EnsureSuccessStatusCode();
+
+        var separator = query.Length == 0 ? "" : "&";
+        var list = await GetRowsAsync($"/api/v1/devicestatus?count=100{separator}{query}");
+        var counted = await GetRowsAsync($"/api/v1/count/devicestatus/where?{query}");
+
+        list.Should().HaveCount(expected);
+        var count = counted.Length == 0 ? 0 : counted.Single().GetProperty("count").GetInt64();
+        count.Should().Be(list.Length);
+    }
+
     private async Task SeedEntriesAsync()
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

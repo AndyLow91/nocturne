@@ -43,6 +43,12 @@ public interface IApsSnapshotRepository : ILegacyKeyedRepository<ApsSnapshot>
     /// <summary>Retrieve <see cref="ApsSnapshot"/> records matching any of the given correlation IDs.</summary>
     /// <param name="correlationIds">Correlation IDs to match.</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <summary>
+    /// Counts the snapshots <see cref="GetAsync"/> reads for the same window and device, with no
+    /// source filter.
+    /// </summary>
+    Task<int> CountAsync(DateTime? from, DateTime? to, string? device, CancellationToken ct = default);
+
     Task<IEnumerable<ApsSnapshot>> GetByCorrelationIdsAsync(IEnumerable<Guid> correlationIds, CancellationToken ct = default);
 
     /// <summary>Retrieve <see cref="ApsSnapshot"/> records modified since the given timestamp, ordered oldest-first.</summary>

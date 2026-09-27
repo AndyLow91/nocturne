@@ -69,6 +69,23 @@ public class PumpSnapshotRepository : SyncUpsertRepositoryBase<PumpSnapshot, Pum
         return entity is null ? null : PumpSnapshotMapper.ToDomainModel(entity);
     }
 
+    /// <inheritdoc />
+    public async Task<int> CountUncorrelatedAsync(
+        DateTime? from, DateTime? to, string? device, CancellationToken ct = default)
+    {
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        var aps = ApsSnapshotRepository.InWindow(ctx.ApsSnapshots.AsNoTracking(), from, to, device);
+
+        var pumps = ctx.PumpSnapshots.AsNoTracking();
+        if (from.HasValue) pumps = pumps.Where(e => e.Timestamp >= from.Value);
+        if (to.HasValue) pumps = pumps.Where(e => e.Timestamp <= to.Value);
+        if (device != null) pumps = pumps.Where(e => e.Device == device);
+
+        return await pumps
+            .Where(p => p.CorrelationId == null || !aps.Any(a => a.CorrelationId == p.CorrelationId))
+            .CountAsync(ct);
+    }
+
     /// <summary>
     /// Gets pump snapshots by correlation IDs.
     /// </summary>

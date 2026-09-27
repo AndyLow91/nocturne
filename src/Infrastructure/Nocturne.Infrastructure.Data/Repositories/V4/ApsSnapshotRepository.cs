@@ -57,6 +57,22 @@ public class ApsSnapshotRepository : SyncUpsertRepositoryBase<ApsSnapshot, ApsSn
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<int> CountAsync(DateTime? from, DateTime? to, string? device, CancellationToken ct = default)
+    {
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        return await InWindow(ctx.ApsSnapshots.AsNoTracking(), from, to, device).CountAsync(ct);
+    }
+
+    internal static IQueryable<ApsSnapshotEntity> InWindow(
+        IQueryable<ApsSnapshotEntity> query, DateTime? from, DateTime? to, string? device)
+    {
+        if (from.HasValue) query = query.Where(e => e.Timestamp >= from.Value);
+        if (to.HasValue) query = query.Where(e => e.Timestamp <= to.Value);
+        if (device != null) query = query.Where(e => e.Device == device);
+        return query;
+    }
+
     /// <summary>
     /// Gets APS snapshots by correlation IDs.
     /// </summary>

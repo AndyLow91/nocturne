@@ -160,11 +160,11 @@ public class CountControllerTests
             .Setup(s => s.CountAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(3L);
         _mockApsSnapshotRepository
-            .Setup(s => s.CountAsync(null, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(4);
+            .Setup(s => s.CountAsync(null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
         _mockPumpSnapshotRepository
-            .Setup(s => s.CountAsync(null, null, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(4);
+            .Setup(s => s.CountUncorrelatedAsync(null, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
         _mockActivityService
             .Setup(s => s.CountActivitiesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(5L);
@@ -245,7 +245,7 @@ public class CountControllerTests
         var to = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
         _mockApsSnapshotRepository
             .Setup(s => s.CountAsync(
-                It.Is<DateTime?>(d => d == from), It.Is<DateTime?>(d => d == to), It.IsAny<CancellationToken>()))
+                It.Is<DateTime?>(d => d == from), It.Is<DateTime?>(d => d == to), null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
 
         Rows(await _controller.CountDeviceStatus(find: null)).Should().ContainSingle().Which.Count.Should().Be(2L);
@@ -257,7 +257,7 @@ public class CountControllerTests
     {
         var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         _mockApsSnapshotRepository
-            .Setup(s => s.CountAsync(It.Is<DateTime?>(d => d == from), null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.CountAsync(It.Is<DateTime?>(d => d == from), null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var result = await _controller.CountDeviceStatus("{\"created_at\":{\"$gte\":\"2026-01-01T00:00:00Z\"}}");
