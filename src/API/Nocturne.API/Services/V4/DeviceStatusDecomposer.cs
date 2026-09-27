@@ -111,6 +111,13 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         return result;
     }
 
+    /// <inheritdoc />
+    /// <remarks>Mirrors the pump, <see cref="MapToApsSnapshot"/> and uploader conditions in
+    /// <see cref="DecomposeAsync(DeviceStatus, string?, WriteOrigin, CancellationToken)"/>.</remarks>
+    public bool HasLegacyKeyedSnapshot(DeviceStatus ds)
+        => ds.Pump != null || ds.OpenAps != null || ds.Loop != null
+            || ds.Uploader != null || ds.UploaderBattery.HasValue;
+
     /// <summary>AAPS sends <c>date</c> instead of <c>mills</c>; normalize before decomposition.</summary>
     private static void NormalizeMills(DeviceStatus ds)
     {
