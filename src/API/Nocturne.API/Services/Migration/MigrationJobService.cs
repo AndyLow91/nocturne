@@ -1202,13 +1202,17 @@ internal class MigrationJob
     ///     How a paged pull bounds and advances its time cursor: <paramref name="Filter"/> is the
     ///     query-string fragment restricting a page to records at or before the cursor,
     ///     <paramref name="Oldest"/> reads the page's oldest record, answering <c>null</c> when the
-    ///     page carries no usable timestamp to page back from, and <paramref name="AdmittedThrough"/>
-    ///     is the latest record time the filter for a cursor admits.
+    ///     page carries no usable timestamp to page back from, <paramref name="AdmittedThrough"/>
+    ///     is the latest record time the filter for a cursor admits, <paramref name="Envelope"/> is
+    ///     how far above the anchor the first page reaches, and <paramref name="AtOrBefore"/> is
+    ///     whether a record's instant is at or before the anchor.
     /// </summary>
     private sealed record PageCursor(
         Func<DateTime, string> Filter,
         Func<IReadOnlyList<ProcessableDocumentBase>, DateTime?> Oldest,
-        Func<DateTime, DateTime> AdmittedThrough
+        Func<DateTime, DateTime> AdmittedThrough,
+        TimeSpan Envelope,
+        Func<ProcessableDocumentBase, DateTime, bool> AtOrBefore
     );
 
     /// <summary>Entries page on the numeric <c>date</c> field, which mirrors mills exactly.</summary>
@@ -1221,16 +1225,20 @@ internal class MigrationJob
                 ? null
                 : DateTimeOffset.FromUnixTimeMilliseconds(dated.Min(d => d.Mills)).UtcDateTime;
         },
-        to => to);
+        to => to,
+        TimeSpan.Zero,
+        (_, _) => true);
 
-    /// <summary>Every other collection pages on the ISO-8601 <c>created_at</c> string.</summary>
+    /// <summary>
+    ///     Every other collection pages on the ISO-8601 <c>created_at</c> string, inside the
+    ///     <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/>.
+    /// </summary>
     private static readonly PageCursor s_createdAtCursor = new(
         to => $"&find[created_at][$lte]={BackwardTimePager.CreatedAtUpperBound(to)}",
-        page => page
-            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
-            .Where(dt => dt.HasValue)
-            .Min(),
-        BackwardTimePager.CreatedAtAdmittedThrough);
+        page => BackwardTimePager.OldestWrittenCreatedAt(page, d => d.CreatedAt),
+        BackwardTimePager.CreatedAtAdmittedThrough,
+        BackwardTimePager.CreatedAtOffsetEnvelope,
+        (d, anchor) => BackwardTimePager.CreatedAtWithin(d.CreatedAt, null, anchor));
 
     /// <summary>
     ///     A legacy collection pulled page by page over a time cursor. <paramref name="Name"/> is
@@ -1344,11 +1352,12 @@ internal class MigrationJob
         using var scope = CreateTenantScope();
         var decompose = collection.Decompose(scope.ServiceProvider);
 
+        var anchor = FirstPageAnchor;
         var pages = BackwardTimePager.PageAsync<T>(
             from: null,
-            to: FirstPageAnchor,
+            to: anchor + collection.Cursor.Envelope,
             ApiPageSize,
-            ApiPageSize * BackwardTimePager.MaxPageWidening,
+            BackwardTimePager.WidestPageSize(ApiPageSize),
             async (bound, count) =>
             {
                 ct.ThrowIfCancellationRequested();
@@ -1375,8 +1384,9 @@ internal class MigrationJob
             "Migration",
             collection.Name);
 
-        await foreach (var page in pages)
+        await foreach (var served in pages)
         {
+            var page = served.Where(d => collection.Cursor.AtOrBefore(d, anchor)).ToArray();
             if (page.Length > 0)
             {
                 try

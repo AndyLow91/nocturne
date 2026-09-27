@@ -481,8 +481,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     /// <summary>
     ///     Streams a paginated Nightscout collection newest-first through
     ///     <see cref="BackwardTimePager.PageAsync{T}"/>, widening a crowded page up to
-    ///     <see cref="BackwardTimePager.MaxPageWidening"/> times the page size and never past
-    ///     <see cref="NightscoutConnectorConfiguration.MaxPageSize"/>.
+    ///     <see cref="BackwardTimePager.WidestPageSize"/>.
     /// </summary>
     /// <param name="from">Optional inclusive lower bound.</param>
     /// <param name="to">Optional inclusive upper bound; anchored to now when both bounds are open.</param>
@@ -507,7 +506,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             from,
             AnchorUnboundedFetch(from, to),
             _currentConfig.MaxCount,
-            Math.Min(_currentConfig.MaxCount * BackwardTimePager.MaxPageWidening, NightscoutConnectorConfiguration.MaxPageSize),
+            BackwardTimePager.WidestPageSize(_currentConfig.MaxCount),
             async (bound, count) =>
             {
                 // FetchDataAsync reports failure (retries exhausted, non-retryable HTTP, bad JSON) as
@@ -550,40 +549,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         page.Select(item => ParseCreatedAt(createdAtOf(item))?.UtcDateTime).Min();
 
     /// <summary>
-    ///     Oldest created_at on a page as the source wrote it — the key the source orders and
-    ///     filters by. Labelled UTC so formatting it back into a bound reproduces that wall clock
-    ///     verbatim rather than shifting it by the host's timezone.
-    /// </summary>
-    private static DateTime? OldestWrittenCreatedAt<T>(T[] page, Func<T, string?> createdAtOf) =>
-        page.Select(item => ParseCreatedAt(createdAtOf(item)) is { } parsed
-                ? DateTime.SpecifyKind(parsed.DateTime, DateTimeKind.Utc)
-                : (DateTime?)null)
-            .Min();
-
-    /// <summary>
-    ///     Whether a created_at falls inside the caller's window. A value that will not parse is
-    ///     kept: the crawl has never dropped records it cannot date.
-    /// </summary>
-    private static bool WithinWindow(string? createdAt, DateTime? from, DateTime? to)
-    {
-        if (ParseCreatedAt(createdAt) is not { } parsed)
-            return true;
-
-        return (from is null || parsed.UtcDateTime >= from.Value)
-            && (to is null || parsed.UtcDateTime <= to.Value);
-    }
-
-    // Real-world UTC offsets span -12:00 to +14:00.
-    private static readonly TimeSpan MaxUtcOffset = TimeSpan.FromHours(14);
-
-    /// <summary>
-    ///     Pages a created_at collection. Legacy Nightscout stores created_at as a string and
-    ///     compares it as one, so a record an old uploader wrote with a local offset
-    ///     ("2020-06-15T20:00:00+10:00") orders by its wall clock rather than its instant — up to
-    ///     <see cref="MaxUtcOffset"/> away. The requested window is widened by that envelope so such
-    ///     records are returned at all, and each page is filtered back to the true window here.
-    ///     Only the opening bounds are widened: the page cursor is already a wall clock the source
-    ///     returned, so widening it again would step over records the source has yet to serve.
+    ///     Pages a created_at collection inside the <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/>.
     ///     The filter's ceiling is the anchor the fetch bound was widened from, so an unbounded
     ///     backfill still stops at "now" rather than importing a future-dated device clock.
     /// </summary>
@@ -599,17 +565,17 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         var anchoredTo = AnchorUnboundedFetch(from, to);
 
         return FetchPagesAsync<T>(
-            from - MaxUtcOffset,
-            anchoredTo + MaxUtcOffset,
+            from - BackwardTimePager.CreatedAtOffsetEnvelope,
+            anchoredTo + BackwardTimePager.CreatedAtOffsetEnvelope,
             (pageFrom, pageTo, count) => BuildCreatedAtUrl(collection, pageFrom, pageTo, count),
-            page => OldestWrittenCreatedAt(page, createdAtOf),
+            page => BackwardTimePager.OldestWrittenCreatedAt(page, createdAtOf),
             BackwardTimePager.CreatedAtAdmittedThrough,
             collection,
             operationName,
             page =>
             {
                 observe?.Invoke(page);
-                return page.Where(item => WithinWindow(createdAtOf(item), from, anchoredTo)).ToArray();
+                return page.Where(item => BackwardTimePager.CreatedAtWithin(createdAtOf(item), from, anchoredTo)).ToArray();
             });
     }
 
@@ -644,7 +610,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                 recent?.Collect(raw);
             }))
         {
-            var kept = readFrom == from ? page : page.Where(t => WithinWindow(t.CreatedAt, from, to)).ToArray();
+            var kept = readFrom == from ? page : page.Where(t => BackwardTimePager.CreatedAtWithin(t.CreatedAt, from, to)).ToArray();
             if (kept.Length > 0)
                 yield return kept;
         }
@@ -652,7 +618,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
 
     /// <summary>
     ///     How far below the crawl's resume point every catch-up reconciles. The crawl's read already
-    ///     reaches <see cref="MaxUtcOffset"/> below it for offset-written created_at values, so this
+    ///     reaches <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/> below it for offset-written created_at values, so this
     ///     window plus <see cref="ReconcileReadMargin"/> stays inside what it downloads anyway.
     /// </summary>
     private static readonly TimeSpan RecentReconcileWindow = TimeSpan.FromHours(12);
@@ -678,7 +644,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
 
     /// <summary>
     ///     How much further back than the window the read reaches, and how far either side of a
-    ///     stored time a lookup searches beyond <see cref="MaxUtcOffset"/>. A row near the window's
+    ///     stored time a lookup searches beyond <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/>. A row near the window's
     ///     edge can have a stored time slightly off its created_at.
     /// </summary>
     private static readonly TimeSpan ReconcileReadMargin = TimeSpan.FromHours(1);
@@ -869,11 +835,11 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     ///     Nightscout releases that cast the value to an ObjectId. An ObjectId-shaped id is looked up by
     ///     <c>_id</c> and then by <c>id</c>. Neither field is indexed, so the lookup is bounded to the
     ///     created_at range the treatment can sit in: <paramref name="at"/>, give or take
-    ///     <see cref="MaxUtcOffset"/> and <see cref="ReconcileReadMargin"/>.
+    ///     <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/> and <see cref="ReconcileReadMargin"/>.
     /// </summary>
     private async Task<bool> TreatmentExistsUpstreamAsync(string id, DateTime at)
     {
-        var reach = MaxUtcOffset + ReconcileReadMargin;
+        var reach = BackwardTimePager.CreatedAtOffsetEnvelope + ReconcileReadMargin;
         return (IsObjectId(id) && await AnyAsync("_id")) || await AnyAsync("id");
 
         async Task<bool> AnyAsync(string field)

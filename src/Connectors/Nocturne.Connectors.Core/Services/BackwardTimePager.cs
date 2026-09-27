@@ -19,6 +19,56 @@ public static class BackwardTimePager
     public const int MaxPageWidening = 10;
 
     /// <summary>
+    ///     The largest count any crawl asks a source for. A slow source can time out serving more,
+    ///     which fails the whole collection, so a millisecond more crowded than this is warned about
+    ///     and stepped over instead.
+    /// </summary>
+    public const int MaxWidestPageSize = 10_000;
+
+    /// <summary>
+    ///     The widest page for a crawl paging at <paramref name="pageSize"/>:
+    ///     <see cref="MaxPageWidening"/> times it, never past <see cref="MaxWidestPageSize"/>.
+    /// </summary>
+    public static int WidestPageSize(int pageSize) =>
+        Math.Max(pageSize, Math.Min(pageSize * MaxPageWidening, MaxWidestPageSize));
+
+    /// <summary>
+    ///     How far a created_at written with a local offset can sort from its instant: real-world
+    ///     UTC offsets span -12:00 to +14:00. A legacy Nightscout source stores created_at as a
+    ///     string and compares it as one, so "2020-06-15T20:00:00+10:00" orders by its wall clock.
+    ///     A crawl on created_at widens its opening bounds by this and filters each page back to
+    ///     the true window with <see cref="CreatedAtWithin"/>, and steps on
+    ///     <see cref="OldestWrittenCreatedAt{T}"/>. Only the opening bounds are widened: the page
+    ///     cursor is already a wall clock the source returned, so widening it again would step over
+    ///     records the source has yet to serve.
+    /// </summary>
+    public static readonly TimeSpan CreatedAtOffsetEnvelope = TimeSpan.FromHours(14);
+
+    /// <summary>
+    ///     Oldest created_at on a page as the source wrote it, the key the source orders and filters
+    ///     by. Labelled UTC so <see cref="CreatedAtUpperBound"/> reproduces that wall clock verbatim
+    ///     rather than shifting it by its offset or the host's timezone.
+    /// </summary>
+    public static DateTime? OldestWrittenCreatedAt<T>(IEnumerable<T> page, Func<T, string?> createdAtOf) =>
+        page.Select(item => DateTimeOffset.TryParse(createdAtOf(item), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? DateTime.SpecifyKind(parsed.DateTime, DateTimeKind.Utc)
+                : (DateTime?)null)
+            .Min();
+
+    /// <summary>
+    ///     Whether a created_at's instant falls inside a window. A value that will not parse is
+    ///     kept: a crawl never drops records it cannot date.
+    /// </summary>
+    public static bool CreatedAtWithin(string? createdAt, DateTime? from, DateTime? to)
+    {
+        if (!DateTimeOffset.TryParse(createdAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            return true;
+
+        return (from is null || parsed.UtcDateTime >= from.Value)
+            && (to is null || parsed.UtcDateTime <= to.Value);
+    }
+
+    /// <summary>
     ///     Streams the collection one page per iteration, so callers never hold more than a page of
     ///     a multi-year history in memory. Uploaders write several records at one millisecond, so
     ///     each full page steps the upper bound to its oldest record inclusively, and a record

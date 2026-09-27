@@ -515,7 +515,7 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
             from,
             to,
             config.MaxCount,
-            config.MaxCount * BackwardTimePager.MaxPageWidening,
+            BackwardTimePager.WidestPageSize(config.MaxCount),
             async (bound, count) =>
             {
                 ct.ThrowIfCancellationRequested();
