@@ -235,6 +235,36 @@ describe("one wire identifier for entries and devicestatus", () => {
     expect(storedUploaders.data).toEqual([]);
   });
 
+  it("v3 DELETE on a devicestatus stored without a legacy id removes it by the identifier it is served under", async () => {
+    const device = `e2e-wire-keyless-del-${objectId().slice(0, 6)}`;
+    const correlationId = randomUUID();
+    const timestamp = minutesAgo(9);
+    const pumps = await tenant.api.post<Doc[]>("/api/v4/device-status/pump", [
+      { timestamp, device, correlationId, dataSource: "e2e-connector", syncIdentifier: `pump-${correlationId}`, manufacturer: "Tandem", model: "t:slim X2", reservoir: 110 },
+    ]);
+    expect(pumps.status, pumps.text).toBe(201);
+    const uploaders = await tenant.api.post<Doc[]>("/api/v4/device-status/uploader", [{ timestamp, device, correlationId, battery: 75 }]);
+    expect(uploaders.status, uploaders.text).toBe(201);
+
+    const before = await tenant.api.ok<Doc[]>("GET", "/api/v1/devicestatus.json?count=50");
+    const served = before.filter((s) => s.device === device).map((s) => s._id as string);
+    expect(served).toHaveLength(1);
+    const id = served[0]!;
+    expect(id).toMatch(OBJECT_ID);
+
+    const del = await tenant.api.delete(`/api/v3/devicestatus/${id}`);
+    expect(del.status, del.text).toBe(204);
+
+    expect((await tenant.api.get(`/api/v3/devicestatus/${id}`)).status).toBe(404);
+    const after = await tenant.api.ok<Doc[]>("GET", "/api/v1/devicestatus.json?count=50");
+    expect(after.filter((s) => s.device === device)).toEqual([]);
+    const storedPumps = await tenant.api.ok<{ data: Doc[] }>("GET", `/api/v4/device-status/pump?device=${device}&limit=50`);
+    expect(storedPumps.data).toEqual([]);
+    const storedUploaders = await tenant.api.ok<{ data: Doc[] }>("GET", `/api/v4/device-status/uploader?device=${device}&limit=50`);
+    expect(storedUploaders.data).toEqual([]);
+    expect((await tenant.api.delete(`/api/v3/devicestatus/${id}`)).status).toBe(404);
+  });
+
   it("serializes no raw id beside _id on v1, v3 and the data hub", async () => {
     const device = `e2e-wire-shape-${objectId().slice(0, 6)}`;
     await postEntries(tenant.api, sgvSeries({ count: 2, end: Date.now() - 2 * 60 * 60_000, device }));

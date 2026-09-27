@@ -430,13 +430,10 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
             HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "unknown"
         );
 
-        // Get the projected record before deleting (for broadcast)
+        // The path's wire form may only resolve to the stored id; the projection is also the broadcast.
         var deviceStatusToDelete = await _projection.GetByIdAsync(id, cancellationToken);
-
-        // Delete V4 snapshot records by legacy ID
-        var deleted = await _decomposer.DeleteByLegacyIdAsync(id, WriteOrigin.Live, cancellationToken);
-
-        if (deleted == 0 && deviceStatusToDelete == null)
+        if (deviceStatusToDelete?.Id is not { } storedId
+            || await _decomposer.DeleteStoredAsync(storedId, WriteOrigin.Live, cancellationToken) == 0)
         {
             return CreateV3ErrorResponse(
                 404,

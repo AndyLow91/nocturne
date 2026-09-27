@@ -66,4 +66,15 @@ public interface IDeviceStatusDecomposer
     /// <param name="ct">Cancellation token</param>
     /// <returns>Total number of v4 records deleted across all snapshot tables</returns>
     Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes every v4 record of the stored device status <paramref name="storedId"/> resolves to:
+    /// its snapshots, extras and the override stored under its key.
+    /// </summary>
+    /// <param name="storedId">The id the stored status projects under: its legacy id, or its anchoring
+    /// snapshot's uuid when it has none.</param>
+    /// <param name="origin">Write classification, as for <see cref="DecomposeAsync"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Total number of v4 records deleted; 0 when nothing is stored under the id.</returns>
+    Task<int> DeleteStoredAsync(string storedId, WriteOrigin origin, CancellationToken ct = default);
 }
