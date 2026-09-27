@@ -31,9 +31,9 @@ public interface IDeviceService
     Task<Guid?> ResolvePatientDeviceAsync(Guid? deviceId, long mills, CancellationToken ct = default);
 
     /// <summary>
-    /// Holds the last-seen advances <see cref="ResolveAsync"/> makes until the returned scope is
-    /// disposed, then writes each device's latest once. For a batch of time-ordered records, each of
-    /// which would otherwise write its device's last seen again.
+    /// Holds the seen-window widenings <see cref="ResolveAsync"/> makes until the returned scope is
+    /// disposed, then writes each device's widest first and last seen once. For a batch of records,
+    /// each of which would otherwise widen its device's window again.
     /// </summary>
     /// <param name="ct">Cancellation token for the writes made on dispose.</param>
     IAsyncDisposable DeferLastSeen(CancellationToken ct = default);
