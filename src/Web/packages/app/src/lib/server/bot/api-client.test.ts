@@ -13,8 +13,11 @@ const { buildBotApiClient } = await import("./api-client");
 const LINK = "44444444-4444-4444-4444-444444444444";
 const EXCURSION = "33333333-3333-3333-3333-333333333333";
 
-function adapterOver(outcome: AlertAcknowledgementOutcome | undefined) {
-  const acknowledgeAsLinkedMember = vi.fn().mockResolvedValue({ outcome });
+function adapterOver(
+  outcome: AlertAcknowledgementOutcome | undefined,
+  extra: { acknowledgedBy?: string; alreadyAcknowledged?: boolean } = {},
+) {
+  const acknowledgeAsLinkedMember = vi.fn().mockResolvedValue({ outcome, ...extra });
   const acknowledge = vi.fn();
   const acknowledgeExcursion = vi.fn();
   const api = {
@@ -38,7 +41,6 @@ const request = (excursionId: string | null) => ({
 
 describe("buildBotApiClient acknowledgeAsLinkedMember", () => {
   it.each([
-    [AlertAcknowledgementOutcome.Acknowledged, "acknowledged"],
     [AlertAcknowledgementOutcome.Muted, "muted"],
     [AlertAcknowledgementOutcome.Closed, "closed"],
   ])("acknowledges through the linked member and reports %s", async (wire, expected) => {
@@ -47,7 +49,7 @@ describe("buildBotApiClient acknowledgeAsLinkedMember", () => {
 
     await expect(
       bot.alerts.acknowledgeAsLinkedMember(LINK, request(EXCURSION)),
-    ).resolves.toBe(expected);
+    ).resolves.toEqual({ outcome: expected });
 
     expect(acknowledgeAsLinkedMember).toHaveBeenCalledExactlyOnceWith(
       LINK,
@@ -56,6 +58,21 @@ describe("buildBotApiClient acknowledgeAsLinkedMember", () => {
     );
     expect(acknowledge).not.toHaveBeenCalled();
     expect(acknowledgeExcursion).not.toHaveBeenCalled();
+  });
+
+  it("passes through who the API recorded as acknowledging", async () => {
+    const { bot } = adapterOver(AlertAcknowledgementOutcome.Acknowledged, {
+      acknowledgedBy: "Alex Owner",
+      alreadyAcknowledged: true,
+    });
+
+    await expect(
+      bot.alerts.acknowledgeAsLinkedMember(LINK, request(EXCURSION)),
+    ).resolves.toEqual({
+      outcome: "acknowledged",
+      acknowledgedBy: "Alex Owner",
+      alreadyAcknowledged: true,
+    });
   });
 
   it("sends no excursion for a request addressing the whole tenant", async () => {

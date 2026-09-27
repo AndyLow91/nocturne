@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Nocturne.API.Controllers.V4.Identity;
-using Nocturne.API.Controllers.V4.Monitoring;
 using Nocturne.API.Services.Chat;
 using Nocturne.Core.Contracts.Alerts;
 using Nocturne.Core.Contracts.Multitenancy;
@@ -107,7 +106,7 @@ public class ChatAcknowledgeEndpointTests : IDisposable
         return id;
     }
 
-    private Guid InsertExcursion(DateTime? endedAt = null)
+    private Guid InsertExcursion(DateTime? endedAt = null, string? acknowledgedBy = null)
     {
         var id = Guid.CreateVersion7();
         using var db = _db.CreateContext(_tenantId);
@@ -120,6 +119,8 @@ public class ChatAcknowledgeEndpointTests : IDisposable
             AlertRuleId = rule.Id,
             StartedAt = DateTime.UtcNow.AddMinutes(-5),
             EndedAt = endedAt,
+            AcknowledgedAt = acknowledgedBy is null ? null : DateTime.UtcNow.AddMinutes(-1),
+            AcknowledgedBy = acknowledgedBy,
         });
         db.SaveChanges();
         return id;
@@ -148,27 +149,80 @@ public class ChatAcknowledgeEndpointTests : IDisposable
             It.IsAny<AlertAcknowledgementAuthority>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
             Times.Never);
 
-    [Theory]
-    [InlineData(AlertAcknowledgementOutcome.Muted)]
-    [InlineData(AlertAcknowledgementOutcome.Acknowledged)]
-    public async Task Excursion_IsDecidedOnTheLinkedMemberWithNoScopesOfItsOwn_AndReportsTheOutcome(
-        AlertAcknowledgementOutcome decided)
-    {
-        var linkId = InsertLink(_tenantId);
-        var excursionId = InsertExcursion();
+    private void AcknowledgeReturns(AlertAcknowledgementOutcome outcome) =>
         _ackService
             .Setup(s => s.AcknowledgeExcursionAsync(
                 It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(),
                 It.IsAny<AlertAcknowledgementAuthority>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(decided);
+            .ReturnsAsync(outcome);
+
+    [Fact]
+    public async Task Excursion_IsDecidedOnTheLinkedMemberWithNoScopesOfItsOwn_AndReportsAMute()
+    {
+        var linkId = InsertLink(_tenantId);
+        var excursionId = InsertExcursion();
 
         var result = await CreateController().AcknowledgeAsLinkedMember(
             linkId, Request(excursionId), CancellationToken.None);
 
-        result.Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<AcknowledgeExcursionResponse>()
-            .Which.Outcome.Should().Be(decided);
+        var response = result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>().Subject;
+        response.Outcome.Should().Be(AlertAcknowledgementOutcome.Muted);
+        response.AcknowledgedBy.Should().BeNull();
+        response.AlreadyAcknowledged.Should().BeFalse();
         VerifyJudgedOnLinkedMember(excursionId);
+    }
+
+    [Fact]
+    public async Task Excursion_AcknowledgedByThisRequest_CreditsTheChatUser()
+    {
+        var linkId = InsertLink(_tenantId);
+        var excursionId = InsertExcursion();
+        AcknowledgeReturns(AlertAcknowledgementOutcome.Acknowledged);
+
+        var result = await CreateController().AcknowledgeAsLinkedMember(
+            linkId, Request(excursionId), CancellationToken.None);
+
+        var response = result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>().Subject;
+        response.Outcome.Should().Be(AlertAcknowledgementOutcome.Acknowledged);
+        response.AcknowledgedBy.Should().Be("Sam Tester");
+        response.AlreadyAcknowledged.Should().BeFalse();
+        VerifyJudgedOnLinkedMember(excursionId);
+    }
+
+    [Fact]
+    public async Task Excursion_SomeoneElseAlreadyAcknowledged_NamesThemNotTheChatUser()
+    {
+        var linkId = InsertLink(_tenantId);
+        var excursionId = InsertExcursion(acknowledgedBy: "Alex Owner");
+        AcknowledgeReturns(AlertAcknowledgementOutcome.Acknowledged);
+
+        var result = await CreateController().AcknowledgeAsLinkedMember(
+            linkId, Request(excursionId), CancellationToken.None);
+
+        var response = result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>().Subject;
+        response.Outcome.Should().Be(AlertAcknowledgementOutcome.Acknowledged);
+        response.AcknowledgedBy.Should().Be("Alex Owner");
+        response.AlreadyAcknowledged.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task NoExcursion_OneAcknowledgedByThisRequest_CreditsTheChatUserOverAnEarlierAcknowledger()
+    {
+        var linkId = InsertLink(_tenantId);
+        InsertExcursion(acknowledgedBy: "Alex Owner");
+        InsertExcursion();
+        AcknowledgeReturns(AlertAcknowledgementOutcome.Acknowledged);
+
+        var result = await CreateController().AcknowledgeAsLinkedMember(
+            linkId, Request(null), CancellationToken.None);
+
+        var response = result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>().Subject;
+        response.AcknowledgedBy.Should().Be("Sam Tester");
+        response.AlreadyAcknowledged.Should().BeFalse();
     }
 
     [Fact]
@@ -188,7 +242,7 @@ public class ChatAcknowledgeEndpointTests : IDisposable
             linkId, Request(null), CancellationToken.None);
 
         result.Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<AcknowledgeExcursionResponse>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>()
             .Which.Outcome.Should().Be(AlertAcknowledgementOutcome.Muted);
         VerifyJudgedOnLinkedMember(first);
         VerifyJudgedOnLinkedMember(second);
@@ -207,7 +261,7 @@ public class ChatAcknowledgeEndpointTests : IDisposable
             linkId, Request(null), CancellationToken.None);
 
         result.Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<AcknowledgeExcursionResponse>()
+            .Which.Value.Should().BeOfType<ChatAcknowledgeResponse>()
             .Which.Outcome.Should().Be(AlertAcknowledgementOutcome.Closed);
     }
 

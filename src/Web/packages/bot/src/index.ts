@@ -28,6 +28,7 @@ export type {
   PendingDeliveryResponse,
   ChatAcknowledgeRequest,
   AcknowledgementOutcome,
+  AcknowledgementResult,
   MarkDeliveredRequest,
   MarkFailedRequest,
   HeartbeatRequest,

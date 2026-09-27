@@ -1,5 +1,6 @@
 import type {
   AcknowledgementOutcome,
+  AcknowledgementResult,
   BotApiClient,
   DirectoryCandidate,
 } from "@nocturne/bot";
@@ -68,7 +69,14 @@ export function buildBotApiClient(api: ApiClient): BotApiClient {
           { ...request, excursionId: request.excursionId ?? undefined },
           signal,
         );
-        return toOutcome(res.outcome);
+        const outcome = toOutcome(res.outcome);
+        return outcome === "acknowledged"
+          ? {
+              outcome,
+              acknowledgedBy: res.acknowledgedBy ?? null,
+              alreadyAcknowledged: res.alreadyAcknowledged ?? false,
+            }
+          : ({ outcome } satisfies AcknowledgementResult);
       },
       markDelivered: (deliveryId, request, signal) =>
         api.alerts.markDelivered(deliveryId, request, signal),

@@ -143,12 +143,15 @@ public class ChatIdentityDirectoryController : ControllerBase
     /// go to the request's tenant. Without an <see cref="ChatAcknowledgeRequest.ExcursionId"/> the
     /// same decision is applied to every active excursion of the tenant, and the outcome reads
     /// <c>muted</c> if any was muted, else <c>acknowledged</c> if any was, else <c>closed</c>.
+    /// <see cref="IAlertAcknowledgementService.AcknowledgeExcursionAsync"/> reports an excursion
+    /// someone else already acknowledged as <c>acknowledged</c> whoever asks, so the response names
+    /// who is recorded on it instead of crediting the chat user.
     /// </remarks>
     [HttpPost("links/{id:guid}/acknowledge")]
-    [ProducesResponseType(typeof(AcknowledgeExcursionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ChatAcknowledgeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AcknowledgeExcursionResponse>> AcknowledgeAsLinkedMember(
+    public async Task<ActionResult<ChatAcknowledgeResponse>> AcknowledgeAsLinkedMember(
         Guid id,
         [FromBody] ChatAcknowledgeRequest body,
         CancellationToken ct)
@@ -183,20 +186,44 @@ public class ChatIdentityDirectoryController : ControllerBase
             ? row.NocturneUserId.ToString()
             : body.AcknowledgedBy;
 
-        var outcomes = new List<AlertAcknowledgementOutcome>(excursionIds.Count);
+        var startedAt = DateTime.UtcNow;
+        var outcomes = new Dictionary<Guid, AlertAcknowledgementOutcome>(excursionIds.Count);
         foreach (var excursionId in excursionIds)
         {
-            outcomes.Add(await _acknowledgementService.AcknowledgeExcursionAsync(
-                row.TenantId, excursionId, acknowledgedBy, authority, broadcast: true, ct));
+            outcomes[excursionId] = await _acknowledgementService.AcknowledgeExcursionAsync(
+                row.TenantId, excursionId, acknowledgedBy, authority, broadcast: true, ct);
         }
 
-        var outcome = outcomes.Contains(AlertAcknowledgementOutcome.Muted)
-            ? AlertAcknowledgementOutcome.Muted
-            : outcomes.Contains(AlertAcknowledgementOutcome.Acknowledged)
-                ? AlertAcknowledgementOutcome.Acknowledged
-                : AlertAcknowledgementOutcome.Closed;
+        if (outcomes.ContainsValue(AlertAcknowledgementOutcome.Muted))
+            return Ok(new ChatAcknowledgeResponse { Outcome = AlertAcknowledgementOutcome.Muted });
 
-        return Ok(new AcknowledgeExcursionResponse { Outcome = outcome });
+        var acknowledgedIds = outcomes
+            .Where(o => o.Value == AlertAcknowledgementOutcome.Acknowledged)
+            .Select(o => o.Key)
+            .ToList();
+        if (acknowledgedIds.Count == 0)
+            return Ok(new ChatAcknowledgeResponse { Outcome = AlertAcknowledgementOutcome.Closed });
+
+        var recorded = await db.AlertExcursions.AsNoTracking()
+            .Where(e => acknowledgedIds.Contains(e.Id))
+            .Select(e => new { e.AcknowledgedAt, e.AcknowledgedBy })
+            .ToListAsync(ct);
+        var earlier = recorded.Where(e => e.AcknowledgedAt < startedAt).ToList();
+        if (earlier.Count < acknowledgedIds.Count)
+        {
+            return Ok(new ChatAcknowledgeResponse
+            {
+                Outcome = AlertAcknowledgementOutcome.Acknowledged,
+                AcknowledgedBy = acknowledgedBy,
+            });
+        }
+
+        return Ok(new ChatAcknowledgeResponse
+        {
+            Outcome = AlertAcknowledgementOutcome.Acknowledged,
+            AlreadyAcknowledged = true,
+            AcknowledgedBy = earlier.MaxBy(e => e.AcknowledgedAt)!.AcknowledgedBy,
+        });
     }
 }
 
@@ -242,6 +269,24 @@ public class ChatAcknowledgeRequest
 
     /// <summary>The chat user's display name, recorded as who acknowledged.</summary>
     public string? AcknowledgedBy { get; set; }
+}
+
+public class ChatAcknowledgeResponse
+{
+    /// <inheritdoc cref="AcknowledgeExcursionResponse.Outcome"/>
+    public AlertAcknowledgementOutcome Outcome { get; set; }
+
+    /// <summary>
+    /// With an <c>acknowledged</c> outcome, who is recorded as having acknowledged: the chat user
+    /// when this request did it, else whoever had already.
+    /// </summary>
+    public string? AcknowledgedBy { get; set; }
+
+    /// <summary>
+    /// True when every excursion reported <c>acknowledged</c> had been acknowledged before this
+    /// request, so <see cref="AcknowledgedBy"/> is someone else's acknowledgement.
+    /// </summary>
+    public bool AlreadyAcknowledged { get; set; }
 }
 
 public class RevokeByPlatformUserRequest

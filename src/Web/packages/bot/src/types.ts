@@ -29,7 +29,7 @@ export interface BotApiClient {
       linkId: string,
       request: ChatAcknowledgeRequest,
       signal?: AbortSignal,
-    ): Promise<AcknowledgementOutcome>;
+    ): Promise<AcknowledgementResult>;
     markDelivered(deliveryId: string, request: MarkDeliveredRequest, signal?: AbortSignal): Promise<void>;
     markFailed(deliveryId: string, request: MarkFailedRequest, signal?: AbortSignal): Promise<void>;
     getPendingDeliveries(channelType?: string[], signal?: AbortSignal): Promise<PendingDeliveryResponse[]>;
@@ -95,6 +95,18 @@ export interface ChatAcknowledgeRequest {
  * it had already ended.
  */
 export type AcknowledgementOutcome = "acknowledged" | "muted" | "closed";
+
+/**
+ * An `acknowledged` result names who the API recorded as acknowledging, which
+ * is someone other than the tapping user when `alreadyAcknowledged` is set.
+ */
+export type AcknowledgementResult =
+  | {
+      outcome: "acknowledged";
+      acknowledgedBy: string | null;
+      alreadyAcknowledged: boolean;
+    }
+  | { outcome: "muted" | "closed" };
 
 export interface ActiveExcursion {
   id?: string;

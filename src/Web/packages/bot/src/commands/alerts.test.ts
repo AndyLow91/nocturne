@@ -74,7 +74,11 @@ function createContext(
     let alerts = alertsBySlug.get(tenantSlug);
     if (!alerts) {
       alerts = {
-        acknowledgeAsLinkedMember: vi.fn().mockResolvedValue("acknowledged"),
+        acknowledgeAsLinkedMember: vi.fn().mockResolvedValue({
+          outcome: "acknowledged",
+          acknowledgedBy: "Sam Tester",
+          alreadyAcknowledged: false,
+        }),
         getActiveAlerts: vi.fn().mockResolvedValue(activeAlerts),
       };
       alertsBySlug.set(tenantSlug, alerts);
@@ -396,7 +400,7 @@ describe("ack_alert action", () => {
       ctx.scopedApiFactory("work-clinic");
       ctx.alertsBySlug
         .get("work-clinic")!
-        .acknowledgeAsLinkedMember.mockResolvedValue("muted");
+        .acknowledgeAsLinkedMember.mockResolvedValue({ outcome: "muted" });
       await handler(event);
     });
 
@@ -411,6 +415,26 @@ describe("ack_alert action", () => {
     expect(postedText(post)).not.toContain("Acknowledged for everyone");
   });
 
+  it("credits whoever already acknowledged, not the member who tapped", async () => {
+    const ctx = createContext([HOME, WORK]);
+    const { event, post } = createActionEvent(cardValue(WORK_TENANT, EXCURSION));
+    await runWithContext(ctx.context, async () => {
+      ctx.scopedApiFactory("work-clinic");
+      ctx.alertsBySlug.get("work-clinic")!.acknowledgeAsLinkedMember.mockResolvedValue({
+        outcome: "acknowledged",
+        acknowledgedBy: "Alex Owner",
+        alreadyAcknowledged: true,
+      });
+      await handler(event);
+    });
+
+    expect(cardTitle(post.mock.calls[0]?.[0])).toBe("Already acknowledged");
+    expect(postedText(post)).toContain(
+      "This alert was already acknowledged for everyone by Alex Owner.",
+    );
+    expect(postedText(post)).not.toContain("Sam Tester");
+  });
+
   it("says an alert that already ended had nothing to acknowledge", async () => {
     const ctx = createContext([HOME, WORK]);
     const { event, post } = createActionEvent(cardValue(WORK_TENANT, EXCURSION));
@@ -418,7 +442,7 @@ describe("ack_alert action", () => {
       ctx.scopedApiFactory("work-clinic");
       ctx.alertsBySlug
         .get("work-clinic")!
-        .acknowledgeAsLinkedMember.mockResolvedValue("closed");
+        .acknowledgeAsLinkedMember.mockResolvedValue({ outcome: "closed" });
       await handler(event);
     });
 

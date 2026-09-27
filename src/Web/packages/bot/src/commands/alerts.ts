@@ -4,7 +4,7 @@ import { createLogger } from "../lib/logger.js";
 import { getApi } from "../lib/request-context.js";
 import { requireLink, requireLinkForAction } from "../lib/require-link.js";
 import { decodeActionValue } from "../lib/action-value.js";
-import type { AcknowledgementOutcome } from "../types.js";
+import type { AcknowledgementResult } from "../types.js";
 
 const logger = createLogger();
 
@@ -13,25 +13,41 @@ const failed = (action: string) => `Failed to ${action}. Please try again.`;
 /**
  * What the thread is told about an acknowledgement. A mute is named as one:
  * the tapping user stopped the alert only for themselves, so nobody reading
- * the thread may take it as handled.
+ * the thread may take it as handled. An acknowledgement credits whoever the
+ * API recorded, which is not the tapping user when it was already acknowledged.
  */
 function confirmation(
-  outcome: AcknowledgementOutcome,
-  acknowledgedBy: string,
+  result: AcknowledgementResult,
+  tappedBy: string,
   wholeTenant: boolean,
 ): { title: string; detail: string } {
-  switch (outcome) {
-    case "acknowledged":
+  switch (result.outcome) {
+    case "acknowledged": {
+      if (result.alreadyAcknowledged) {
+        const by = result.acknowledgedBy
+          ? wholeTenant
+            ? `, most recently by ${result.acknowledgedBy}`
+            : ` by ${result.acknowledgedBy}`
+          : "";
+        return {
+          title: "Already acknowledged",
+          detail: wholeTenant
+            ? `All alerts were already acknowledged for everyone${by}.`
+            : `This alert was already acknowledged for everyone${by}.`,
+        };
+      }
+      const by = result.acknowledgedBy ?? tappedBy;
       return {
         title: "Alert acknowledged",
         detail: wholeTenant
-          ? `All alerts acknowledged for everyone by ${acknowledgedBy}.`
-          : `Acknowledged for everyone by ${acknowledgedBy}. Any other active alerts are untouched.`,
+          ? `All alerts acknowledged for everyone by ${by}.`
+          : `Acknowledged for everyone by ${by}. Any other active alerts are untouched.`,
       };
+    }
     case "muted":
       return {
         title: wholeTenant ? "Alerts muted for you" : "Alert muted for you",
-        detail: `Muted for ${acknowledgedBy} only. Everyone else is still alerted, because acknowledging for everyone needs permission to manage alerts.`,
+        detail: `Muted for ${tappedBy} only. Everyone else is still alerted, because acknowledging for everyone needs permission to manage alerts.`,
       };
     case "closed":
       return {
@@ -55,11 +71,11 @@ export function registerAlertCommands(bot: Chat) {
       }
 
       const acknowledgedBy = event.user.fullName ?? "Unknown";
-      let outcome: AcknowledgementOutcome;
+      let result: AcknowledgementResult;
 
       try {
         // A value that names no excursion at all addresses the whole tenant.
-        outcome = await getApi().alerts.acknowledgeAsLinkedMember(link.id, {
+        result = await getApi().alerts.acknowledgeAsLinkedMember(link.id, {
           platform: event.adapter.name,
           platformUserId: event.user.userId,
           excursionId,
@@ -75,7 +91,7 @@ export function registerAlertCommands(bot: Chat) {
       // not a failure to report back as one.
       try {
         await event.thread?.post(
-          AcknowledgedCard(confirmation(outcome, acknowledgedBy, !excursionId)),
+          AcknowledgedCard(confirmation(result, acknowledgedBy, !excursionId)),
         );
       } catch (err) {
         logger.error("Acknowledged, but could not confirm in the thread:", err);
