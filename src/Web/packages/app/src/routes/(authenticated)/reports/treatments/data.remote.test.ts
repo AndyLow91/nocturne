@@ -35,7 +35,7 @@ vi.mock("$app/server", () => ({
       },
     },
   }),
-  query: (_schema: unknown, fn: unknown) => fn,
+  query: (schema: unknown, fn: object) => Object.assign(fn, { schema }),
   command: (_schema: unknown, fn: unknown) => fn,
   form: (_schema: unknown, fn: unknown) => fn,
 }));
@@ -52,7 +52,7 @@ vi.mock("$api/report-range", async (importOriginal) => ({
     }),
 }));
 
-const { getTreatmentStats } = await import("./data.remote");
+const { getTreatmentStats, getTreatmentsData } = await import("./data.remote");
 
 type Stats = {
   counts: Record<string, number>;
@@ -99,5 +99,44 @@ describe("Treatment Log stats", () => {
     expect(summaryRequests).toHaveLength(0);
     expect(stats.treatmentSummary).toBeNull();
     expect(stats.counts).toMatchObject({ all: 1, bgCheck: 1, bolus: 0, carbs: 0 });
+  });
+});
+
+describe("Treatment Log data", () => {
+  it("returns every entry kind for the resolved range", async () => {
+    const data = await (getTreatmentsData as unknown as (input?: unknown) => Promise<{
+      boluses: Bolus[];
+      carbIntakes: CarbIntake[];
+      bgChecks: unknown[];
+      notes: unknown[];
+      deviceEvents: unknown[];
+      basalInjections: unknown[];
+      dateRange: { from: string; to: string };
+    }>)();
+
+    expect(data.boluses.map((b) => b.id)).toEqual(["b-pump", "b-pen"]);
+    expect(data.carbIntakes.map((c) => c.id)).toEqual(["c-pump", "c-app"]);
+    expect(data.bgChecks).toHaveLength(1);
+    expect(data.notes).toHaveLength(1);
+    expect(data.deviceEvents).toEqual([]);
+    expect(data.basalInjections).toEqual([]);
+    expect(data.dateRange).toEqual({
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-01-03T23:59:59.999Z",
+    });
+  });
+});
+
+describe("Treatment Log stats input", () => {
+  const schema = (getTreatmentStats as unknown as { schema: import("zod").ZodType }).schema;
+
+  it("accepts 'all' and known categories", () => {
+    expect(schema.safeParse({ category: "all", search: "" }).success).toBe(true);
+    expect(schema.safeParse({ category: "basalInjection", search: "pen" }).success).toBe(true);
+  });
+
+  it("rejects an unknown or non-string category", () => {
+    expect(schema.safeParse({ category: "insulin", search: "" }).success).toBe(false);
+    expect(schema.safeParse({ category: 3, search: "" }).success).toBe(false);
   });
 });
