@@ -10,9 +10,10 @@
 //     --out-markdown coverage.md --out-json coverage-summary.json
 //
 // Reads Cobertura XML only (coverlet and ReportGenerator for .NET, vitest's cobertura reporter
-// for the web packages), so every tool lands in one per-file line map: a line's hits are the most
-// any report saw, its branches the best covered/total any report saw. Paths are made
-// repository-relative from each report's <source> roots.
+// for the web packages, cargo-llvm-cov for the desktop crate), so every tool lands in one
+// per-file line map: a line's hits are the most any report saw, its branches the best
+// covered/total any report saw. Paths are made repository-relative from each report's <source>
+// roots.
 //
 // Exit code: 1 when patch coverage is below --threshold and the patch has coverable lines;
 // otherwise 0. Nothing else fails the job: low coverage elsewhere only reports.
@@ -44,6 +45,7 @@ export const AREAS = [
   ["portal", "src/Web/packages/portal/"],
   ["bridge", "src/Web/packages/bridge/"],
   ["cms", "src/Web/packages/cms/"],
+  ["desktop", "src/Web/packages/desktop/"],
 ];
 
 export function areaOf(file) {
