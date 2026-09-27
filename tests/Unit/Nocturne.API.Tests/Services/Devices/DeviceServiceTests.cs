@@ -368,6 +368,105 @@ public class DeviceServiceTests
         VerifyWidenings(existingId, 2_000L);
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_FailedFlush_LeavesCachedLastSeenAtPersistedValue()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+        await ResolveOmnipodAsync(1_000L);
+
+        _mockRepository
+            .Setup(r => r.WidenSeenWindowAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("transient"));
+        var failed = async () =>
+        {
+            await using (_service.DeferLastSeen())
+                await ResolveOmnipodAsync(3_000L);
+        };
+        await failed.Should().ThrowAsync<InvalidOperationException>();
+
+        _mockRepository
+            .Setup(r => r.WidenSeenWindowAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Callback((Guid id, DateTime t, WriteOrigin _, CancellationToken _) => _updates.Add((id, t)))
+            .Returns(Task.CompletedTask);
+        await ResolveOmnipodAsync(2_000L);
+
+        VerifyWidenings(existingId, 2_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_OldestFirstSequence_WritesOnlyTheLatestOnceTheScopeEnds()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+        {
+            await ResolveOmnipodAsync(2_000L);
+            await ResolveOmnipodAsync(3_000L);
+            await ResolveOmnipodAsync(4_000L);
+
+            VerifyWidenings(existingId);
+        }
+
+        VerifyWidenings(existingId, 4_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_WideningBothEnds_WritesTheWidestOfEachOnceTheScopeEnds()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 5_000L, firstSeenMills: 4_000L);
+
+        await using (_service.DeferLastSeen())
+        {
+            await ResolveOmnipodAsync(3_000L);
+            await ResolveOmnipodAsync(6_000L);
+            await ResolveOmnipodAsync(2_000L);
+            await ResolveOmnipodAsync(7_000L);
+
+            VerifyWidenings(existingId);
+        }
+
+        VerifyWidenings(existingId, 7_000L, 2_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_NestedScopes_WriteWhenTheOutermostEnds()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+        {
+            await using (_service.DeferLastSeen())
+                await ResolveOmnipodAsync(2_000L);
+
+            VerifyWidenings(existingId);
+            await ResolveOmnipodAsync(3_000L);
+        }
+
+        VerifyWidenings(existingId, 3_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_AfterTheScopeEnds_WritesEachAdvanceAgain()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+            await ResolveOmnipodAsync(2_000L);
+        await ResolveOmnipodAsync(3_000L);
+
+        VerifyWidenings(existingId, 2_000L, 3_000L);
+    }
+
     private Task<Guid?> ResolveOmnipodAsync(long mills) =>
         _service.ResolveAsync(DeviceCategory.InsulinPump, "Omnipod DASH", "ABC123", mills);
 
