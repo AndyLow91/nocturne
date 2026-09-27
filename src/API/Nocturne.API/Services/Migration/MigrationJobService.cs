@@ -1287,7 +1287,7 @@ internal class MigrationJob
     /// </remarks>
     private (T[] Parsed, int NewlyFailed) ParseDocuments<T>(
         System.Text.Json.JsonElement[] documents, string label, int pageNumber, HashSet<string> failedIds)
-        where T : ProcessableDocumentBase
+        where T : class
     {
         var parsed = new List<T>(documents.Length);
         var newlyFailed = 0;
@@ -1363,7 +1363,7 @@ internal class MigrationJob
                     tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
                     totalMigrated += page.Length - (tally.DocumentsSkipped - before);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     _logger.LogError(ex, "Failed to decompose {Collection} page", collection.Label);
                     totalFailed += page.Length;
@@ -1412,9 +1412,12 @@ internal class MigrationJob
         var totalFailed = 0L;
         var tally = new DecompositionTally();
 
-        var profiles = await ReadPageFromSourceAsync<Profile>(httpClient, "/api/v1/profile.json", collectionName, ct);
+        var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+            httpClient, "/api/v1/profile.json", collectionName, ct);
+        var (profiles, newlyFailed) = ParseDocuments<Profile>(documents, collectionName, 1, []);
+        totalFailed += newlyFailed;
 
-        UpdateCollectionProgress(collectionName, profiles.Length, 0, 0, false);
+        UpdateCollectionProgress(collectionName, documents.Length, 0, totalFailed, false);
         UpdateOverallProgress();
 
         using var scope = CreateTenantScope();
@@ -1434,16 +1437,16 @@ internal class MigrationJob
                 tally = tally.Add(
                     await decomposer.DecomposeAsync(profile, WriteOrigin.Backfill, ct), oneRecordPerDocument: false);
                 totalMigrated++;
-                UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, false, tally);
+                UpdateCollectionProgress(collectionName, documents.Length, totalMigrated, totalFailed, false, tally);
                 UpdateOverallProgress();
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 totalFailed++;
             }
         }
 
-        UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, true, tally);
+        UpdateCollectionProgress(collectionName, documents.Length, totalMigrated, totalFailed, true, tally);
         UpdateOverallProgress();
 
         _logger.LogInformation(
@@ -1464,15 +1467,20 @@ internal class MigrationJob
         var totalMigrated = 0L;
         var totalFailed = 0L;
         var totalSkipped = 0;
+        var failedIds = new HashSet<string>(StringComparer.Ordinal);
 
-        while (true)
+        for (var pageNumber = 1; ; pageNumber++)
         {
             ct.ThrowIfCancellationRequested();
 
             var url = $"/api/v1/food.json?count={ApiPageSize}&skip={totalSkipped}";
-            var foods = await ReadPageFromSourceAsync<Food>(httpClient, url, collectionName, ct);
+            var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+                httpClient, url, collectionName, ct);
 
-            if (foods.Length == 0) break;
+            if (documents.Length == 0) break;
+
+            var (foods, newlyFailed) = ParseDocuments<Food>(documents, collectionName, pageNumber, failedIds);
+            totalFailed += newlyFailed;
 
             foreach (var food in foods)
             {
@@ -1509,21 +1517,21 @@ internal class MigrationJob
                     }
                     totalMigrated++;
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     totalFailed++;
                 }
             }
 
             await dbContext.SaveChangesAsync(ct);
-            totalSkipped += foods.Length;
+            totalSkipped += documents.Length;
 
             UpdateCollectionProgress(collectionName,
                 Math.Max(knownTotal, totalSkipped),
                 totalMigrated, totalFailed, false);
             UpdateOverallProgress();
 
-            if (foods.Length < ApiPageSize) break;
+            if (documents.Length < ApiPageSize) break;
         }
 
         UpdateCollectionProgress(collectionName, Math.Max(knownTotal, totalMigrated + totalFailed),

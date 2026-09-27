@@ -39,11 +39,13 @@ internal static class MigrationJobHarness
 
     /// <param name="entryOutcome">What the entry decomposer reports for each page; empty when omitted.</param>
     /// <param name="treatmentOutcome">What the treatment decomposer reports for each page; empty when omitted.</param>
+    /// <param name="profileOutcome">What the profile decomposer reports for each profile; empty when omitted.</param>
     /// <param name="interceptor">Attached to every <see cref="NocturneDbContext"/> the provider creates.</param>
     public static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
         Func<IReadOnlyList<Entry>, DecompositionResult>? entryOutcome = null,
         Func<IReadOnlyList<Treatment>, DecompositionResult>? treatmentOutcome = null,
+        Func<Profile, DecompositionResult>? profileOutcome = null,
         IInterceptor? interceptor = null)
     {
         var database = $"migration-{Guid.NewGuid():N}";
@@ -65,6 +67,12 @@ internal static class MigrationJobHarness
             .Setup(d => d.DecomposeBatchAsync(It.IsAny<IReadOnlyList<DeviceStatus>>(), It.IsAny<string?>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DecompositionResult());
 
+        var profiles = new Mock<IProfileDecomposer>();
+        profiles
+            .Setup(d => d.DecomposeAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Profile profile, WriteOrigin _, CancellationToken _) =>
+                profileOutcome?.Invoke(profile) ?? new DecompositionResult());
+
         var activities = new Mock<IActivityDecomposer>();
         activities
             .Setup(d => d.DecomposeBatchAsync(It.IsAny<IReadOnlyList<Activity>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
@@ -83,6 +91,7 @@ internal static class MigrationJobHarness
             .AddSingleton(entries.Object)
             .AddSingleton(treatments.Object)
             .AddSingleton(deviceStatuses.Object)
+            .AddSingleton(profiles.Object)
             .AddSingleton(activities.Object)
             .BuildServiceProvider();
     }
