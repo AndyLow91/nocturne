@@ -44,22 +44,51 @@ public sealed class AlertRuleRearm(AlertRuleEvaluationGate gate, IAlertTrackerRe
 
     /// <summary>
     /// Saves the changes <paramref name="db"/> tracks for rule <paramref name="ruleId"/> and
-    /// clears its hold in one transaction on that context, under the lease and transition lock
-    /// the tracker's writer takes, so that neither lands without the other.
+    /// clears its hold in one transaction on that context.
     /// </summary>
-    /// <param name="db">The tenant context the rule was loaded and edited on.</param>
-    /// <param name="ruleId">The edited rule.</param>
+    /// <inheritdoc cref="SaveAndClearAsync(NocturneDbContext, IReadOnlyCollection{Guid}, CancellationToken)"/>
+    public Task SaveAndClearAsync(NocturneDbContext db, Guid ruleId, CancellationToken ct) =>
+        SaveAndClearAsync(db, [ruleId], ct);
+
+    /// <summary>
+    /// Saves the changes <paramref name="db"/> tracks and clears the hold of each of
+    /// <paramref name="ruleIds"/> in one transaction on that context, under the lease and
+    /// transition lock the tracker's writer takes for each rule, so that neither lands without
+    /// the other.
+    /// </summary>
+    /// <remarks>
+    /// Leases and locks are taken in rule id order, so two writers over overlapping rules cannot
+    /// each hold one the other waits for.
+    /// </remarks>
+    /// <param name="db">The tenant context the rules were loaded and edited on.</param>
+    /// <param name="ruleIds">The rules whose hold the saved changes invalidate.</param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task SaveAndClearAsync(NocturneDbContext db, Guid ruleId, CancellationToken ct)
+    public async Task SaveAndClearAsync(
+        NocturneDbContext db, IReadOnlyCollection<Guid> ruleIds, CancellationToken ct)
     {
-        using var lease = await gate.AcquireAsync(ruleId, ct);
-        var tracker = new AlertTrackerRepository(db);
-        await tracker.ExecuteInTransactionAsync(async token =>
+        var ordered = ruleIds.Distinct().Order().ToList();
+        var leases = new List<IDisposable>(ordered.Count);
+        try
         {
-            await tracker.LockRuleAsync(ruleId, token);
-            await db.SaveChangesAsync(token);
-            return await ClearHoldAsync(tracker, ruleId, token);
-        }, ct: ct);
+            foreach (var ruleId in ordered)
+                leases.Add(await gate.AcquireAsync(ruleId, ct));
+
+            var tracker = new AlertTrackerRepository(db);
+            await tracker.ExecuteInTransactionAsync(async token =>
+            {
+                foreach (var ruleId in ordered)
+                    await tracker.LockRuleAsync(ruleId, token);
+                await db.SaveChangesAsync(token);
+                foreach (var ruleId in ordered)
+                    await ClearHoldAsync(tracker, ruleId, token);
+                return true;
+            }, ct: ct);
+        }
+        finally
+        {
+            for (var i = leases.Count - 1; i >= 0; i--)
+                leases[i].Dispose();
+        }
     }
 
     private static async Task<bool> ClearHoldAsync(
