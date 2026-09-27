@@ -67,6 +67,13 @@ public interface ILegacyKeyedRepository<TRecord> : IV4Repository<TRecord>, IBulk
 
     Task<TRecord?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Records whose server write stamp (<see cref="IV4Record.ModifiedAt"/>, reported as
+    /// <c>srvModified</c>) falls after <paramref name="cursorMills"/>, oldest first, as one history
+    /// page that ends on a millisecond boundary and so may exceed <paramref name="limit"/>.
+    /// </summary>
+    Task<IReadOnlyList<TRecord>> GetModifiedSinceAsync(long cursorMills, int limit, CancellationToken ct = default);
+
     /// <returns>Number of records deleted.</returns>
     Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default);
 }

@@ -31,7 +31,7 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// <typeparam name="TEntity">The EF entity type backing <typeparamref name="TModel"/>.</typeparam>
 public abstract class V4RepositoryBase<TModel, TEntity>
     where TModel : class, IV4Record
-    where TEntity : class, IV4TimeSeriesEntity, IAuditable
+    where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISystemTimestamped
 {
     /// <summary>Tenant-scoped context factory. Exposed so subclasses can implement type-specific queries.</summary>
     protected ITenantDbContextFactory ContextFactory { get; }
@@ -504,6 +504,29 @@ public abstract class V4RepositoryBase<TModel, TEntity>
             await RaiseBroadcastAsync([], [], result.Entities.Select(ToDomain).ToList(), origin, ct);
 
         return result.Count;
+    }
+
+    /// <inheritdoc cref="ILegacyKeyedRepository{TRecord}.GetModifiedSinceAsync" />
+    /// <remarks>
+    /// Pages on <c>sys_updated_at</c>, the column <see cref="ToDomain"/> reports as
+    /// <see cref="IV4Record.ModifiedAt"/>, through <see cref="HistoryPage"/>, under the same
+    /// <see cref="ApplyReadVisibility"/> every other read of this type observes.
+    /// </remarks>
+    public async Task<IReadOnlyList<TModel>> GetModifiedSinceAsync(
+        long cursorMills, int limit, CancellationToken ct = default)
+    {
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        var entities = await HistoryPage.GetAsync(
+            ApplyReadVisibility(ctx.Set<TEntity>().AsNoTracking(), ctx),
+            e => e.SysUpdatedAt,
+            e => e.Id,
+            cursorMills,
+            limit,
+            Logger,
+            typeof(TModel).Name,
+            ct);
+
+        return entities.Select(ToDomain).ToList();
     }
 
     /// <summary>Latest stored record timestamp, optionally scoped to a data source (connector watermark).</summary>

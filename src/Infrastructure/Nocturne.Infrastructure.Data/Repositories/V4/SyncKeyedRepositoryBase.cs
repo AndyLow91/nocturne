@@ -19,7 +19,7 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// <typeparam name="TEntity">The EF entity type backing <typeparamref name="TModel"/>.</typeparam>
 public abstract class SyncKeyedRepositoryBase<TModel, TEntity> : V4RepositoryBase<TModel, TEntity>
     where TModel : class, IV4Record
-    where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISyncDedupable
+    where TEntity : class, IV4TimeSeriesEntity, IAuditable, ISystemTimestamped, ISyncDedupable
 {
     /// <inheritdoc />
     protected SyncKeyedRepositoryBase(
