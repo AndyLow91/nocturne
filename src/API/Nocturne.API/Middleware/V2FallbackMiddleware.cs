@@ -71,11 +71,15 @@ public class V2FallbackMiddleware
             var rewritten = V1Prefix.Add(remaining);
             context.Request.Path = rewritten;
 
-            _logger.LogDebug(
-                "V2FallbackMiddleware: no v2 route for '{OriginalPath}', serving it as '{NewPath}'",
-                path,
-                rewritten
-            );
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                // Strip line breaks so a path the caller controls cannot forge log lines.
+                _logger.LogDebug(
+                    "V2FallbackMiddleware: no v2 route for '{OriginalPath}', serving it as '{NewPath}'",
+                    path.ToString().Replace("\r", "").Replace("\n", ""),
+                    rewritten.ToString().Replace("\r", "").Replace("\n", "")
+                );
+            }
         }
 
         await _next(context);
