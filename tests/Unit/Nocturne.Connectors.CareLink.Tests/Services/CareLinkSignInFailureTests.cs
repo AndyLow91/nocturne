@@ -45,7 +45,25 @@ public class CareLinkSignInFailureTests
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
-    private static async Task<SyncResult> SyncAgainst(CareLinkLoginHandler handler)
+    [Fact]
+    public async Task Sync_WhenTheRefreshTokenIsRevokedAndNoPasswordIsSet_SendsTheTenantToTheirCredentials()
+    {
+        // Only re-authorizing clears a refresh token Auth0 answered invalid_grant, and CareLink's
+        // CAPTCHA leaves many members with no password configured to fall back on.
+        var result = await SyncAgainst(
+            new CareLinkLoginHandler(),
+            new CareLinkConnectorConfiguration
+            {
+                Username = "user@example.com", RefreshToken = "revoked-token", Server = "EU"
+            });
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("did not accept this sign-in");
+        result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
+    }
+
+    private static async Task<SyncResult> SyncAgainst(
+        CareLinkLoginHandler handler, CareLinkConnectorConfiguration? config = null)
     {
         using var authClient = new HttpClient(handler, disposeHandler: false);
         using var serviceClient = new HttpClient(handler, disposeHandler: false);
@@ -75,7 +93,10 @@ public class CareLinkSignInFailureTests
         {
             return await service.SyncDataAsync(
                 new SyncRequest { DataTypes = [SyncDataType.Glucose] },
-                new CareLinkConnectorConfiguration { Username = "user@example.com", Password = "hunter2", Server = "EU" },
+                config ?? new CareLinkConnectorConfiguration
+                {
+                    Username = "user@example.com", Password = "hunter2", Server = "EU"
+                },
                 CancellationToken.None);
         }
         finally
@@ -108,13 +129,15 @@ public class CareLinkSignInFailureTests
 
     /// <summary>
     ///     Carries the Auth0 PKCE flow to the credential POST, which answers with Auth0's wrong-password
-    ///     page; or, when <see cref="Unreachable"/>, fails every request before any answer arrives.
+    ///     page, and answers every refresh-token grant with Auth0's invalid_grant; or, when
+    ///     <see cref="Unreachable"/>, fails every request before any answer arrives.
     /// </summary>
     private sealed class CareLinkLoginHandler : HttpMessageHandler
     {
         private const string LoginHost = "carelink-login.example";
         private const string SsoConfigUrl = $"https://{LoginHost}/configs/carepartner_auth0_sso_config.json";
         private const string FormActionUrl = $"https://{LoginHost}/u/login";
+        private const string TokenUrl = $"https://{LoginHost}/oauth/token";
 
         public bool Unreachable { get; init; }
 
@@ -154,6 +177,14 @@ public class CareLinkSignInFailureTests
 
             if (url == FormActionUrl)
                 return Answer("Wrong username or password");
+
+            if (url == TokenUrl)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent(
+                        """{"error":"invalid_grant","error_description":"Unknown or invalid refresh token."}""",
+                        Encoding.UTF8, "application/json")
+                });
 
             throw new InvalidOperationException($"Unexpected CareLink request: {url}");
         }

@@ -283,6 +283,13 @@ public abstract class AuthTokenProviderBase<TConfig>(
         RecordLoginAnswer(status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
 
     /// <summary>
+    ///     Records that the source refused the sign-in, for an acquisition that ends with a null token
+    ///     without running <see cref="ExecuteWithRetryAsync{T}"/> — e.g. a revoked refresh token with
+    ///     no password to fall back on, which only the tenant can clear.
+    /// </summary>
+    protected void RecordSignInRefused() => _signInFailure = SignInFailure.CredentialsRefused;
+
+    /// <summary>
     ///     Attempts <paramref name="operation"/> under the shared connector retry loop; see
     ///     <see cref="ConnectorRetryLoop.RunAsync{T}"/> for the attempt-budget and delay contract.
     /// </summary>

@@ -95,6 +95,14 @@ public class LibreLinkAuthTokenProvider(
                     return (null, false);
                 }
 
+                if (loginResponse?.Status == LibreLinkUpConstants.AccountActionRequiredStatus)
+                {
+                    RecordLoginAnswer(credentialsRefused: true);
+                    _logger.LogError(
+                        "LibreLinkUp authentication failed: the account must accept updated terms in the LibreLinkUp app");
+                    return (null, false);
+                }
+
                 _logger.LogError("LibreLinkUp authentication failed: Invalid response structure");
                 return (null, false);
             },

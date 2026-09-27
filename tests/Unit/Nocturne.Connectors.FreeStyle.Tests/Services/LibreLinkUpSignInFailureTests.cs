@@ -43,6 +43,19 @@ public class LibreLinkUpSignInFailureTests
     }
 
     [Fact]
+    public async Task Sync_WhenLibreLinkUpWantsTheAccountToAcceptNewTerms_SendsTheTenantToTheirAccount()
+    {
+        // No retry clears this 200: only the account holder accepting the terms in the app does.
+        var result = await SyncAgainst(_ => Answer(
+            HttpStatusCode.OK, """{"status":4,"data":{"step":{"type":"tou","componentName":"AcceptDocument"}}}"""));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("did not accept this sign-in")
+            .And.NotContain("usually temporary");
+        result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
+    }
+
+    [Fact]
     public async Task Sync_WhenLibreLinkUpRefusesTheSignIn_SendsTheTenantToTheirCredentialsWithAStatus()
     {
         var result = await SyncAgainst(_ => Answer(HttpStatusCode.Unauthorized, "{}"));
