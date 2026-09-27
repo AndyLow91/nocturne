@@ -107,7 +107,7 @@ public interface IStatisticsService
     /// <param name="entries"><see cref="SensorGlucose"/> entries with timestamps for time-dependent metrics.</param>
     /// <returns>
     /// A <see cref="GlycemicVariability"/> containing all variability metrics, or null for fewer
-    /// than two values.
+    /// than two plausible glucose values.
     /// </returns>
     GlycemicVariability? CalculateGlycemicVariability(
         IEnumerable<double> values,

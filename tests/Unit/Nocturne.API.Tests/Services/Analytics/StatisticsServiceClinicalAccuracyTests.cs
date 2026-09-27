@@ -1402,6 +1402,7 @@ public class StatisticsServiceClinicalAccuracyTests
     {
         return new GlucoseAnalytics
         {
+            BasicStats = new BasicGlucoseStats { Count = 288 },
             TimeInRange = new TimeInRangeMetrics
             {
                 Percentages = new TimeInRangePercentages

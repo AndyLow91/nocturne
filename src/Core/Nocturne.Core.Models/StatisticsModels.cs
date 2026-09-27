@@ -1457,6 +1457,11 @@ public enum TargetStatus
 
     /// <summary>Target not met</summary>
     NotMet,
+
+    /// <summary>
+    /// The metric could not be computed from the data, so the target is neither met nor missed
+    /// </summary>
+    NotAssessed,
 }
 
 /// <summary>
@@ -1467,8 +1472,8 @@ public class TargetAssessment
     /// <summary>Name of the metric</summary>
     public string MetricName { get; set; } = string.Empty;
 
-    /// <summary>Current value</summary>
-    public double CurrentValue { get; set; }
+    /// <summary>Current value, or null when <see cref="Status"/> is <see cref="TargetStatus.NotAssessed"/></summary>
+    public double? CurrentValue { get; set; }
 
     /// <summary>Target value</summary>
     public double TargetValue { get; set; }
@@ -1479,11 +1484,11 @@ public class TargetAssessment
     /// <summary>Status of target achievement</summary>
     public TargetStatus Status { get; set; }
 
-    /// <summary>Difference from target</summary>
-    public double DifferenceFromTarget { get; set; }
+    /// <summary>Difference from target, or null when not assessed</summary>
+    public double? DifferenceFromTarget { get; set; }
 
-    /// <summary>Percentage progress toward target</summary>
-    public double ProgressPercentage { get; set; }
+    /// <summary>Percentage progress toward target, or null when not assessed</summary>
+    public double? ProgressPercentage { get; set; }
 }
 
 /// <summary>
@@ -1530,8 +1535,14 @@ public class ClinicalTargetAssessment
     /// <summary>Number of targets met</summary>
     public int TargetsMet { get; set; }
 
-    /// <summary>Total number of targets assessed</summary>
+    /// <summary>Total number of targets, assessed or not</summary>
     public int TotalTargets { get; set; }
+
+    /// <summary>
+    /// Number of targets whose metric could be computed; the rest are
+    /// <see cref="TargetStatus.NotAssessed"/>
+    /// </summary>
+    public int TargetsAssessed { get; set; }
 
     /// <summary>Overall assessment category</summary>
     public ClinicalAssessmentLevel OverallAssessment { get; set; }
