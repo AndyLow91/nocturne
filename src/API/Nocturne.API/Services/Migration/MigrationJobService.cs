@@ -297,7 +297,7 @@ public class MigrationJobService : IMigrationJobService
         using var scope = _serviceProvider.CreateScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(HttpClientName);
-        httpClient.BaseAddress = MigrationJob.SourceBaseAddress(request.NightscoutUrl);
+        httpClient.BaseAddress = NightscoutBaseUri.For(request.NightscoutUrl);
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(request.NightscoutApiSecret))
@@ -718,13 +718,6 @@ internal class MigrationJob
     /// <summary>Canonical source identifier for an API-mode migration. Shared with the startup pending-migration check so the two always agree.</summary>
     internal static string ApiSourceIdentifier(string nightscoutUrl) => nightscoutUrl.TrimEnd('/');
 
-    /// <summary>
-    /// The configured Nightscout URL as a base that source reads resolve under. Reads use paths
-    /// with no leading slash: a rooted path, or a base without its trailing slash, resolves against
-    /// the host and drops a Nightscout served under a sub-path.
-    /// </summary>
-    internal static Uri SourceBaseAddress(string nightscoutUrl) => new(nightscoutUrl.TrimEnd('/') + "/");
-
     /// <summary>Canonical source identifier for a MongoDB-mode migration: a non-usable digest, never the connection string itself.</summary>
     internal static string MongoSourceIdentifier(string connectionString) =>
         HashUtils.Sha256Hex(connectionString);
@@ -829,7 +822,7 @@ internal class MigrationJob
         using var scope = CreateTenantScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(MigrationJobService.HttpClientName);
-        httpClient.BaseAddress = SourceBaseAddress(_request.NightscoutUrl!);
+        httpClient.BaseAddress = NightscoutBaseUri.For(_request.NightscoutUrl!);
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(_request.NightscoutApiSecret))

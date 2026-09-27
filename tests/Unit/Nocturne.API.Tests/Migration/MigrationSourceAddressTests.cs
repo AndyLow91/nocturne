@@ -55,19 +55,9 @@ public class MigrationSourceAddressTests
     }
 
     [Theory]
-    [InlineData("https://example-nightscout.invalid", "https://example-nightscout.invalid/")]
-    [InlineData("https://example-nightscout.invalid/", "https://example-nightscout.invalid/")]
-    [InlineData("https://example-nightscout.invalid/nightscout", "https://example-nightscout.invalid/nightscout/")]
-    [InlineData("https://example-nightscout.invalid/nightscout/", "https://example-nightscout.invalid/nightscout/")]
-    [InlineData("https://example-nightscout.invalid/a/b//", "https://example-nightscout.invalid/a/b/")]
-    public void The_base_address_keeps_the_path_and_ends_in_one_slash(string configured, string expected)
-    {
-        MigrationJob.SourceBaseAddress(configured).AbsoluteUri.Should().Be(expected);
-    }
-
-    [Theory]
     [InlineData("https://example-nightscout.invalid/nightscout")]
     [InlineData("https://example-nightscout.invalid/nightscout/")]
+    [InlineData("https://example-nightscout.invalid/nightscout/?token=synthetic-token")]
     public async Task A_run_reads_every_collection_under_the_configured_path(string nightscoutUrl)
     {
         var source = new PrefixedNightscout();
@@ -85,8 +75,11 @@ public class MigrationSourceAddressTests
 
         var paths = source.Requests.Select(u => u.AbsolutePath).ToList();
         paths.Should().OnlyContain(p => p.StartsWith(Prefix + "/api/", StringComparison.Ordinal));
+        source.Requests.Should().NotContain(u => u.Query.Contains("token"));
         paths.Should().Contain(
         [
+            $"{Prefix}/api/v1/count/entries/where",
+            $"{Prefix}/api/v2/authorization/roles",
             $"{Prefix}/api/v2/authorization/subjects",
             $"{Prefix}/api/v1/entries.json",
             $"{Prefix}/api/v1/treatments.json",
@@ -99,6 +92,7 @@ public class MigrationSourceAddressTests
     [Theory]
     [InlineData("https://example-nightscout.invalid/nightscout")]
     [InlineData("https://example-nightscout.invalid/nightscout/")]
+    [InlineData("https://example-nightscout.invalid/nightscout?token=synthetic-token#section")]
     public async Task The_connection_test_reads_status_under_the_configured_path(string nightscoutUrl)
     {
         var source = new PrefixedNightscout();
