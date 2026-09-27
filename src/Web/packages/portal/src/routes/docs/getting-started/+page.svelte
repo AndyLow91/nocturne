@@ -1,7 +1,7 @@
 <script lang="ts">
     import Content from "../../../content/docs/getting-started.svx";
     import { Button } from "@nocturne/ui/ui/button";
-    import { ArrowRight } from "@lucide/svelte";
+    import ArrowRight from "@lucide/svelte/icons/arrow-right";
 </script>
 
 <div class="max-w-3xl">

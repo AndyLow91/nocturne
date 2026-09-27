@@ -37,6 +37,17 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
         ConnectorRegistrationAttribute.DeclaredOn(typeof(TConfig));
 
     /// <summary>
+    /// The sensor cadence the connector declares (see
+    /// <see cref="ConnectorRegistrationAttribute.SensorReadingIntervalSeconds"/>), or <c>null</c> when
+    /// it declares none or no data source to find its readings by, in which case it is polled on its
+    /// interval alone.
+    /// </summary>
+    private static readonly TimeSpan? SensorCadence =
+        Registration.SensorReadingIntervalSeconds > 0 && !string.IsNullOrEmpty(Registration.DataSourceId)
+            ? TimeSpan.FromSeconds(Registration.SensorReadingIntervalSeconds)
+            : null;
+
+    /// <summary>
     /// Tracks the last sync time per tenant so each tenant's configured
     /// SyncIntervalMinutes is respected independently.
     /// </summary>
@@ -56,6 +67,15 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     /// from every configuration write, so a saved or enabled connector is looked at on the next tick.
     /// </summary>
     private readonly ConcurrentDictionary<Guid, DateTime> _nextCheckByTenant = new();
+
+    /// <summary>
+    /// When each tenant's source is next expected to have new data, as reported by
+    /// <see cref="GetAlignedSyncTimeAsync"/> after a successful sync. A tenant whose aligned time has
+    /// arrived syncs even inside its <c>SyncIntervalMinutes</c>: the interval stays the longest the
+    /// poller waits, the aligned time lets it go sooner. Consumed when the sync it scheduled starts,
+    /// and never set by a failed sync, so a failing source falls back to the plain interval.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, DateTime> _alignedSyncByTenant = new();
 
     private static readonly TimeSpan NudgeDebounceWindow = TimeSpan.FromSeconds(10);
 
@@ -78,6 +98,12 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     private readonly ConnectorSyncBudget _budget;
     private readonly ConnectorSyncMetrics? _metrics;
 
+    /// <summary>
+    /// Absent, a scheduled sync does not check for one already in flight; production supplies the
+    /// singleton so a manual sync of the same tenant and connector makes the scheduled one skip.
+    /// </summary>
+    private readonly TenantRunGuard? _runGuard;
+
     /// <summary>The active tenants, shared by every poller.</summary>
     protected readonly ActiveTenantSnapshot ActiveTenants;
 
@@ -90,13 +116,15 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     /// <param name="logger">Logger instance.</param>
     /// <param name="nudge">Delivers configuration writes for this connector; absent, a change is noticed on the tenant's next scheduled look.</param>
     /// <param name="metrics">Connector sync instruments; absent, the sync runs unmeasured.</param>
+    /// <param name="runGuard">Refuses a sync for a key another run already holds; absent, no exclusion.</param>
     protected ConnectorBackgroundService(
         IServiceProvider serviceProvider,
         ConnectorSyncBudget budget,
         ActiveTenantSnapshot activeTenants,
         ILogger logger,
         ConnectorPollerNudge? nudge = null,
-        ConnectorSyncMetrics? metrics = null
+        ConnectorSyncMetrics? metrics = null,
+        TenantRunGuard? runGuard = null
     )
     {
         ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -104,6 +132,7 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
         ActiveTenants = activeTenants ?? throw new ArgumentNullException(nameof(activeTenants));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics;
+        _runGuard = runGuard;
         nudge?.Subscribe(ConnectorName, RequestImmediateSync);
     }
 
@@ -167,9 +196,13 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 
     /// <summary>
     /// Interval between poll ticks. Each tenant is still only synced when its own
-    /// SyncIntervalMinutes has elapsed since its last sync. Overridable for tests.
+    /// SyncIntervalMinutes has elapsed since its last sync, or its aligned time has arrived. A
+    /// connector that declares a sensor cadence ticks every fifteen seconds so that time is met to
+    /// within seconds rather than a minute; a tenant that is not due costs nothing on a tick, since
+    /// the schedule is checked before any scope is opened. Overridable for tests.
     /// </summary>
-    protected virtual TimeSpan PollInterval => TimeSpan.FromMinutes(1);
+    protected virtual TimeSpan PollInterval =>
+        SensorCadence is null ? TimeSpan.FromMinutes(1) : TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// How long a tenant with no usable configuration for this connector is left alone before its
@@ -177,6 +210,52 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     /// write did not reach (<see cref="ConnectorPollerNudge"/> is in-process). Overridable for tests.
     /// </summary>
     protected virtual TimeSpan UnconfiguredRecheckInterval => TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// The earliest an aligned sync may be scheduled after the sync that produced it. Guards the
+    /// source against a <see cref="GetAlignedSyncTimeAsync"/> that answers "now" on every run, which
+    /// would otherwise sync the tenant on every tick. Overridable for tests.
+    /// </summary>
+    protected virtual TimeSpan MinimumAlignedSyncSpacing => TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Called after each successful sync to say when the tenant should next be synced, ahead of
+    /// <c>SyncIntervalMinutes</c>, or <c>null</c> to leave the interval in charge. For a connector
+    /// that declares a sensor cadence this is just after its next reading should reach the cloud (see
+    /// <see cref="SensorSyncAlignment"/>), worked out from the newest reading stored under the
+    /// connector's data source; every other connector answers <c>null</c>. Overridable for tests.
+    /// </summary>
+    /// <param name="scopeProvider">The tenant-scoped provider the sync ran in.</param>
+    /// <param name="config">The tenant's connector configuration.</param>
+    /// <param name="now">The current UTC time.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    protected virtual async Task<DateTime?> GetAlignedSyncTimeAsync(
+        IServiceProvider scopeProvider,
+        TConfig config,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        if (SensorCadence is not { } cadence)
+            return null;
+
+        var publisher = scopeProvider.GetService<IGlucosePublisher>();
+        if (publisher is null)
+            return null;
+
+        var latest = await publisher.GetLatestSensorGlucoseTimestampAsync(
+            Registration.DataSourceId, cancellationToken);
+        if (latest is not { } reading)
+            return null;
+
+        reading = reading.Kind switch
+        {
+            DateTimeKind.Local => reading.ToUniversalTime(),
+            DateTimeKind.Unspecified => DateTime.SpecifyKind(reading, DateTimeKind.Utc),
+            _ => reading,
+        };
+
+        return SensorSyncAlignment.NextSyncAt(reading, cadence, now, Random.Shared.NextDouble());
+    }
 
     private DateTime _lastRealtimeSupervision = DateTime.MinValue;
 
@@ -509,16 +588,34 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
             return;
         }
 
-        // Only sync when the tenant's configured interval has elapsed
+        // Only sync when the tenant's configured interval has elapsed, or when the connector said
+        // new data is due (see GetAlignedSyncTimeAsync) and that time has arrived.
         var interval = TimeSpan.FromMinutes(config.SyncIntervalMinutes);
-        if (_lastSyncByTenant.TryGetValue(tenantId, out var lastSync) && now - lastSync < interval)
+        var hasAligned = _alignedSyncByTenant.TryGetValue(tenantId, out var alignedAt);
+        if (!(hasAligned && alignedAt <= now)
+            && _lastSyncByTenant.TryGetValue(tenantId, out var lastSync)
+            && now - lastSync < interval)
         {
-            _nextCheckByTenant[tenantId] = lastSync + interval;
+            var intervalDue = lastSync + interval;
+            _nextCheckByTenant[tenantId] = hasAligned && alignedAt < intervalDue ? alignedAt : intervalDue;
             return;
         }
 
         Logger.LogDebug("Syncing {ConnectorName} for tenant {TenantSlug}", ConnectorName, tenantSlug);
 
+        // A manual sync of the same tenant and connector holds this key for its whole run. This
+        // poller never waits: the manual run is already fetching this tenant's data, so this cycle
+        // skips the tenant and the next tick re-checks it.
+        using var lease = _runGuard?.TryAcquire(tenantId, Registration.ConnectorId);
+        if (_runGuard is not null && lease is null)
+        {
+            Logger.LogInformation(
+                "{ConnectorName} sync for tenant {TenantSlug} skipped: a sync is already running",
+                ConnectorName, tenantSlug);
+            return;
+        }
+
+        _alignedSyncByTenant.TryRemove(tenantId, out _);
         _lastSyncByTenant[tenantId] = now;
         _nextCheckByTenant[tenantId] = now + interval;
 
@@ -574,6 +671,8 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
                 lastErrorMessage: string.Empty,
                 lastErrorAt: DateTime.MinValue,
                 cancellationToken: stoppingToken);
+
+            await ScheduleAlignedSyncAsync(scope.ServiceProvider, tenantId, tenantSlug, config, stoppingToken);
         }
         else
         {
@@ -600,6 +699,48 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Asks the connector when its source next expects new data and, when it names a time, brings
+    /// the tenant's next check forward to it. A failure here is logged and costs only the alignment:
+    /// the sync already succeeded, and the plain interval still stands.
+    /// </summary>
+    private async Task ScheduleAlignedSyncAsync(
+        IServiceProvider scopeProvider,
+        Guid tenantId,
+        string tenantSlug,
+        TConfig config,
+        CancellationToken cancellationToken)
+    {
+        DateTime? aligned;
+        try
+        {
+            aligned = await GetAlignedSyncTimeAsync(scopeProvider, config, DateTime.UtcNow, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(
+                ex,
+                "Could not align the next {ConnectorName} sync for tenant {TenantSlug}; using the sync interval",
+                ConnectorName, tenantSlug);
+            return;
+        }
+
+        if (aligned is not { } at)
+            return;
+
+        var earliest = DateTime.UtcNow + MinimumAlignedSyncSpacing;
+        if (at < earliest)
+            at = earliest;
+
+        _alignedSyncByTenant[tenantId] = at;
+        if (!_nextCheckByTenant.TryGetValue(tenantId, out var next) || at < next)
+            _nextCheckByTenant[tenantId] = at;
+
+        Logger.LogDebug(
+            "{ConnectorName} next sync for tenant {TenantSlug} aligned to {AlignedAt:HH:mm:ss} UTC",
+            ConnectorName, tenantSlug, at);
+    }
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         Logger.LogInformation(
@@ -621,8 +762,9 @@ public class ConnectorBackgroundService<TService, TConfig>(
     ActiveTenantSnapshot activeTenants,
     ILogger<ConnectorBackgroundService<TService, TConfig>> logger,
     ConnectorPollerNudge? nudge = null,
-    ConnectorSyncMetrics? metrics = null)
-    : ConnectorBackgroundService<TConfig>(serviceProvider, budget, activeTenants, logger, nudge, metrics)
+    ConnectorSyncMetrics? metrics = null,
+    TenantRunGuard? runGuard = null)
+    : ConnectorBackgroundService<TConfig>(serviceProvider, budget, activeTenants, logger, nudge, metrics, runGuard)
     where TService : class, IConnectorService<TConfig>
     where TConfig : BaseConnectorConfiguration
 {

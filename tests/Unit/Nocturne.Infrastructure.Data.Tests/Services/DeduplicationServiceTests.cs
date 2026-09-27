@@ -815,23 +815,81 @@ public class DeduplicationServiceTests : IDisposable
     public async Task DeduplicateBatchAsync_PinsTightWindowEdge(long offsetMillis, bool laterFirst, int expectedGroups)
     {
         // Both records carry the same source, so the wide window can never rescue the just-past
-        // case: only the tight window's inclusive bound decides the outcome. Separate batches so
-        // the second record matches through the persisted link rather than intra-batch state.
+        // case: only the tight window's inclusive bound decides the outcome. That pair is Tidepool
+        // carbs because it is the one source and record type whose same-source pairs may
+        // tight-merge at all (DeduplicationService.EmitsDuplicateEvents). Separate batches so the
+        // second record matches through the persisted link rather than intra-batch state.
         // laterFirst flips which end of the window the second record has to reach across.
         await using var context = NewContext();
         var service = CreateService(context);
 
-        var earlier = CreateBolus(WideBase, 2.0, "mylife-connector");
-        var later = CreateBolus(WideBase + offsetMillis, 2.0, "mylife-connector");
-        context.Boluses.AddRange(earlier, later);
+        var earlier = CreateCarbIntake(WideBase, 45, "tidepool-connector");
+        var later = CreateCarbIntake(WideBase + offsetMillis, 45, "tidepool-connector");
+        context.CarbIntakes.AddRange(earlier, later);
         await context.SaveChangesAsync();
 
         var (first, second) = laterFirst ? (later, earlier) : (earlier, later);
-        await service.DeduplicateBatchAsync(RecordType.Bolus, [ToInput(first)]);
-        await service.DeduplicateBatchAsync(RecordType.Bolus, [ToInput(second)]);
+        await service.DeduplicateBatchAsync(RecordType.CarbIntake, [ToInput(first)]);
+        await service.DeduplicateBatchAsync(RecordType.CarbIntake, [ToInput(second)]);
 
         var links = await context.LinkedRecords.ToListAsync();
         links.Select(lr => lr.CanonicalId).Distinct().Should().HaveCount(expectedGroups);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeduplicateBatchAsync_TwoTidepoolBolusesOfOneSizeAtOneSecond_StayTwoGroups(bool oneBatch)
+    {
+        await using var context = NewContext();
+        var service = CreateService(context);
+
+        var first = CreateBolus(WideBase, 2.0, "tidepool-connector");
+        var second = CreateBolus(WideBase, 2.0, "tidepool-connector");
+        context.Boluses.AddRange(first, second);
+        await context.SaveChangesAsync();
+
+        if (oneBatch)
+        {
+            await service.DeduplicateBatchAsync(RecordType.Bolus, [ToInput(first), ToInput(second)]);
+        }
+        else
+        {
+            await service.DeduplicateBatchAsync(RecordType.Bolus, [ToInput(first)]);
+            await service.DeduplicateBatchAsync(RecordType.Bolus, [ToInput(second)]);
+        }
+
+        var links = await context.LinkedRecords.ToListAsync();
+        links.Should().HaveCount(2);
+        links.Select(lr => lr.CanonicalId).Distinct().Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeduplicateBatchAsync_TidepoolCarbTwinsAtOneSecond_Merge(bool oneBatch)
+    {
+        await using var context = NewContext();
+        var service = CreateService(context);
+
+        var first = CreateCarbIntake(WideBase, 45, "tidepool-connector");
+        var twin = CreateCarbIntake(WideBase, 45, "tidepool-connector");
+        context.CarbIntakes.AddRange(first, twin);
+        await context.SaveChangesAsync();
+
+        if (oneBatch)
+        {
+            await service.DeduplicateBatchAsync(RecordType.CarbIntake, [ToInput(first), ToInput(twin)]);
+        }
+        else
+        {
+            await service.DeduplicateBatchAsync(RecordType.CarbIntake, [ToInput(first)]);
+            await service.DeduplicateBatchAsync(RecordType.CarbIntake, [ToInput(twin)]);
+        }
+
+        var links = await context.LinkedRecords.ToListAsync();
+        links.Should().HaveCount(2);
+        links.Select(lr => lr.CanonicalId).Distinct().Should().HaveCount(1);
     }
 
     [Theory]
@@ -1312,8 +1370,7 @@ public class DeduplicationServiceTests : IDisposable
     [Fact]
     public async Task DeduplicateBatchAsync_Note_DoesNotMatchASoftDeletedNote()
     {
-        // Notes match on the time window alone, so nothing about the note's own content can keep a
-        // deleted one out of range — only the deleted check can.
+        // Same text inside the window, so only the deleted check can keep them apart.
         await using var context = NewContext();
         var service = CreateService(context);
 
@@ -1323,7 +1380,7 @@ public class DeduplicationServiceTests : IDisposable
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
             Timestamp = timestamp,
-            Text = "removed",
+            Text = "same note",
             DataSource = "mylife-connector",
             DeletedAt = DateTime.UtcNow
         };
@@ -1332,7 +1389,7 @@ public class DeduplicationServiceTests : IDisposable
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
             Timestamp = timestamp.AddSeconds(10),
-            Text = "kept",
+            Text = "same note",
             DataSource = "glooko-connector"
         };
         context.Notes.AddRange(deleted, fresh);
@@ -1687,7 +1744,7 @@ public class DeduplicationServiceTests : IDisposable
 
     private static DeduplicationInput ToInput(NoteEntity e, string? dataSource = null) =>
         new(e.Id, ToMills(e.Timestamp), dataSource ?? e.DataSource ?? DeduplicationInput.UnknownDataSource,
-            MatchCriteriaMapper.ForNote());
+            MatchCriteriaMapper.From(e));
 
     private static StateSpan CreateTestStateSpan(
         StateSpanCategory category,

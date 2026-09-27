@@ -324,6 +324,8 @@ public class DeviceStatusProjectionService
             Id = anchor.LegacyId ?? anchor.Id.ToString(),
             Mills = anchor.Mills,
             Date = anchor.Mills,
+            SrvModified = new DateTimeOffset(anchor.ModifiedAt, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            SrvCreated = new DateTimeOffset(anchor.CreatedAt, TimeSpan.Zero).ToUnixTimeMilliseconds(),
             CreatedAt = anchor.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
             UtcOffset = anchor.UtcOffset,
             Device = anchor.Device ?? string.Empty,
@@ -489,7 +491,7 @@ public class DeviceStatusProjectionService
 
         if (overrideSpan.EndTimestamp.HasValue)
         {
-            ds.Override.Duration = (overrideSpan.EndTimestamp.Value - overrideSpan.StartTimestamp).TotalMinutes;
+            ds.Override.Duration = (overrideSpan.EndTimestamp.Value - overrideSpan.StartTimestamp).TotalSeconds;
         }
     }
 
@@ -526,13 +528,10 @@ public class DeviceStatusProjectionService
                 case "mmtune":
                     ds.MmTune = DeserializeValue<OpenApsMmTune>(value, logger);
                     break;
-                // Route to the typed properties: leaving these in ExtensionData would
-                // serialize the key twice (typed Mills fallback + stored extras value).
-                case "srvModified":
-                    ds.SrvModified = CoerceLong(value);
-                    break;
+                // The record reports the server clock (see ProjectFromSnapshots); a client-supplied
+                // value must neither override it nor re-emit as an extra.
                 case "srvCreated":
-                    ds.SrvCreated = CoerceLong(value);
+                case "srvModified":
                     break;
                 // An NS v3 uploader sends its own identifier and it is stored verbatim.
                 // DeviceStatus has no member to absorb it, so re-emitting it would put a
@@ -723,19 +722,6 @@ public class DeviceStatusProjectionService
             return null;
         }
     }
-
-    private static long? CoerceLong(object value) =>
-        value switch
-        {
-            long l => l,
-            int i => i,
-            double d => (long)d,
-            string s when long.TryParse(s, out var parsed) => parsed,
-            JsonElement { ValueKind: JsonValueKind.Number } e when e.TryGetInt64(out var el) => el,
-            JsonElement { ValueKind: JsonValueKind.String } e
-                when long.TryParse(e.GetString(), out var es) => es,
-            _ => null,
-        };
 
     private static T? DeserializeValue<T>(object value, ILogger? logger = null) where T : class
     {

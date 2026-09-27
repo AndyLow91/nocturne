@@ -15,7 +15,7 @@
   import ThresholdRules from "$lib/components/dashboard/glucose-chart/tracks/ThresholdRules.svelte";
   import { Tween, prefersReducedMotion } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
-  import ArrowRight from "lucide-svelte/icons/arrow-right";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
   import { createConnectionIndicator } from "$lib/stores/connection-indicator.svelte";
   import { currentGlucoseStatus } from "$lib/stores/current-glucose-status.svelte";
   import { getGlucoseTileVariant } from "$lib/utils/glucose-status";

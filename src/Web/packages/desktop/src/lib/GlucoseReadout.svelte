@@ -9,7 +9,7 @@
     glucoseTileVariant,
     type GlucoseUnits,
   } from "@nocturne/ui/glucose";
-  import { ArrowRight } from "@lucide/svelte";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
   import type { Reading } from "$lib/glucose-types";
 
   let {

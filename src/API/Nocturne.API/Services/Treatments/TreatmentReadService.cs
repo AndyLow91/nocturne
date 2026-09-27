@@ -213,6 +213,8 @@ public class TreatmentReadService : ITreatmentStore
         var existing = await GetByIdAsync(id, ct);
         if (existing == null) return null;
 
+        TreatmentClientId.KeepStored(treatment, existing);
+
         // Re-key to the stored LegacyId so the decomposer upserts the existing record in place
         // rather than creating a duplicate when the client sends a derived ObjectId.
         treatment.Id = await ResolveCanonicalIdAsync(id, ct) ?? id;
