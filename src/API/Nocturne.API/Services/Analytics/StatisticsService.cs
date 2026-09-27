@@ -2419,8 +2419,9 @@ public class StatisticsService : IStatisticsService
             var basalPercent = total > 0 ? (basal / total) * 100 : 0;
             var bolusPercent = total > 0 ? (bolus / total) * 100 : 0;
 
-            var dateParsed = DateTime.Parse(dateKey);
-            var displayDate = dateParsed.ToString("MMM d");
+            var displayDate = DateOnly
+                .ParseExact(dateKey, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                .ToString("MMM d");
 
             result.DailyData.Add(
                 new DailyBasalBolusRatioData

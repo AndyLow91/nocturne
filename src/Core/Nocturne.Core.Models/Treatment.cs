@@ -195,18 +195,9 @@ public class Treatment : ProcessableDocumentBase
     private static bool TryParseIsoMills(string? iso, out long mills)
     {
         mills = 0;
-        if (
-            !string.IsNullOrEmpty(iso)
-            && DateTime.TryParse(
-                iso,
-                null,
-                System.Globalization.DateTimeStyles.RoundtripKind,
-                out var parsed
-            )
-        )
+        if (UploaderTimestamp.TryParse(iso, out var parsed))
         {
-            mills = ((DateTimeOffset)DateTime.SpecifyKind(parsed, DateTimeKind.Utc))
-                .ToUnixTimeMilliseconds();
+            mills = parsed.ToUnixTimeMilliseconds();
             return true;
         }
         return false;

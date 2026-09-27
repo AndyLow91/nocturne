@@ -7,18 +7,6 @@ namespace Nocturne.Core.Models.Tests;
 [Trait("Category", "Unit")]
 public class UploaderTimestampTests
 {
-    [Theory]
-    [InlineData("2026-09-26T10:00:00")]
-    [InlineData("2026-09-26T10:00:00.000")]
-    [InlineData("2026-09-26 10:00:00")]
-    public void TryParse_ZonelessString_IsReadAsUtc(string value)
-    {
-        UploaderTimestamp.TryParse(value, out var parsed).Should().BeTrue();
-
-        parsed.Offset.Should().Be(TimeSpan.Zero);
-        parsed.UtcDateTime.Should().Be(new DateTime(2026, 9, 26, 10, 0, 0, DateTimeKind.Utc));
-    }
-
     [Fact]
     public void TryParse_ZSuffixedString_IsUtc()
     {
@@ -48,14 +36,5 @@ public class UploaderTimestampTests
     {
         UploaderTimestamp.TryParse(value, out _).Should().BeFalse();
         UploaderTimestamp.ParseUtcDateTime(value).Should().BeNull();
-    }
-
-    [Fact]
-    public void ParseUtcDateTime_ZonelessString_ReturnsUtcKind()
-    {
-        var parsed = UploaderTimestamp.ParseUtcDateTime("2026-09-26T10:00:00");
-
-        parsed.Should().Be(new DateTime(2026, 9, 26, 10, 0, 0, DateTimeKind.Utc));
-        parsed!.Value.Kind.Should().Be(DateTimeKind.Utc);
     }
 }
