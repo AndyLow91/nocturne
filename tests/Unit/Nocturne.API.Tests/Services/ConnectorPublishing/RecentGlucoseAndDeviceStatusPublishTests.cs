@@ -75,6 +75,7 @@ public class RecentGlucoseAndDeviceStatusPublishTests : IDisposable
     public async Task Only_device_statuses_no_snapshot_holds_are_written()
     {
         var decomposer = new Mock<IDeviceStatusDecomposer>();
+        decomposer.Setup(d => d.HasLegacyKeyedSnapshot(It.IsAny<DeviceStatus>())).Returns(true);
         var decomposed = new List<string?>();
         decomposer
             .Setup(d => d.DecomposeAsync(
@@ -104,6 +105,7 @@ public class RecentGlucoseAndDeviceStatusPublishTests : IDisposable
     public async Task A_failed_lookup_writes_nothing_and_reports_the_failure()
     {
         var decomposer = new Mock<IDeviceStatusDecomposer>();
+        decomposer.Setup(d => d.HasLegacyKeyedSnapshot(It.IsAny<DeviceStatus>())).Returns(true);
         var aps = new Mock<IApsSnapshotRepository>();
         aps.Setup(r => r.GetHeldLegacyIdsAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("synthetic"));
@@ -114,7 +116,31 @@ public class RecentGlucoseAndDeviceStatusPublishTests : IDisposable
             [new DeviceStatus { Id = "ds-late" }], Source, WriteOrigin.Live);
 
         written.Should().BeNull();
+        decomposer.Verify(d => d.HasLegacyKeyedSnapshot(It.IsAny<DeviceStatus>()));
         decomposer.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task A_device_status_that_yields_no_snapshot_is_not_decomposed()
+    {
+        var extras = new Mock<IDeviceStatusExtrasRepository>();
+        var aps = new Mock<IApsSnapshotRepository>();
+        var pump = new Mock<IPumpSnapshotRepository>();
+        var uploader = new Mock<IUploaderSnapshotRepository>();
+        var decomposer = new DeviceStatusDecomposer(
+            aps.Object, pump.Object, uploader.Object, extras.Object, Mock.Of<IStateSpanService>(),
+            Mock.Of<IDeviceService>(), Mock.Of<IAuditContext>(), NullLogger<DeviceStatusDecomposer>.Instance);
+        var publisher = DevicePublisher(decomposer, aps.Object, pump.Object, uploader.Object);
+
+        var written = await publisher.PublishRecentDeviceStatusAsync(
+            [new DeviceStatus { Id = "ds-xdrip", Mills = 1700000000000, Connect = new { }, XDripJs = new XDripJsStatus() }],
+            Source, WriteOrigin.Live);
+
+        written.Should().Be(0);
+        extras.VerifyNoOtherCalls();
+        aps.VerifyNoOtherCalls();
+        pump.VerifyNoOtherCalls();
+        uploader.VerifyNoOtherCalls();
     }
 
     private static Entry Sgv(string id, long mills, double sgv) =>
