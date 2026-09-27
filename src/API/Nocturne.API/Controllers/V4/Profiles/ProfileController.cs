@@ -302,6 +302,10 @@ public class ProfileController : ControllerBase, IWriteScopedController
     /// <summary>
     /// Create a new therapy settings record
     /// </summary>
+    /// <remarks>
+    /// <see cref="TherapySettings.IsDefault"/> <c>true</c> makes the new row the tenant's only default,
+    /// as <see cref="SetDefaultProfile"/> does; <c>false</c> leaves the current default alone.
+    /// </remarks>
     [HttpPost("settings")]
     [RequireDeclaredWriteScope]
     [RemoteForm(Invalidates = ["GetProfileSummary", "GetTherapySettings"])]
@@ -314,13 +318,25 @@ public class ProfileController : ControllerBase, IWriteScopedController
     {
         if (model.Timestamp == default)
             return Problem(detail: "Timestamp must be set", statusCode: 400, title: "Bad Request");
+        var makeDefault = model.IsDefault;
+        model.IsDefault = false;
         var created = await _therapyRepo.CreateAsync(model, WriteOrigin.Live, ct);
+        if (makeDefault)
+        {
+            await _therapyRepo.SetDefaultAsync(created.Id, ct);
+            created.IsDefault = true;
+        }
         return CreatedAtAction(nameof(GetTherapySettingsById), new { id = created.Id }, created);
     }
 
     /// <summary>
     /// Update an existing therapy settings record
     /// </summary>
+    /// <remarks>
+    /// <see cref="TherapySettings.IsDefault"/> <c>true</c> makes the row the tenant's only default, as
+    /// <see cref="SetDefaultProfile"/> does. <c>false</c> keeps the row's stored flag, so an update never
+    /// demotes the default; the default moves only by promoting another row.
+    /// </remarks>
     [HttpPut("settings/{id:guid}")]
     [RequireDeclaredWriteScope]
     [RemoteForm(
@@ -337,15 +353,27 @@ public class ProfileController : ControllerBase, IWriteScopedController
     {
         if (model.Timestamp == default)
             return Problem(detail: "Timestamp must be set", statusCode: 400, title: "Bad Request");
+        var existing = await _therapyRepo.GetByIdAsync(id, ct);
+        if (existing is null)
+            return NotFound();
+
+        var makeDefault = model.IsDefault;
+        model.IsDefault = existing.IsDefault;
+        TherapySettings updated;
         try
         {
-            var updated = await _therapyRepo.UpdateAsync(id, model, WriteOrigin.Live, ct);
-            return Ok(updated);
+            updated = await _therapyRepo.UpdateAsync(id, model, WriteOrigin.Live, ct);
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
+        if (makeDefault)
+        {
+            await _therapyRepo.SetDefaultAsync(id, ct);
+            updated.IsDefault = true;
+        }
+        return Ok(updated);
     }
 
     /// <summary>
