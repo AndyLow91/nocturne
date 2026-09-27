@@ -148,6 +148,29 @@ public abstract class DecomposerBase
     protected static IDisposable SystemAttributedBatchWrites(IAuditContext auditContext)
         => SystemAuditScope.Push(auditContext);
 
+    /// <summary>
+    /// The batch twin of <see cref="UpsertByLegacyIdAsync"/>: a record whose legacy id is stored
+    /// updates that row and lands in <see cref="DecompositionResult.UpdatedRecords"/>, so a resend
+    /// through the batch path writes what the same resend through the single path writes.
+    /// </summary>
+    protected static async Task BulkUpsertAsync<TRecord>(
+        IBulkUpsertRepository<TRecord> repository,
+        List<TRecord> records,
+        DecompositionResult result,
+        WriteOrigin origin,
+        CancellationToken ct)
+        where TRecord : class
+    {
+        if (records.Count == 0)
+            return;
+
+        var written = await repository.BulkUpsertAsync(records, origin, ct);
+        var updated = new HashSet<TRecord>(written.Updated, ReferenceEqualityComparer.Instance);
+        result.CreatedRecords.AddRange(written.Where(r => !updated.Contains(r)));
+        result.UpdatedRecords.AddRange(written.Updated);
+        result.SkippedDeleted += written.SkippedDeleted;
+    }
+
     protected static async Task BulkCreateAsync<TRecord>(
         IBulkCreateRepository<TRecord> repository,
         List<TRecord> records,

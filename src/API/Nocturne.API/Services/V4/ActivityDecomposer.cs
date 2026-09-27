@@ -201,11 +201,11 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
                 regularActivities.Add(activity);
         }
 
-        await BulkCreateNewByOriginalIdAsync(
+        await BulkUpsertByOriginalIdAsync(
             _dbContext.HeartRates, heartRateList, HeartRateMapper.ToEntity,
             HeartRateMapper.UpdateEntity, HeartRateMapper.ToDomainModel, result, ct);
 
-        await BulkCreateNewByOriginalIdAsync(
+        await BulkUpsertByOriginalIdAsync(
             _dbContext.StepCounts, stepCountList, StepCountMapper.ToEntity,
             StepCountMapper.UpdateEntity, StepCountMapper.ToDomainModel, result, ct);
 
@@ -375,11 +375,12 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             : set.FirstOrDefaultAsync(e => e.DataSource == dataSource && e.SyncIdentifier == syncIdentifier, ct);
 
     /// <summary>
-    /// Inserts the records whose <c>OriginalId</c> is not already stored, skipping the rest so a
-    /// re-migration cannot duplicate them. A record with a sync key instead updates the stored row
-    /// with that key, and of several in the batch with one key the last wins.
+    /// The batch twin of <see cref="UpsertByOriginalIdAsync{TModel,TEntity}"/>: a record whose
+    /// <c>OriginalId</c> is already stored updates that row, and the rest are inserted. A record with
+    /// a sync key instead updates the stored row with that key. Of several in the batch with one
+    /// key, either kind, the last wins.
     /// </summary>
-    private async Task BulkCreateNewByOriginalIdAsync<TModel, TEntity>(
+    private async Task BulkUpsertByOriginalIdAsync<TModel, TEntity>(
         DbSet<TEntity> set,
         List<TModel> models,
         Func<TModel, TEntity> toEntity,
@@ -397,13 +398,24 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
         var stored = originalIds.Count > 0
             ? (await set
                 .Where(e => e.OriginalId != null && originalIds.Contains(e.OriginalId))
-                .Select(e => e.OriginalId!)
                 .ToListAsync(ct))
-                .ToHashSet()
-            : new HashSet<string>();
+                .GroupBy(e => e.OriginalId!)
+                .ToDictionary(g => g.Key, g => g.First())
+            : new Dictionary<string, TEntity>();
+
+        var updated = new List<TEntity>();
+        foreach (var model in models
+                     .Where(m => m.Id != null && stored.ContainsKey(m.Id))
+                     .GroupBy(m => m.Id!)
+                     .Select(g => g.Last()))
+        {
+            var existing = stored[model.Id!];
+            applyUpdate(existing, model);
+            updated.Add(existing);
+        }
 
         var fresh = models
-            .Where(m => m.Id == null || !stored.Contains(m.Id))
+            .Where(m => m.Id == null || !stored.ContainsKey(m.Id))
             .Select(m => (Model: m, Entity: toEntity(m)))
             .ToList();
         var toInsert = fresh.Where(p => p.Entity.SyncIdentifier == null).Select(p => p.Entity).ToList();
@@ -413,7 +425,6 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             .Select(g => g.Last())
             .ToList();
 
-        var updated = new List<TEntity>();
         if (keyed.Count > 0)
         {
             var syncIds = keyed.Select(p => p.Entity.SyncIdentifier!).ToHashSet();
@@ -444,11 +455,6 @@ public class ActivityDecomposer : IActivityDecomposer, IDecomposer<Activity>
             result.CreatedRecords.AddRange(toInsert.Select(toDomain));
             result.UpdatedRecords.AddRange(updated.Select(toDomain));
         }
-
-        if (stored.Count > 0)
-            _logger.LogDebug(
-                "Skipped {Count} {RecordType} records already stored by OriginalId",
-                stored.Count, typeof(TModel).Name);
     }
 
     // --- Mapping helpers ---

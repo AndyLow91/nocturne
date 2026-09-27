@@ -196,9 +196,9 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
 
         using (SystemAttributedBatchWrites(_auditContext))
         {
-            await BulkCreateAsync(_sensorGlucoseRepository, sgvList, result, origin, ct);
-            await BulkCreateAsync(_meterGlucoseRepository, mbgList, result, origin, ct);
-            await BulkCreateAsync(_calibrationRepository, calList, result, origin, ct);
+            await BulkUpsertAsync(_sensorGlucoseRepository, sgvList, result, origin, ct);
+            await BulkUpsertAsync(_meterGlucoseRepository, mbgList, result, origin, ct);
+            await BulkUpsertAsync(_calibrationRepository, calList, result, origin, ct);
         }
 
         return result;
