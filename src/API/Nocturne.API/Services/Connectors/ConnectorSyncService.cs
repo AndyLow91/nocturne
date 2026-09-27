@@ -73,6 +73,13 @@ public class ConnectorSyncService : IConnectorSyncService
         CancellationToken ct
     )
     {
+        if (request.WindowError() is { } windowError)
+        {
+            _logger.LogWarning(
+                "Refused manual sync for connector {ConnectorId}: {WindowError}", connectorId, windowError);
+            return new SyncResult { Success = false, Message = windowError, Errors = { windowError } };
+        }
+
         var tenantId = _tenantAccessor.Context?.TenantId ?? Guid.Empty;
         using var lease = _runGuard.TryAcquire(tenantId, connectorId);
         if (lease is null)
