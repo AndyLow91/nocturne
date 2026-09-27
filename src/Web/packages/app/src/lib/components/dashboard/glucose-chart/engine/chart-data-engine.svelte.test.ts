@@ -139,4 +139,28 @@ describe("chart data engine — refused fetch", () => {
     await vi.waitFor(() => expect(engine.chartDataError).toBe(detail));
     expect(engine.serverChartData).toBeNull();
   });
+
+  it("shows its own message for a share-host 401 rather than the status phrase", async () => {
+    // The generated query's share-host 401 arm: error(401, 'Unauthorized').
+    let refused: unknown;
+    try {
+      error(401, "Unauthorized");
+    } catch (e) {
+      refused = e;
+    }
+    vi.mocked(getChartData).mockRejectedValueOnce(refused);
+
+    let engine!: ChartDataEngine;
+    render(Harness, {
+      props: {
+        entries: [],
+        options: { focusHours: 3, enablePredictions: false },
+        onengine: (e: ChartDataEngine) => (engine = e),
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(engine.chartDataError).toBe("The chart data could not be loaded.")
+    );
+  });
 });
