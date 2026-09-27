@@ -6,6 +6,7 @@ using Nocturne.API.Attributes;
 using Nocturne.API.Configuration;
 using Nocturne.API.Controllers.V4.Base;
 using Nocturne.API.Extensions;
+using Nocturne.API.Helpers;
 using Nocturne.API.Services.Compatibility;
 using Nocturne.Connectors.Nightscout.Configurations;
 using Nocturne.Core.Models;
@@ -284,6 +285,11 @@ public class CompatibilityController : ControllerBase
             return Problem(detail: "QueryPath is required", statusCode: 400, title: "Bad Request");
         }
 
+        if (!NightscoutBaseUri.TryFor(request.NightscoutUrl, out _))
+        {
+            return Problem(detail: NightscoutBaseUri.InvalidUrlMessage, statusCode: 400, title: "Bad Request");
+        }
+
         var result = new ManualTestResult
         {
             QueryPath = request.QueryPath,
@@ -294,9 +300,8 @@ public class CompatibilityController : ControllerBase
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
         // Build URLs
-        var nightscoutBaseUrl = request.NightscoutUrl.TrimEnd('/');
         var queryPath = request.QueryPath.StartsWith("/") ? request.QueryPath : "/" + request.QueryPath;
-        var nightscoutUrl = nightscoutBaseUrl + queryPath;
+        var nightscoutUrl = NightscoutBaseUri.Resolve(request.NightscoutUrl, queryPath);
 
         // Get Nocturne base URL from current request
         var nocturneBaseUrl = $"{Request.PublicScheme()}://{Request.Host}";

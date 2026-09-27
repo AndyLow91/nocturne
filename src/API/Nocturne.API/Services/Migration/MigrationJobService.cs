@@ -114,7 +114,7 @@ public class MigrationJobService : IMigrationJobService
         var tenantId = tenantContext.TenantId;
         var sourceDesc =
             request.Mode == MigrationMode.Api
-                ? request.NightscoutUrl
+                ? request.NightscoutUrl is { } url ? NightscoutBaseUri.Display(url) : null
                 : $"MongoDB: {request.MongoDatabaseName}";
 
         var jobInfo = new MigrationJobInfo
@@ -294,10 +294,19 @@ public class MigrationJobService : IMigrationJobService
             };
         }
 
+        if (!NightscoutBaseUri.TryFor(request.NightscoutUrl, out var baseAddress))
+        {
+            return new TestMigrationConnectionResult
+            {
+                IsSuccess = false,
+                ErrorMessage = NightscoutBaseUri.InvalidUrlMessage,
+            };
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(HttpClientName);
-        httpClient.BaseAddress = NightscoutBaseUri.For(request.NightscoutUrl);
+        httpClient.BaseAddress = baseAddress;
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(request.NightscoutApiSecret))
@@ -313,7 +322,7 @@ public class MigrationJobService : IMigrationJobService
             return new TestMigrationConnectionResult
             {
                 IsSuccess = true,
-                SiteName = request.NightscoutUrl,
+                SiteName = NightscoutBaseUri.Display(request.NightscoutUrl),
                 AvailableCollections = ["subjects", "entries", "treatments", "profile", "devicestatus", "food", "activity"],
             };
         }
@@ -426,7 +435,7 @@ public class MigrationJobService : IMigrationJobService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<NocturneDbContext>();
 
-        var sources = await dbContext
+        var sources = (await dbContext
             .MigrationSources
             .Where(s => s.TenantId == tenantId)
             .OrderByDescending(s => s.LastMigrationAt ?? s.CreatedAt)
@@ -440,7 +449,9 @@ public class MigrationJobService : IMigrationJobService
                 LastMigratedDataTimestamp = s.LastMigratedDataTimestamp,
                 CreatedAt = s.CreatedAt,
             })
-            .ToListAsync(ct);
+            .ToListAsync(ct))
+            .Select(s => s.NightscoutUrl is null ? s : s with { NightscoutUrl = NightscoutBaseUri.Display(s.NightscoutUrl) })
+            .ToList();
 
         return sources;
     }
@@ -684,19 +695,35 @@ internal class MigrationJob
     /// Finds or creates the migration source row for this job's target. Sources dedupe per
     /// tenant on <see cref="MigrationSourceEntity.SourceIdentifier"/>: the Nightscout URL for
     /// API mode, a SHA-256 digest of the connection string for MongoDB mode. Only non-usable
-    /// digests are stored — never the API secret or connection string themselves.
+    /// digests are stored — never the API secret, a URL's token or the connection string themselves.
     /// </summary>
+    /// <remarks>
+    /// A row stored under <see cref="LegacyApiSourceIdentifier"/> is taken over and rewritten, so
+    /// its history stays attached and a token it recorded is dropped.
+    /// </remarks>
     private async Task<Guid> UpsertSourceAsync(NocturneDbContext db, CancellationToken ct)
     {
         var isApi = _request.Mode == MigrationMode.Api;
         var identifier = isApi
             ? ApiSourceIdentifier(_request.NightscoutUrl!)
             : MongoSourceIdentifier(_request.MongoConnectionString ?? string.Empty);
+        var legacyIdentifier = isApi ? LegacyApiSourceIdentifier(_request.NightscoutUrl!) : identifier;
 
-        var source = await db.MigrationSources.FirstOrDefaultAsync(
-            s => s.TenantId == _tenantId && s.SourceIdentifier == identifier, ct);
+        var matches = await db.MigrationSources
+            .Where(s => s.TenantId == _tenantId
+                && (s.SourceIdentifier == identifier || s.SourceIdentifier == legacyIdentifier))
+            .ToListAsync(ct);
+        var source = matches.FirstOrDefault(s => s.SourceIdentifier == identifier);
         if (source is not null)
             return source.Id;
+
+        source = matches.FirstOrDefault();
+        if (source is not null)
+        {
+            source.SourceIdentifier = identifier;
+            source.NightscoutUrl = identifier;
+            return source.Id;
+        }
 
         source = new MigrationSourceEntity
         {
@@ -704,7 +731,7 @@ internal class MigrationJob
             TenantId = _tenantId,
             Mode = _request.Mode.ToString(),
             SourceIdentifier = identifier,
-            NightscoutUrl = isApi ? _request.NightscoutUrl : null,
+            NightscoutUrl = isApi ? identifier : null,
             NightscoutApiSecretHash = isApi && !string.IsNullOrEmpty(_request.NightscoutApiSecret)
                 ? HashUtils.Sha256Hex(_request.NightscoutApiSecret)
                 : null,
@@ -716,7 +743,10 @@ internal class MigrationJob
     }
 
     /// <summary>Canonical source identifier for an API-mode migration. Shared with the startup pending-migration check so the two always agree.</summary>
-    internal static string ApiSourceIdentifier(string nightscoutUrl) => nightscoutUrl.TrimEnd('/');
+    internal static string ApiSourceIdentifier(string nightscoutUrl) => NightscoutBaseUri.Display(nightscoutUrl);
+
+    /// <summary>The identifier API-mode sources were stored under before <see cref="ApiSourceIdentifier"/> normalised the URL.</summary>
+    internal static string LegacyApiSourceIdentifier(string nightscoutUrl) => nightscoutUrl.TrimEnd('/');
 
     /// <summary>Canonical source identifier for a MongoDB-mode migration: a non-usable digest, never the connection string itself.</summary>
     internal static string MongoSourceIdentifier(string connectionString) =>
@@ -800,7 +830,9 @@ internal class MigrationJob
             Id = run.Id,
             Mode = Enum.TryParse<MigrationMode>(run.Mode, out var m) ? m : MigrationMode.Api,
             CreatedAt = run.CreatedAt,
-            SourceDescription = run.SourceDescription,
+            SourceDescription = run.Mode == nameof(MigrationMode.Api) && run.SourceDescription is { } url
+                ? NightscoutBaseUri.Display(url)
+                : run.SourceDescription,
             State = state,
             StartedAt = run.StartedAt,
             CompletedAt = run.CompletedAt,
@@ -822,7 +854,9 @@ internal class MigrationJob
         using var scope = CreateTenantScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(MigrationJobService.HttpClientName);
-        httpClient.BaseAddress = NightscoutBaseUri.For(_request.NightscoutUrl!);
+        httpClient.BaseAddress = NightscoutBaseUri.TryFor(_request.NightscoutUrl, out var baseAddress)
+            ? baseAddress
+            : throw new MigrationSourceException(NightscoutBaseUri.InvalidUrlMessage, MigrationFailureCause.Unreachable);
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(_request.NightscoutApiSecret))

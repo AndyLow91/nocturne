@@ -4,6 +4,7 @@ using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Nocturne.API.Helpers;
 using Nocturne.API.Services;
 using Nocturne.API.Services.Migration;
 using Nocturne.Core.Models;
@@ -57,7 +58,7 @@ public class MigrationSourceAddressTests
     [Theory]
     [InlineData("https://example-nightscout.invalid/nightscout")]
     [InlineData("https://example-nightscout.invalid/nightscout/")]
-    [InlineData("https://example-nightscout.invalid/nightscout/?token=synthetic-token")]
+    [InlineData("https://example-nightscout.invalid/nightscout?token=synthetic-token")]
     public async Task A_run_reads_every_collection_under_the_configured_path(string nightscoutUrl)
     {
         var source = new PrefixedNightscout();
@@ -93,6 +94,7 @@ public class MigrationSourceAddressTests
     [InlineData("https://example-nightscout.invalid/nightscout")]
     [InlineData("https://example-nightscout.invalid/nightscout/")]
     [InlineData("https://example-nightscout.invalid/nightscout?token=synthetic-token#section")]
+    [InlineData("example-nightscout.invalid/nightscout")]
     public async Task The_connection_test_reads_status_under_the_configured_path(string nightscoutUrl)
     {
         var source = new PrefixedNightscout();
@@ -107,7 +109,57 @@ public class MigrationSourceAddressTests
         });
 
         result.IsSuccess.Should().BeTrue(result.ErrorMessage);
+        result.SiteName.Should().Be("https://example-nightscout.invalid/nightscout");
         source.Requests.Select(u => u.AbsoluteUri).Should().Equal(
             "https://example-nightscout.invalid/nightscout/api/v1/status");
+    }
+
+    [Theory]
+    [InlineData("ftp://example-nightscout.invalid/nightscout")]
+    [InlineData("/nightscout")]
+    public async Task The_connection_test_refuses_an_address_that_is_not_http(string nightscoutUrl)
+    {
+        var source = new PrefixedNightscout();
+        await using var provider = MigrationJobHarness.BuildProvider(source);
+        var service = new MigrationJobService(
+            NullLogger<MigrationJobService>.Instance, provider, new ConfigurationBuilder().Build(), new TenantRunGuard());
+
+        var result = await service.TestConnectionAsync(new TestMigrationConnectionRequest
+        {
+            Mode = MigrationMode.Api,
+            NightscoutUrl = nightscoutUrl,
+        });
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be(NightscoutBaseUri.InvalidUrlMessage);
+        source.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_run_from_an_address_that_is_not_http_fails_with_the_address_named()
+    {
+        var source = new PrefixedNightscout();
+        await using var provider = MigrationJobHarness.BuildProvider(source);
+
+        var status = await MigrationJobHarness.RunAsync(
+            provider, onCreated: null, ["entries"], nightscoutUrl: "ftp://example-nightscout.invalid/nightscout");
+
+        status.State.Should().Be(MigrationJobState.Failed);
+        status.ErrorMessage.Should().Be(NightscoutBaseUri.InvalidUrlMessage);
+        source.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_run_from_a_host_without_a_scheme_reads_over_https()
+    {
+        var source = new PrefixedNightscout();
+        await using var provider = MigrationJobHarness.BuildProvider(source);
+
+        var status = await MigrationJobHarness.RunAsync(
+            provider, onCreated: null, ["entries"], nightscoutUrl: "example-nightscout.invalid/nightscout");
+
+        status.State.Should().Be(MigrationJobState.Completed, status.ErrorMessage);
+        source.Requests.Should().OnlyContain(u =>
+            u.AbsoluteUri.StartsWith("https://example-nightscout.invalid/nightscout/api/", StringComparison.Ordinal));
     }
 }

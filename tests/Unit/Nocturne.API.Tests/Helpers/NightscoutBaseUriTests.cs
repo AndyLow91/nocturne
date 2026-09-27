@@ -12,14 +12,43 @@ public class NightscoutBaseUriTests
     [InlineData("https://ns.example/nightscout/", "https://ns.example/nightscout/")]
     [InlineData("https://ns.example/a/b//", "https://ns.example/a/b/")]
     [InlineData("https://ns.example/?token=synthetic-token", "https://ns.example/")]
+    [InlineData("https://ns.example/nightscout?token=synthetic-token", "https://ns.example/nightscout/")]
     [InlineData("https://ns.example/nightscout?token=synthetic-token#section", "https://ns.example/nightscout/")]
     [InlineData("https://user:pass@ns.example/nightscout", "https://ns.example/nightscout/")]
     [InlineData("http://ns.example:1337/nightscout", "http://ns.example:1337/nightscout/")]
     [InlineData("https://ns.example:443/nightscout", "https://ns.example/nightscout/")]
     [InlineData("https://ns.example/night%20scout", "https://ns.example/night%20scout/")]
+    [InlineData("  https://ns.example/nightscout  ", "https://ns.example/nightscout/")]
+    [InlineData("ns.example", "https://ns.example/")]
+    [InlineData("ns.example/nightscout?token=synthetic-token", "https://ns.example/nightscout/")]
+    [InlineData("ns.example:1337/nightscout", "https://ns.example:1337/nightscout/")]
     public void The_base_keeps_scheme_host_port_and_path_and_ends_in_one_slash(string configured, string expected)
     {
+        NightscoutBaseUri.TryFor(configured, out var baseUri).Should().BeTrue();
+        baseUri!.AbsoluteUri.Should().Be(expected);
         NightscoutBaseUri.For(configured).AbsoluteUri.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("ftp://ns.example/nightscout")]
+    [InlineData("file:/etc/passwd")]
+    [InlineData("/nightscout")]
+    [InlineData("ns.example:notaport")]
+    public void An_address_that_is_not_http_or_https_is_refused(string? configured)
+    {
+        NightscoutBaseUri.TryFor(configured, out var baseUri).Should().BeFalse();
+        baseUri.Should().BeNull();
+    }
+
+    [Fact]
+    public void For_names_the_address_when_it_refuses_one()
+    {
+        var build = () => NightscoutBaseUri.For("ftp://ns.example");
+
+        build.Should().Throw<ArgumentException>().WithMessage(NightscoutBaseUri.InvalidUrlMessage + "*");
     }
 
     [Theory]
@@ -28,17 +57,24 @@ public class NightscoutBaseUriTests
     [InlineData("https://ns.example/nightscout/", "api/v1/status", "https://ns.example/nightscout/api/v1/status")]
     [InlineData("https://ns.example/nightscout?token=synthetic-token", "/api/v1/status", "https://ns.example/nightscout/api/v1/status")]
     [InlineData("https://ns.example/nightscout", "//other.example/api/v1/status", "https://ns.example/nightscout/other.example/api/v1/status")]
+    [InlineData("https://ns.example/nightscout", "", "https://ns.example/nightscout/")]
+    [InlineData("ns.example/nightscout", "/api/v1/status", "https://ns.example/nightscout/api/v1/status")]
     public void A_path_resolves_under_the_base_with_or_without_a_leading_slash(
         string configured, string pathAndQuery, string expected)
     {
         NightscoutBaseUri.Resolve(configured, pathAndQuery).AbsoluteUri.Should().Be(expected);
     }
 
-    [Fact]
-    public void A_relative_url_is_rejected()
+    [Theory]
+    [InlineData("https://ns.example/", "https://ns.example")]
+    [InlineData("https://ns.example/nightscout/?token=synthetic-token", "https://ns.example/nightscout")]
+    [InlineData("https://user:pass@NS.example/nightscout#section", "https://ns.example/nightscout")]
+    [InlineData("ns.example/nightscout", "https://ns.example/nightscout")]
+    [InlineData("ftp://ns.example/nightscout?token=synthetic-token", "ftp://ns.example/nightscout")]
+    [InlineData("not an address#section", "not an address")]
+    [InlineData("not an address", "not an address")]
+    public void Display_never_carries_a_query_user_info_or_fragment(string configured, string expected)
     {
-        var build = () => NightscoutBaseUri.For("ns.example/nightscout");
-
-        build.Should().Throw<UriFormatException>();
+        NightscoutBaseUri.Display(configured).Should().Be(expected);
     }
 }

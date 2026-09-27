@@ -121,6 +121,7 @@ public class RequestForwardingServiceTests
     [InlineData("https://ns.example/nightscout", "/api/v1/entries.json?count=10", "https://ns.example/nightscout/api/v1/entries.json?count=10")]
     [InlineData("https://ns.example/nightscout/", "/api/v1/entries.json", "https://ns.example/nightscout/api/v1/entries.json")]
     [InlineData("https://ns.example/nightscout?token=synthetic-token", "/api/v1/status", "https://ns.example/nightscout/api/v1/status")]
+    [InlineData("ns.example/nightscout", "/api/v1/status", "https://ns.example/nightscout/api/v1/status")]
     public async Task ForwardToNightscoutAsync_KeepsTheConfiguredSubPath(
         string nightscoutUrl, string path, string expected)
     {

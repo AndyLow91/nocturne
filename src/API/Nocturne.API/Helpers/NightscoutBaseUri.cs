@@ -1,29 +1,47 @@
+using System.Diagnostics.CodeAnalysis;
+using Nocturne.Connectors.Core.Utilities;
+
 namespace Nocturne.API.Helpers;
 
 /// <summary>
-/// Addresses a legacy Nightscout from its configured URL, which may be served under a sub-path
+/// Addresses a legacy Nightscout from a URL a person typed, which may be served under a sub-path
 /// behind a reverse proxy.
 /// </summary>
 /// <remarks>
-/// A base whose path lacks a trailing slash loses its last segment when a relative path is
-/// resolved against it, and a rooted path discards the base path entirely; either drops the
-/// sub-path. A query or fragment on the configured URL would otherwise end up inside the path.
+/// A value with no scheme is read as a host and given https, as <see cref="ConnectorUrl.TryResolveBase"/>
+/// reads the connector's URL. A base whose path lacks a trailing slash loses its last segment when
+/// a relative path is resolved against it, and a rooted path discards the base path entirely;
+/// either drops the sub-path. User info, query and fragment are dropped: they would otherwise end
+/// up inside the path, and a Nightscout <c>?token=</c> is a credential.
 /// </remarks>
 public static class NightscoutBaseUri
 {
+    public const string InvalidUrlMessage = "The Nightscout URL must be an http or https address.";
+
     /// <summary>
     /// The scheme, host, port and path of <paramref name="nightscoutUrl"/>, the path ending in
-    /// exactly one slash. User info, query and fragment are dropped.
+    /// exactly one slash.
     /// </summary>
-    /// <exception cref="UriFormatException"><paramref name="nightscoutUrl"/> is not an absolute URI.</exception>
-    public static Uri For(string nightscoutUrl)
+    public static bool TryFor(string? nightscoutUrl, [NotNullWhen(true)] out Uri? baseUri)
     {
-        var configured = new Uri(nightscoutUrl, UriKind.Absolute);
-        return new UriBuilder(configured.Scheme, configured.Host, configured.Port)
+        baseUri = null;
+        if (!ConnectorUrl.TryResolveBase(nightscoutUrl?.Trim(), out var resolved)
+            || !Uri.TryCreate(resolved, UriKind.Absolute, out var configured))
+            return false;
+
+        baseUri = new UriBuilder(configured.Scheme, configured.Host, configured.Port)
         {
             Path = configured.AbsolutePath.TrimEnd('/') + "/",
         }.Uri;
+        return true;
     }
+
+    /// <inheritdoc cref="TryFor" path="/summary"/>
+    /// <exception cref="ArgumentException"><paramref name="nightscoutUrl"/> is not an http or https address.</exception>
+    public static Uri For(string nightscoutUrl) =>
+        TryFor(nightscoutUrl, out var baseUri)
+            ? baseUri
+            : throw new ArgumentException(InvalidUrlMessage, nameof(nightscoutUrl));
 
     /// <summary>
     /// <paramref name="pathAndQuery"/> under the base of <paramref name="nightscoutUrl"/>, whether
@@ -32,4 +50,17 @@ public static class NightscoutBaseUri
     /// <inheritdoc cref="For" path="/exception"/>
     public static Uri Resolve(string nightscoutUrl, string pathAndQuery) =>
         new(For(nightscoutUrl), pathAndQuery.TrimStart('/'));
+
+    /// <summary>
+    /// <paramref name="nightscoutUrl"/> as it may be stored or shown: the base with no trailing
+    /// slash. A value that does not read as an address is cut at its query or fragment.
+    /// </summary>
+    public static string Display(string nightscoutUrl)
+    {
+        if (TryFor(nightscoutUrl, out var baseUri))
+            return baseUri.AbsoluteUri.TrimEnd('/');
+
+        var end = nightscoutUrl.IndexOfAny(['?', '#']);
+        return end < 0 ? nightscoutUrl : nightscoutUrl[..end];
+    }
 }
