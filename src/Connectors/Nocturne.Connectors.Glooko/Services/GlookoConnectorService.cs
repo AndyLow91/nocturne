@@ -74,7 +74,7 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
         var token = await _tokenProvider.GetValidTokenAsync(context.Config);
         if (token == null)
         {
-            TrackFailedRequest("Failed to get valid token");
+            TrackFailedAuthentication(_tokenProvider.SignInFailureReason);
             return false;
         }
 
@@ -320,12 +320,7 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
             await ReportSyncMessageAsync(SyncMessageType.Authenticating, null, cancellationToken);
 
             if (!await AuthenticateWithConfigAsync(context))
-            {
-                result.Success = false;
-                result.Message = "Authentication failed";
-                result.Errors.Add("Authentication failed");
-                return result;
-            }
+                return AuthenticationFailedResult();
 
             var activeTypes = ResolveActiveTypes(request, config);
 

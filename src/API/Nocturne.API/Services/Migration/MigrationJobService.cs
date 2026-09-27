@@ -1223,7 +1223,7 @@ internal class MigrationJob
     private static readonly PageCursor s_createdAtCursor = new(
         to => $"&find[created_at][$lte]={to.ToUniversalTime():o}",
         page => page
-            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
+            .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
             .Where(dt => dt.HasValue)
             .Min());
 
@@ -1733,8 +1733,8 @@ internal class MigrationJob
         var mills =
             doc.Contains("mills") ? doc["mills"].ToInt64()
             : doc.Contains("created_at")
-              && DateTime.TryParse(doc["created_at"].AsString, out var createdAt)
-                ? new DateTimeOffset(createdAt).ToUnixTimeMilliseconds()
+              && UploaderTimestamp.TryParse(doc["created_at"].AsString, out var createdAt)
+                ? createdAt.ToUnixTimeMilliseconds()
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var defaultProfile = doc.Contains("defaultProfile") ? doc["defaultProfile"].AsString : "Default";
