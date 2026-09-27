@@ -93,8 +93,15 @@ public class TherapySettings : V4RecordBase, IProfileScoped
     public LoopProfileSettings? LoopSettings { get; set; }
 
     /// <summary>
-    /// Whether this was the default profile in the legacy store
+    /// Whether this is the tenant's default profile: at most one row per tenant carries it.
     /// </summary>
+    /// <remarks>
+    /// It follows Nightscout's rule: the default is the store the newest profile document names in
+    /// its <c>defaultProfile</c>, matched to the store key exactly, until a user picks another. It
+    /// is a tenant-wide singleton, not per-document provenance, so ingest settles it across the
+    /// tenant rather than deriving it per document. The profile in effect at a given time is not
+    /// this flag: that comes from Profile state spans (profile switches).
+    /// </remarks>
     public bool IsDefault { get; set; }
 
     /// <summary>

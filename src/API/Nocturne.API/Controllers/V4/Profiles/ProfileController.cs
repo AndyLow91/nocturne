@@ -163,7 +163,7 @@ public class ProfileController : ControllerBase, IWriteScopedController
     }
 
     /// <summary>
-    /// Set a profile as the active (default) profile. Clears IsDefault on all other profiles.
+    /// Make the newest settings row of <paramref name="profileName"/> (exact name) the tenant's only default profile.
     /// </summary>
     [HttpPost("set-default/{profileName}")]
     [RequireDeclaredWriteScope]
@@ -175,22 +175,12 @@ public class ProfileController : ControllerBase, IWriteScopedController
         var all = await _therapyRepo.GetAsync(null, null, null, null, 1000, 0, true, ct);
 
         var target = all.FirstOrDefault(ts =>
-            string.Equals(ts.ProfileName, profileName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(ts.ProfileName, profileName, StringComparison.Ordinal));
 
         if (target is null)
             return NotFound();
 
-        foreach (var ts in all.Where(ts => ts.IsDefault && ts.Id != target.Id))
-        {
-            ts.IsDefault = false;
-            await _therapyRepo.UpdateAsync(ts.Id, ts, WriteOrigin.Live, ct);
-        }
-
-        if (!target.IsDefault)
-        {
-            target.IsDefault = true;
-            await _therapyRepo.UpdateAsync(target.Id, target, WriteOrigin.Live, ct);
-        }
+        await _therapyRepo.SetDefaultAsync(target.Id, ct);
 
         return NoContent();
     }

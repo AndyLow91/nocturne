@@ -96,13 +96,27 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
         if (entries.Count == 0)
             return result;
 
+        var claim = await ResolveDefaultClaimAsync(entries, ct);
+        var storedDefaults = claim.Claims
+            ? []
+            : (await _therapySettingsRepo.GetDefaultsAsync(ct))
+                .Select(d => d.LegacyId).OfType<string>().ToHashSet(StringComparer.Ordinal);
+
         var anchors = await _therapySettingsRepo.BulkUpsertByLegacyIdAsync(
             entries.Select(e => MapToTherapySettings(
                 e.Profile, e.Data, e.StoreName, e.LegacyId,
-                string.Equals(e.StoreName, e.Profile.DefaultProfile, StringComparison.OrdinalIgnoreCase),
+                claim.Claims ? e.LegacyId == claim.LegacyId : storedDefaults.Contains(e.LegacyId),
                 e.MintedCorrelationId)).ToList(),
             origin, preserveStoredCorrelationId: true, ct);
         Record(result, anchors);
+
+        if (claim.Claims)
+        {
+            if (claim.LegacyId is null)
+                await _therapySettingsRepo.SetDefaultAsync(null, ct);
+            else if (anchors.Outcomes.TryGetValue(claim.LegacyId, out var claimed))
+                await _therapySettingsRepo.SetDefaultAsync(claimed.Record.Id, ct);
+        }
 
         var groups = entries
             .Where(e => anchors.Outcomes.ContainsKey(e.LegacyId))
@@ -133,6 +147,43 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
 
         return result;
     }
+
+    /// <summary>
+    /// Whether this batch settles the tenant's default profile (see <see cref="V4Models.TherapySettings.IsDefault"/>),
+    /// and which store it settles on.
+    /// </summary>
+    /// <remarks>
+    /// Nightscout reads the default from the newest profile document (<c>startDate</c> desc, then
+    /// <c>_id</c> desc) as <c>store[defaultProfile]</c>, an exact key lookup. So only the batch's
+    /// newest document claims, and only when nothing already stored is newer; a document whose
+    /// <c>defaultProfile</c> names none of its stores claims with no store, leaving no default, as
+    /// Nightscout finds none. A batch that does not claim keeps the stored flags as they are, so
+    /// re-syncing an older document neither takes the default nor drops a user's choice.
+    /// </remarks>
+    private async Task<DefaultClaim> ResolveDefaultClaimAsync(List<StoreEntry> entries, CancellationToken ct)
+    {
+        var newest = entries
+            .Select(e => e.Profile)
+            .Distinct()
+            .OrderByDescending(p => p.Mills)
+            .ThenByDescending(p => p.Id, StringComparer.Ordinal)
+            .First();
+
+        var storedNewest = (await _therapySettingsRepo.GetAsync(
+            from: null, to: null, device: null, source: null,
+            limit: 1, offset: 0, descending: true, ct: ct)).FirstOrDefault();
+        var claims = storedNewest is null
+            || storedNewest.Mills <= newest.Mills
+            || storedNewest.LegacyId?.StartsWith($"{newest.Id}:", StringComparison.Ordinal) == true;
+        if (!claims)
+            return new DefaultClaim(false, null);
+
+        var store = newest.Store.Keys.FirstOrDefault(k => string.Equals(k, newest.DefaultProfile, StringComparison.Ordinal));
+        return new DefaultClaim(true, store is null ? null : $"{newest.Id}:{store}");
+    }
+
+    /// <summary>The outcome of <see cref="ResolveDefaultClaimAsync"/>.</summary>
+    private sealed record DefaultClaim(bool Claims, string? LegacyId);
 
     /// <summary>One named profile inside one legacy profile document, with the id minted for that document.</summary>
     private sealed record StoreEntry(
