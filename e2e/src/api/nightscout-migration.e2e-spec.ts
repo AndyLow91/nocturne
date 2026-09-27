@@ -17,10 +17,7 @@ import {
 } from "../../mocks/vendors/nightscout-migration.ts";
 
 const SOURCE_SECRET = "e2e-fake-nightscout-secret";
-// workaround: #1806 - the job drops the path of the URL it is given (a bug), so the fake is
-// migrated from the root of a host of its own rather than from its path on the mocks host.
-const SOURCE_URL = "http://nightscout-migration:8080";
-const SUB_PATH_SOURCE_URL = "http://mocks:8080/nightscout-migration";
+const SOURCE_URL = "http://mocks:8080/nightscout-migration";
 const BG_CHECKS_SINCE = encodeURIComponent("2026-01-01T00:00:00.000Z");
 const COLLECTIONS = ["entries", "treatments", "devicestatus", "profile"];
 
@@ -216,10 +213,9 @@ describe("Nightscout migration", { timeout: 420_000 }, () => {
 });
 
 describe("Nightscout migration from a sub-path", { timeout: 240_000 }, () => {
-  // Bug #1806: the job drops the path of the URL, so this migration 404s. Flip to `it` once fixed.
-  it.fails("completes when the Nightscout URL carries a path", async () => {
+  it("reads under the path when the Nightscout URL ends in a slash", async () => {
     const tenant = await seedTenant();
-    const status = await migrate(tenant, SUB_PATH_SOURCE_URL, ["profile"]);
+    const status = await migrate(tenant, `${SOURCE_URL}/`, ["profile"]);
     expect(status.errorMessage).toBeNull();
     expect(status.state).toBe(COMPLETED);
     expect(await migratedProfiles(tenant)).toHaveLength(1);

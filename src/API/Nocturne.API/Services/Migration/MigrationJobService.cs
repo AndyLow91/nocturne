@@ -297,7 +297,7 @@ public class MigrationJobService : IMigrationJobService
         using var scope = _serviceProvider.CreateScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(HttpClientName);
-        httpClient.BaseAddress = new Uri(request.NightscoutUrl.TrimEnd('/'));
+        httpClient.BaseAddress = MigrationJob.SourceBaseAddress(request.NightscoutUrl);
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(request.NightscoutApiSecret))
@@ -308,7 +308,7 @@ public class MigrationJobService : IMigrationJobService
         try
         {
             await MigrationJob.ReadFromSourceAsync(
-                httpClient, "/api/v1/status", "status", ct, NightscoutRead.ImportProbe);
+                httpClient, "api/v1/status", "status", ct, NightscoutRead.ImportProbe);
 
             return new TestMigrationConnectionResult
             {
@@ -718,6 +718,13 @@ internal class MigrationJob
     /// <summary>Canonical source identifier for an API-mode migration. Shared with the startup pending-migration check so the two always agree.</summary>
     internal static string ApiSourceIdentifier(string nightscoutUrl) => nightscoutUrl.TrimEnd('/');
 
+    /// <summary>
+    /// The configured Nightscout URL as a base that source reads resolve under. Reads use paths
+    /// with no leading slash: a rooted path, or a base without its trailing slash, resolves against
+    /// the host and drops a Nightscout served under a sub-path.
+    /// </summary>
+    internal static Uri SourceBaseAddress(string nightscoutUrl) => new(nightscoutUrl.TrimEnd('/') + "/");
+
     /// <summary>Canonical source identifier for a MongoDB-mode migration: a non-usable digest, never the connection string itself.</summary>
     internal static string MongoSourceIdentifier(string connectionString) =>
         HashUtils.Sha256Hex(connectionString);
@@ -822,7 +829,7 @@ internal class MigrationJob
         using var scope = CreateTenantScope();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var httpClient = httpClientFactory.CreateClient(MigrationJobService.HttpClientName);
-        httpClient.BaseAddress = new Uri(_request.NightscoutUrl!.TrimEnd('/'));
+        httpClient.BaseAddress = SourceBaseAddress(_request.NightscoutUrl!);
 
         // Add API secret header if provided (Nightscout expects the SHA1 hash)
         if (!string.IsNullOrEmpty(_request.NightscoutApiSecret))
@@ -1110,7 +1117,7 @@ internal class MigrationJob
         try
         {
             var content = await ReadFromSourceAsync(
-                httpClient, $"/api/v1/count/{collectionName}/where", collectionName, ct);
+                httpClient, $"api/v1/count/{collectionName}/where", collectionName, ct);
 
             // Nightscout returns [{"_id": null, "count": N}]
             var results = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(content);
@@ -1363,7 +1370,7 @@ internal class MigrationJob
                 ct.ThrowIfCancellationRequested();
                 pageNumber++;
 
-                var url = $"/api/v1/{collection.Name}.json?count={count}";
+                var url = $"api/v1/{collection.Name}.json?count={count}";
                 if (bound.HasValue)
                     url += collection.Cursor.Filter(bound.Value);
 
@@ -1430,7 +1437,7 @@ internal class MigrationJob
         var tally = new DecompositionTally();
 
         var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
-            httpClient, "/api/v1/profile.json", collectionName, ct);
+            httpClient, "api/v1/profile.json", collectionName, ct);
         var (profiles, newlyFailed) = ParseDocuments<Profile>(documents, collectionName, 1, []);
         totalFailed += newlyFailed;
 
@@ -1490,7 +1497,7 @@ internal class MigrationJob
         {
             ct.ThrowIfCancellationRequested();
 
-            var url = $"/api/v1/food.json?count={ApiPageSize}&skip={totalSkipped}";
+            var url = $"api/v1/food.json?count={ApiPageSize}&skip={totalSkipped}";
             var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
                 httpClient, url, collectionName, ct);
 
@@ -1976,7 +1983,7 @@ internal class MigrationJob
         try
         {
             content = await ReadFromSourceAsync(
-                httpClient, "/api/v2/authorization/subjects", collectionName, ct);
+                httpClient, "api/v2/authorization/subjects", collectionName, ct);
         }
         catch (MigrationSourceException ex) when (ex.Cause is not MigrationFailureCause.Unreachable)
         {
@@ -2170,7 +2177,7 @@ internal class MigrationJob
         try
         {
             var content = await ReadFromSourceAsync(
-                httpClient, "/api/v2/authorization/roles", "roles", ct);
+                httpClient, "api/v2/authorization/roles", "roles", ct);
             var roles = System.Text.Json.JsonSerializer.Deserialize<NightscoutRole[]>(
                 content,
                 s_caseInsensitiveJson) ?? [];
