@@ -145,7 +145,7 @@ describe("uploader round-trip", () => {
     }
     // workaround: #1807 - the identifiers the POSTs returned are not the ones history serves, so the
     // expected set is read back from search instead.
-    const posted =(await v3<Treatment>(tenant, "/api/v3/treatments?limit=100"))
+    const posted = (await v3<Treatment>(tenant, "/api/v3/treatments?limit=100"))
       .filter((t) => t.eventType === "Carb Correction" && carbs.includes(t.carbs!))
       .map((t) => t.identifier ?? t._id);
     expect(posted).toHaveLength(carbs.length);
@@ -244,7 +244,7 @@ describe("a treatment the user deleted", () => {
     expect((await tenant.api.request("POST", "/api/v3/treatments", upload)).status).toBe(201);
     // workaround: #1807 - the identifier the POST returned is not accepted, so the record is found
     // through search and deleted by the identifier search serves.
-    const stored =(await v3<Treatment>(tenant, "/api/v3/treatments?limit=50")).find((t) => t.insulin === 0.85);
+    const stored = (await v3<Treatment>(tenant, "/api/v3/treatments?limit=50")).find((t) => t.insulin === 0.85);
     expect(stored).toBeDefined();
     expect((await tenant.api.delete(`/api/v3/treatments/${stored!.identifier}`)).status).toBeLessThan(300);
 

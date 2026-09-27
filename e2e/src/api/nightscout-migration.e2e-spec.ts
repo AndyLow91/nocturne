@@ -89,7 +89,7 @@ async function migrate(tenant: Tenant, nightscoutUrl = SOURCE_URL, collections =
 }
 
 async function entryCount(tenant: Tenant): Promise<number> {
-  // A zero count is serialized as an empty object.
+  // workaround: #1812
   return (await tenant.api.ok<{ count?: number }>("GET", "/api/v1/count/entries/where")).count ?? 0;
 }
 
@@ -100,6 +100,7 @@ async function treatments(tenant: Tenant): Promise<V1Treatment[]> {
 /** Naming created_at lifts the v1 four-day window. */
 async function bgCheckCount(tenant: Tenant): Promise<number> {
   const path = `/api/v1/count/treatments/where?find[eventType]=BG%20Check&find[created_at][$gte]=${BG_CHECKS_SINCE}`;
+  // workaround: #1812
   return (await tenant.api.ok<{ count?: number }>("GET", path)).count ?? 0;
 }
 
