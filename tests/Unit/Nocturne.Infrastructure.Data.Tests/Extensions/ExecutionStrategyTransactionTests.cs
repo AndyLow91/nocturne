@@ -126,7 +126,7 @@ public sealed class ExecutionStrategyTransactionTests : IDisposable
                     new()
                     {
                         Id = Guid.CreateVersion7(), TenantId = TenantId, Origin = "Algorithm", Rate = 1.5,
-                        StartTimestamp = new DateTime(2026, 1, 5, 12, 0, 0, DateTimeKind.Utc),
+                        Timestamp = new DateTime(2026, 1, 5, 12, 0, 0, DateTimeKind.Utc),
                     },
                 ];
                 context.TempBasals.AddRange(rows);

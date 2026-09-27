@@ -667,31 +667,16 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
     private async Task DecomposeTempBasalAsync(Treatment treatment, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
     {
-        var existing = treatment.Id != null
-            ? await _tempBasalRepository.GetByLegacyIdAsync(treatment.Id, ct)
-            : null;
-
         var model = await BuildTempBasalAsync(treatment, result.CorrelationId, ct);
-        await StampAttributionAsync(
-            _patientDeviceStamper, model, existing, V4Models.DeviceAttributionCategories.TempBasal, ct);
 
         // Resolve insulin context: active profile switch → primary insulin → null
         model.InsulinContext = await _activeProfileResolver.GetActiveInsulinContextAsync(treatment.Mills, ct)
             ?? ToInsulinContext(await _insulinRepo.GetPrimaryBolusInsulinAsync(ct));
 
-        if (existing != null)
-        {
-            model.Id = existing.Id;
-            var updated = await _tempBasalRepository.UpdateAsync(existing.Id, model, origin, ct);
-            result.UpdatedRecords.Add(updated);
-            Logger.LogDebug("Updated existing TempBasal {Id} from legacy treatment {LegacyId}", existing.Id, treatment.Id);
-        }
-        else
-        {
-            var created = await _tempBasalRepository.CreateAsync(model, origin, ct);
-            result.CreatedRecords.Add(created);
-            Logger.LogDebug("Created TempBasal from legacy treatment {LegacyId}", treatment.Id);
-        }
+        await UpsertByLegacyIdAsync(
+            _tempBasalRepository, treatment.Id, model, result, origin, ct,
+            beforeWrite: existing => StampAttributionAsync(
+                _patientDeviceStamper, model, existing, V4Models.DeviceAttributionCategories.TempBasal, ct));
     }
 
     private async Task DecomposeProfileSwitchAsync(Treatment treatment, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
@@ -1646,8 +1631,7 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     private IDecomposedTable[] DecomposedTables => _decomposedTables ??=
     [
         Table(RecordType.Bolus, _dbContext.Boluses, ByTimeRange, StoredAt),
-        Table(RecordType.TempBasal, _dbContext.TempBasals, SpansByTimeRange,
-            rows => rows.Select(e => new StoredRow(e.LegacyId!, e.StartTimestamp))),
+        Table(RecordType.TempBasal, _dbContext.TempBasals, ByTimeRange, StoredAt),
         Table(RecordType.CarbIntake, _dbContext.CarbIntakes, ByTimeRange, StoredAt),
         Table(RecordType.BGCheck, _dbContext.BGChecks, ByTimeRange, StoredAt),
         Table(RecordType.Note, _dbContext.Notes, ByTimeRange, StoredAt),
@@ -1762,20 +1746,6 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
             rows = rows.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
             rows = rows.Where(e => e.Timestamp <= to.Value);
-        return rows;
-    }
-
-    /// <summary>
-    /// <see cref="ByTimeRange{T}"/> for temp basals, which key on
-    /// <see cref="TempBasalEntity.StartTimestamp"/> and so stay off <see cref="IV4TimeSeriesEntity"/>.
-    /// </summary>
-    private static IQueryable<TempBasalEntity> SpansByTimeRange(
-        IQueryable<TempBasalEntity> rows, DateTime? from, DateTime? to)
-    {
-        if (from.HasValue)
-            rows = rows.Where(e => e.StartTimestamp >= from.Value);
-        if (to.HasValue)
-            rows = rows.Where(e => e.StartTimestamp <= to.Value);
         return rows;
     }
 }

@@ -722,7 +722,7 @@ public class SampleDataSeeder
             .ToListAsync(ct);
         foreach (var temp in temps)
         {
-            var local = DateTime.SpecifyKind(temp.StartTimestamp, DateTimeKind.Utc).ToLocalTime();
+            var local = DateTime.SpecifyKind(temp.Timestamp, DateTimeKind.Utc).ToLocalTime();
             temp.ScheduledRate = DemoTherapyProfile.ScheduledRateAt(local, baseRate);
         }
         await _db.SaveChangesAsync(ct);

@@ -438,6 +438,36 @@ public class TreatmentDecomposerTests : IDisposable
             Times.Once);
     }
 
+    /// <summary>
+    /// The temp basal path shares the other types' legacy-id upsert, so a refusal from the
+    /// repository is counted like theirs rather than escaping the decomposition.
+    /// </summary>
+    [Fact]
+    public async Task DecomposeAsync_TempBasal_CountsARefusedCreateAsSkipped()
+    {
+        var treatment = new Treatment
+        {
+            Id = "deleted-temp-basal",
+            EventType = "Temp Basal",
+            Mills = 1700000000000,
+            Rate = 1.5,
+            Duration = 30
+        };
+
+        _tempBasalRepoMock
+            .Setup(r => r.GetByLegacyIdAsync("deleted-temp-basal", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((V4Models.TempBasal?)null);
+        _tempBasalRepoMock
+            .Setup(r => r.CreateAsync(It.IsAny<V4Models.TempBasal>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RecreationBlockedException(
+                nameof(V4Models.TempBasal), RecreationBlockedException.LegacyIdIdentity("deleted-temp-basal")));
+
+        var result = await _decomposer.DecomposeAsync(treatment, WriteOrigin.Live);
+
+        result.CreatedRecords.Should().BeEmpty();
+        result.SkippedDeleted.Should().Be(1);
+    }
+
     #endregion
 
     #region Profile Switch → Delegates to IStateSpanService
