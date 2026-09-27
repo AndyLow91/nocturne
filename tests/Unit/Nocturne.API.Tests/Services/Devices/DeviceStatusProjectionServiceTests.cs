@@ -366,6 +366,24 @@ public class DeviceStatusProjectionServiceTests
     }
 
     [Fact]
+    public void ProjectAsync_WrittenLongAfterTheEvent_ReportsCreatedAtAsTheEventTime()
+    {
+        var aps = CreateApsSnapshot(AidAlgorithm.OpenAps);
+        aps.CreatedAt = ReferenceTime.AddDays(400);
+        aps.ModifiedAt = ReferenceTime.AddDays(400);
+        var pump = CreatePumpSnapshot();
+        pump.CreatedAt = ReferenceTime.AddDays(30);
+
+        var fromAps = DeviceStatusProjectionService.ProjectFromSnapshots(aps, null, null, null, null);
+        fromAps.CreatedAt.Should().Be("2024-01-15T12:00:00.000Z");
+        fromAps.Mills.Should().Be(ReferenceMillis);
+        fromAps.SrvCreated.Should().Be(Mills(aps.CreatedAt));
+
+        DeviceStatusProjectionService.ProjectFromSnapshots(null, pump, null, null, null)
+            .CreatedAt.Should().Be("2024-01-15T12:00:00.000Z");
+    }
+
+    [Fact]
     public void ProjectAsync_WithoutApsSnapshot_ReportsAnchorServerClock()
     {
         // Orphan pump/uploader records (xDrip+) have no APS anchor; the server clock comes from the

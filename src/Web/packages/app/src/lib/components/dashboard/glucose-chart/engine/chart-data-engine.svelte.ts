@@ -260,6 +260,8 @@ export interface ChartDataEngine {
   // Predictions
   readonly predictionData: PredictionData | null;
   readonly predictionError: string | null;
+  /** Why the last chart-data fetch was refused, or null when it was not. */
+  readonly chartDataError: string | null;
   readonly predictionServiceAvailable: boolean;
   readonly effectiveShowPredictions: boolean;
 
@@ -383,6 +385,7 @@ export function createChartDataEngine(
   // reassigned wholesale, never deep-mutated.
   let predictionData = $state.raw<PredictionData | null>(null);
   let predictionError = $state<string | null>(null);
+  let chartDataError = $state<string | null>(null);
   let predictionServiceAvailable = $state(false);
   let processedHistoricalPromise =
     $state<Promise<TransformedChartData | null> | null>(null);
@@ -562,12 +565,15 @@ export function createChartDataEngine(
       intervalMinutes: 5,
     })
       .then((data) => {
-        if (!cancelled) serverChartData = data;
+        if (cancelled) return;
+        serverChartData = data;
+        chartDataError = null;
       })
       .catch((err) => {
         if (!cancelled) {
           console.error("Failed to fetch chart data:", err);
           serverChartData = null;
+          chartDataError = remoteErrorMessage(err, "The chart data could not be loaded.");
         }
       });
 
@@ -944,6 +950,9 @@ export function createChartDataEngine(
     },
     get predictionError() {
       return predictionError;
+    },
+    get chartDataError() {
+      return chartDataError;
     },
     get predictionServiceAvailable() {
       return predictionServiceAvailable;

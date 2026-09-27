@@ -801,9 +801,9 @@ public class EntryReadService : IEntryStore
 
         // DateString takes priority over Find-based time range. Both cannot be combined because
         // the V4 repos accept a single from/to window; DateString wins when both are present.
-        if (query.DateString is not null && DateTime.TryParse(query.DateString, out var parsedDate))
+        if (UploaderTimestamp.TryParse(query.DateString, out var parsedDate))
         {
-            from = parsedDate.ToUniversalTime();
+            from = parsedDate.UtcDateTime;
             to = from.Value.AddDays(1);
         }
 

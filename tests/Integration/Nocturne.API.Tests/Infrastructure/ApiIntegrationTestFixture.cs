@@ -380,6 +380,9 @@ public class ApiIntegrationTestFixture : IAsyncLifetime
         "pump_snapshots",
         "uploader_snapshots",
         "device_status_extras",
+        // The records the legacy activity endpoint decomposes into, besides state_spans.
+        "heart_rates",
+        "step_counts",
         // A Nightscout import records what it has run, which a second import reads.
         "migration_runs",
         "migration_sources",

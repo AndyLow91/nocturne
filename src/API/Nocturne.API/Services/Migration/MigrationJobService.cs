@@ -1223,7 +1223,7 @@ internal class MigrationJob
     private static readonly PageCursor s_createdAtCursor = new(
         to => $"&find[created_at][$lte]={to.ToUniversalTime():o}",
         page => page
-            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
+            .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
             .Where(dt => dt.HasValue)
             .Min());
 
@@ -1564,12 +1564,139 @@ internal class MigrationJob
 
             _currentOperation = $"Migrating {collectionName}";
 
-            await MigrateMongoCollectionAsync(database, collectionName, dbContext, ct);
+            switch (collectionName)
+            {
+                case "entries":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_entriesCollection, ct);
+                    break;
+                case "treatments":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_treatmentsCollection, ct);
+                    break;
+                case "activity":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_activityCollection, ct);
+                    break;
+                case "devicestatus" or "profile" or "food":
+                    await MigrateMongoCollectionAsync(database, collectionName, dbContext, ct);
+                    break;
+                default:
+                    _logger.LogWarning("MongoDB migration cannot import the {Collection} collection; skipping it", collectionName);
+                    RecordCollectionSkipped(collectionName, $"{collectionName} cannot be imported in MongoDB mode.");
+                    break;
+            }
 
             processedCollections++;
             _progressPercentage = (double)processedCollections / totalCollections * 100;
         }
     }
+
+    /// <summary>
+    /// Streams a MongoDB collection through the parsing and decomposer of the API path's
+    /// <see cref="MigratePagedCollectionAsync{T}"/>, so a document counts as migrated only when
+    /// its decomposition stored it.
+    /// </summary>
+    private async Task MigrateMongoDecomposedCollectionAsync<T>(
+        IMongoDatabase database,
+        PagedCollection<T> collection,
+        CancellationToken ct
+    ) where T : ProcessableDocumentBase
+    {
+        var source = database.GetCollection<BsonDocument>(collection.Name);
+        var totalDocs = await source.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: ct);
+
+        UpdateCollectionProgress(collection.Name, totalDocs, 0, 0, false);
+
+        var totalMigrated = 0L;
+        var totalFailed = 0L;
+        var tally = new DecompositionTally();
+        var failedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        using var scope = CreateTenantScope();
+        var decompose = collection.Decompose(scope.ServiceProvider);
+
+        using var cursor = await source.FindAsync(
+            FilterDefinition<BsonDocument>.Empty,
+            new FindOptions<BsonDocument> { BatchSize = ApiPageSize },
+            ct);
+
+        for (var batchNumber = 1; await cursor.MoveNextAsync(ct); batchNumber++)
+        {
+            var documents = new List<System.Text.Json.JsonElement>(cursor.Current.Count());
+            var index = 0;
+            foreach (var bson in cursor.Current)
+            {
+                try
+                {
+                    documents.Add(ToNightscoutJson(bson));
+                }
+                catch (Exception ex) when (ex is OverflowException or ArgumentOutOfRangeException)
+                {
+                    _logger.LogWarning(
+                        "Skipped {Collection} document {Index} in batch {Batch}: a decimal or date is out of range",
+                        collection.Label, index, batchNumber);
+                    totalFailed++;
+                }
+                index++;
+            }
+            if (documents.Count == 0) continue;
+
+            var (page, newlyFailed) = ParseDocuments<T>([.. documents], collection.Label, batchNumber, failedIds);
+            totalFailed += newlyFailed;
+
+            if (page.Length > 0)
+            {
+                try
+                {
+                    var before = tally.DocumentsSkipped;
+                    tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
+                    totalMigrated += page.Length - (tally.DocumentsSkipped - before);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Failed to decompose {Collection} batch", collection.Label);
+                    totalFailed += page.Length;
+                }
+            }
+
+            UpdateCollectionProgress(collection.Name,
+                Math.Max(totalDocs, totalMigrated + totalFailed + tally.DocumentsSkipped),
+                totalMigrated, totalFailed, false, tally);
+        }
+
+        UpdateCollectionProgress(collection.Name,
+            Math.Max(totalDocs, totalMigrated + totalFailed + tally.DocumentsSkipped),
+            totalMigrated, totalFailed, true, tally);
+        _logger.LogInformation(
+            "Migrated {Count} {Collection} from MongoDB as {Stored} records, skipped {Unsupported} of an unsupported kind and {Deleted} deleted records",
+            totalMigrated, collection.Label, tally.RecordsStored, tally.DocumentsSkippedUnsupported, tally.RecordsSkippedDeleted);
+    }
+
+    /// <summary>
+    /// Renders a stored document the way Nightscout's API serves it: an ObjectId as its hex string
+    /// and a BSON date as an ISO-8601 string, which is what the domain models read.
+    /// </summary>
+    /// <exception cref="OverflowException">A Decimal128 lies outside the range of <see cref="decimal"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A BSON date lies outside the range of <see cref="DateTime"/>.</exception>
+    internal static System.Text.Json.JsonElement ToNightscoutJson(BsonDocument document) =>
+        System.Text.Json.JsonSerializer.SerializeToElement(ToJsonNode(document));
+
+    internal static System.Text.Json.Nodes.JsonNode? ToJsonNode(BsonValue value) => value.BsonType switch
+    {
+        BsonType.Document => new System.Text.Json.Nodes.JsonObject(
+            value.AsBsonDocument.Select(e => KeyValuePair.Create(e.Name, ToJsonNode(e.Value)))),
+        BsonType.Array => new System.Text.Json.Nodes.JsonArray([.. value.AsBsonArray.Select(ToJsonNode)]),
+        BsonType.ObjectId => value.AsObjectId.ToString(),
+        BsonType.DateTime => value.ToUniversalTime().ToString(
+            "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", System.Globalization.CultureInfo.InvariantCulture),
+        BsonType.String => value.AsString,
+        BsonType.Boolean => value.AsBoolean,
+        BsonType.Int32 => value.AsInt32,
+        BsonType.Int64 => value.AsInt64,
+        // JSON has no NaN or Infinity; JSON.stringify writes them as null.
+        BsonType.Double => double.IsFinite(value.AsDouble) ? value.AsDouble : null,
+        BsonType.Decimal128 => (decimal)value.AsDecimal128,
+        BsonType.Null or BsonType.Undefined => null,
+        _ => value.ToString(),
+    };
 
     private async Task MigrateMongoCollectionAsync(
         IMongoDatabase database,
@@ -1658,9 +1785,6 @@ internal class MigrationJob
     {
         switch (collectionName)
         {
-            case "treatments":
-                await TransformTreatmentAsync(doc, dbContext, ct);
-                break;
             case "devicestatus":
                 await TransformDeviceStatusAsync(doc, dbContext, ct);
                 break;
@@ -1671,20 +1795,8 @@ internal class MigrationJob
                 await TransformFoodAsync(doc, dbContext, ct);
                 break;
             default:
-                _logger.LogDebug("Skipping unsupported collection: {Collection}", collectionName);
-                break;
+                throw new ArgumentOutOfRangeException(nameof(collectionName), collectionName, null);
         }
-    }
-
-    private Task TransformTreatmentAsync(
-        BsonDocument doc,
-        NocturneDbContext dbContext,
-        CancellationToken ct
-    )
-    {
-        // MongoDB BSON treatment decomposition is not yet implemented (MongoDB mode is out of scope).
-        // The API migration path handles treatments via ITreatmentDecomposer.DecomposeBatchAsync.
-        return Task.CompletedTask;
     }
 
     private async Task TransformDeviceStatusAsync(
@@ -1725,8 +1837,8 @@ internal class MigrationJob
         var mills =
             doc.Contains("mills") ? doc["mills"].ToInt64()
             : doc.Contains("created_at")
-              && DateTime.TryParse(doc["created_at"].AsString, out var createdAt)
-                ? new DateTimeOffset(createdAt).ToUnixTimeMilliseconds()
+              && UploaderTimestamp.TryParse(doc["created_at"].AsString, out var createdAt)
+                ? createdAt.ToUnixTimeMilliseconds()
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var defaultProfile = doc.Contains("defaultProfile") ? doc["defaultProfile"].AsString : "Default";

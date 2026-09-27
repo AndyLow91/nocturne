@@ -230,6 +230,17 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         return entity is null ? null : ToDomain(entity);
     }
 
+    /// <inheritdoc cref="ILegacyKeyedRepository{TRecord}.GetHeldLegacyIdsAsync" />
+    public async Task<IReadOnlySet<string>> GetHeldLegacyIdsAsync(
+        IReadOnlyCollection<string> legacyIds, CancellationToken ct = default)
+    {
+        if (legacyIds.Count == 0)
+            return RecreationBlocks<string>.None.Held;
+
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        return (await ctx.GetBlockingLegacyIdsAsync<TEntity>(legacyIds.ToHashSet(StringComparer.Ordinal), ct)).Held;
+    }
+
     /// <inheritdoc cref="Core.Contracts.V4.Repositories.IV4Repository{T}.GetByGuidRangeAsync" />
     public async Task<TModel?> GetByGuidRangeAsync(Guid low, Guid high, CancellationToken ct = default)
     {
@@ -603,7 +614,9 @@ public abstract class V4RepositoryBase<TModel, TEntity>
 
                 return (split, toInsert, skippedDeleted);
             },
-            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            (attempt, token) => attempt.toInsert.Count > 0
+                ? ctx.AnyLandedAsync(attempt.toInsert, token)
+                : ctx.AnyUpdateLandedAsync(attempt.split.MateriallyChanged, token),
             ct: ct);
 
         var (split, inserted, skippedDeleted) = written;

@@ -222,10 +222,9 @@ public sealed class TrackerAlertRuleSyncService : ITrackerAlertRuleSyncService
         if (deleted.Count > 0)
             await _retirement.CloseAsync(deleted, tenantId, ct);
 
-        await db.SaveChangesAsync(ct);
+        await _rearm.SaveAndClearAsync(db, [.. changed, .. disabled], ct);
         if (disabled.Count > 0)
             await _retirement.CloseAsync(disabled, tenantId, CancellationToken.None);
-        await _rearm.ClearAsync([.. changed, .. disabled], ct);
 
         _logger.LogInformation(
             "Synced {ThresholdCount} threshold(s) to managed alert rules for tracker definition {DefinitionId} ({Orphaned} removed)",
@@ -249,10 +248,9 @@ public sealed class TrackerAlertRuleSyncService : ITrackerAlertRuleSyncService
         // AlertRuleRetirement's remarks: a delete closes before the save that removes the rule.
         if (deleted.Count > 0)
             await _retirement.CloseAsync(deleted, db.TenantId, ct);
-        await db.SaveChangesAsync(ct);
+        await _rearm.SaveAndClearAsync(db, disabled, ct);
         if (disabled.Count > 0)
             await _retirement.CloseAsync(disabled, db.TenantId, CancellationToken.None);
-        await _rearm.ClearAsync(disabled, ct);
 
         _logger.LogInformation(
             "Deleted {Count} managed alert rule(s) for removed tracker definition {DefinitionId}",

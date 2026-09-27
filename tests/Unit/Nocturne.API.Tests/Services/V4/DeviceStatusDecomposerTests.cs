@@ -1861,8 +1861,8 @@ public class DeviceStatusDecomposerTests : IDisposable
                 return device;
             });
         deviceRepo
-            .Setup(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<V4Models.Device>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Guid _, V4Models.Device device, WriteOrigin _, CancellationToken _) => device);
+            .Setup(r => r.WidenSeenWindowAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var patientDeviceRepo = new Mock<IPatientDeviceRepository>();
         patientDeviceRepo

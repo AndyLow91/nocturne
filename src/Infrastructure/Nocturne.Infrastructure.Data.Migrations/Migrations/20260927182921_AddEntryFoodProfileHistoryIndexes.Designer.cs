@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nocturne.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(NocturneDbContext))]
-    [Migration("20260927105451_AddEntryFoodProfileHistoryIndexes")]
+    [Migration("20260927182921_AddEntryFoodProfileHistoryIndexes")]
     partial class AddEntryFoodProfileHistoryIndexes
     {
         /// <inheritdoc />
