@@ -1915,7 +1915,6 @@ public class StatisticsService : IStatisticsService
             TreatmentCount = 0,
         };
 
-        // Aggregate insulin from boluses (all boluses are bolus insulin; basal comes from StateSpans)
         foreach (var bolus in bolusList)
         {
             summary.TreatmentCount++;
@@ -1953,10 +1952,9 @@ public class StatisticsService : IStatisticsService
         summary.DailyBoluses = (double)summary.BolusCount / days;
         summary.DailyCarbs = summary.Totals.Food.Carbs / days;
 
-        // Calculate carb to insulin ratio
-        var totalInsulin = summary.Totals.Insulin.Bolus + summary.Totals.Insulin.Basal;
+        var bolusInsulin = summary.Totals.Insulin.Bolus;
         summary.CarbToInsulinRatio =
-            totalInsulin > 0 ? Math.Round(summary.Totals.Food.Carbs / totalInsulin * 10) / 10 : 0;
+            bolusInsulin > 0 ? Math.Round(summary.Totals.Food.Carbs / bolusInsulin * 10) / 10 : 0;
 
         return summary;
     }
@@ -1975,9 +1973,7 @@ public class StatisticsService : IStatisticsService
         var totals = dataPoints.Aggregate(
             new
             {
-                TotalDailyInsulin = 0.0,
                 BolusInsulin = 0.0,
-                BasalInsulin = 0.0,
                 TotalCarbs = 0.0,
                 TotalProtein = 0.0,
                 TotalFat = 0.0,
@@ -1987,76 +1983,33 @@ public class StatisticsService : IStatisticsService
             },
             (acc, day) =>
             {
-                var totalDailyInsulin = GetTotalInsulin(day.TreatmentSummary);
                 var bolusInsulin = day.TreatmentSummary.Totals.Insulin.Bolus;
-                var basalInsulin = day.TreatmentSummary.Totals.Insulin.Basal;
 
                 return new
                 {
-                    TotalDailyInsulin = acc.TotalDailyInsulin + totalDailyInsulin,
                     BolusInsulin = acc.BolusInsulin + bolusInsulin,
-                    BasalInsulin = acc.BasalInsulin + basalInsulin,
                     TotalCarbs = acc.TotalCarbs + day.TreatmentSummary.Totals.Food.Carbs,
                     TotalProtein = acc.TotalProtein + day.TreatmentSummary.Totals.Food.Protein,
                     TotalFat = acc.TotalFat + day.TreatmentSummary.Totals.Food.Fat,
                     TimeInRange = acc.TimeInRange + day.TimeInRanges.Percentages.Target,
                     TightTimeInRange = acc.TightTimeInRange
                         + day.TimeInRanges.Percentages.TightTarget,
-                    DaysWithData = acc.DaysWithData + (totalDailyInsulin > 0 ? 1 : 0),
+                    DaysWithData = acc.DaysWithData + (bolusInsulin > 0 ? 1 : 0),
                 };
             }
         );
 
         var daysCount = Math.Max(totals.DaysWithData, 1);
-        var avgTotalDaily = totals.TotalDailyInsulin / daysCount;
-        var avgBolus = totals.BolusInsulin / daysCount;
-        var avgBasal = totals.BasalInsulin / daysCount;
 
         return new OverallAverages
         {
-            AvgTotalDaily = avgTotalDaily,
-            AvgBolus = avgBolus,
-            AvgBasal = avgBasal,
-            BolusPercentage = avgTotalDaily > 0 ? (avgBolus / avgTotalDaily) * 100 : 0,
-            BasalPercentage = avgTotalDaily > 0 ? (avgBasal / avgTotalDaily) * 100 : 0,
+            AvgBolus = totals.BolusInsulin / daysCount,
             AvgCarbs = totals.TotalCarbs / daysCount,
             AvgProtein = totals.TotalProtein / daysCount,
             AvgFat = totals.TotalFat / daysCount,
             AvgTimeInRange = totals.TimeInRange / dataPoints.Count,
             AvgTightTimeInRange = totals.TightTimeInRange / dataPoints.Count,
         };
-    }
-
-    /// <summary>
-    /// Calculate total insulin from treatment summary
-    /// </summary>
-    /// <param name="treatmentSummary">Treatment summary</param>
-    /// <returns>Total insulin (bolus + basal)</returns>
-    public double GetTotalInsulin(TreatmentSummary treatmentSummary)
-    {
-        return treatmentSummary.Totals.Insulin.Bolus + treatmentSummary.Totals.Insulin.Basal;
-    }
-
-    /// <summary>
-    /// Calculate bolus percentage of total insulin
-    /// </summary>
-    /// <param name="treatmentSummary">Treatment summary</param>
-    /// <returns>Bolus percentage</returns>
-    public double GetBolusPercentage(TreatmentSummary treatmentSummary)
-    {
-        var total = GetTotalInsulin(treatmentSummary);
-        return total > 0 ? (treatmentSummary.Totals.Insulin.Bolus / total) * 100 : 0;
-    }
-
-    /// <summary>
-    /// Calculate basal percentage of total insulin
-    /// </summary>
-    /// <param name="treatmentSummary">Treatment summary</param>
-    /// <returns>Basal percentage</returns>
-    public double GetBasalPercentage(TreatmentSummary treatmentSummary)
-    {
-        var total = GetTotalInsulin(treatmentSummary);
-        return total > 0 ? (treatmentSummary.Totals.Insulin.Basal / total) * 100 : 0;
     }
 
     /// <summary>

@@ -11,7 +11,6 @@ namespace Nocturne.API.Tests.Services.Analytics;
 ///   - CalculateTreatmentSummary (v4: Bolus + CarbIntake)
 ///   - CalculateInsulinDeliveryStatistics (v4: Bolus + TempBasal)
 ///   - CalculateDailyBasalBolusRatios (v4: Bolus + TempBasal)
-///   - GetTotalInsulin / GetBolusPercentage / GetBasalPercentage
 /// </summary>
 public class StatisticsServiceTDDTests
 {
@@ -44,7 +43,6 @@ public class StatisticsServiceTDDTests
         var result = _sut.CalculateTreatmentSummary(boluses, Array.Empty<CarbIntake>());
 
         result.Totals.Insulin.Bolus.Should().Be(6.8);
-        result.Totals.Insulin.Basal.Should().Be(0);
     }
 
     [Fact]
@@ -375,8 +373,6 @@ public class StatisticsServiceTDDTests
 
         // Only bolus insulin should be reported
         summary.Totals.Insulin.Bolus.Should().Be(11.0);
-        summary.Totals.Insulin.Basal.Should().Be(0,
-            "no TempBasals -- basal should be 0");
         delivery.TotalBolus.Should().Be(11.0);
         delivery.TotalBasal.Should().Be(0);
 
@@ -512,7 +508,7 @@ public class StatisticsServiceTDDTests
     #region OverallAverages TDD
 
     [Fact]
-    public void OverallAverages_TDD_ShouldUseGetTotalInsulin()
+    public void OverallAverages_ShouldAverageBolusOverDaysWithBolus()
     {
         var dayData = new[]
         {
@@ -523,7 +519,7 @@ public class StatisticsServiceTDDTests
                 {
                     Totals = new TreatmentTotals
                     {
-                        Insulin = new InsulinTotals { Bolus = 15, Basal = 10 },
+                        Insulin = new InsulinTotals { Bolus = 15 },
                         Food = new FoodTotals(),
                     },
                 },
@@ -539,7 +535,7 @@ public class StatisticsServiceTDDTests
                 {
                     Totals = new TreatmentTotals
                     {
-                        Insulin = new InsulinTotals { Bolus = 20, Basal = 15 },
+                        Insulin = new InsulinTotals { Bolus = 20 },
                         Food = new FoodTotals(),
                     },
                 },
@@ -552,40 +548,7 @@ public class StatisticsServiceTDDTests
 
         var result = _sut.CalculateOverallAverages(dayData);
 
-        // Day 1: 25U, Day 2: 35U -> Avg = 30 U/day
-        result!.AvgTotalDaily.Should().Be(30.0);
-        result.AvgBolus.Should().Be(17.5);  // (15 + 20) / 2
-        result.AvgBasal.Should().Be(12.5);  // (10 + 15) / 2
-    }
-
-    [Fact]
-    public void OverallAverages_PercentagesShouldBeConsistent()
-    {
-        var dayData = new[]
-        {
-            new DayData
-            {
-                Date = "2024-01-01",
-                TreatmentSummary = new TreatmentSummary
-                {
-                    Totals = new TreatmentTotals
-                    {
-                        Insulin = new InsulinTotals { Bolus = 10, Basal = 10 },
-                        Food = new FoodTotals(),
-                    },
-                },
-                TimeInRanges = new TimeInRangeMetrics
-                {
-                    Percentages = new TimeInRangePercentages(),
-                },
-            },
-        };
-
-        var result = _sut.CalculateOverallAverages(dayData);
-
-        result!.BolusPercentage.Should().Be(50.0);
-        result.BasalPercentage.Should().Be(50.0);
-        (result.BolusPercentage + result.BasalPercentage).Should().Be(100.0);
+        result!.AvgBolus.Should().Be(17.5);
     }
 
     #endregion
@@ -604,7 +567,7 @@ public class StatisticsServiceTDDTests
             emptyBoluses, emptyAlgorithmBoluses, emptyTempBasals, Array.Empty<CarbIntake>(), StartDate, EndDate);
         var ratios = _sut.CalculateDailyBasalBolusRatios(emptyBoluses, emptyAlgorithmBoluses, emptyTempBasals);
 
-        _sut.GetTotalInsulin(summary).Should().Be(0);
+        summary.Totals.Insulin.Bolus.Should().Be(0);
         delivery.TotalInsulin.Should().Be(0);
         delivery.Tdd.Should().Be(0);
         ratios.AverageTdd.Should().Be(0);
@@ -626,21 +589,6 @@ public class StatisticsServiceTDDTests
         summary.Totals.Insulin.Bolus.Should().BeApproximately(1.0, 0.001,
             "many small SMBs should sum correctly without floating-point drift");
         delivery.TotalBolus.Should().BeApproximately(1.0, 0.01);
-    }
-
-    [Fact]
-    public void GetBolusPercentage_WithZeroTotal_ShouldReturnZero()
-    {
-        var summary = new TreatmentSummary
-        {
-            Totals = new TreatmentTotals
-            {
-                Insulin = new InsulinTotals { Bolus = 0, Basal = 0 },
-            },
-        };
-
-        _sut.GetBolusPercentage(summary).Should().Be(0);
-        _sut.GetBasalPercentage(summary).Should().Be(0);
     }
 
     [Fact]

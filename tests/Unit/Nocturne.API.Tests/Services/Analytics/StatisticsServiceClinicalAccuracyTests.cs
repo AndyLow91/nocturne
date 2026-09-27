@@ -698,7 +698,6 @@ public class StatisticsServiceClinicalAccuracyTests
     [Fact]
     public void CalculateTreatmentSummary_NoBoluses_ShouldReturnZeroInsulin()
     {
-        // In V4, basal is tracked via StateSpans, not in CalculateTreatmentSummary
         var result = _sut.CalculateTreatmentSummary(Array.Empty<Bolus>(), Array.Empty<CarbIntake>());
 
         result.Totals.Insulin.Bolus.Should().Be(0);
@@ -1300,7 +1299,7 @@ public class StatisticsServiceClinicalAccuracyTests
                 {
                     Totals = new TreatmentTotals
                     {
-                        Insulin = new InsulinTotals { Bolus = 20, Basal = 10 },
+                        Insulin = new InsulinTotals { Bolus = 20 },
                         Food = new FoodTotals { Carbs = 200 },
                     },
                 },
@@ -1317,7 +1316,7 @@ public class StatisticsServiceClinicalAccuracyTests
                     // No insulin data this day (e.g. pump disconnected)
                     Totals = new TreatmentTotals
                     {
-                        Insulin = new InsulinTotals { Bolus = 0, Basal = 0 },
+                        Insulin = new InsulinTotals { Bolus = 0 },
                         Food = new FoodTotals { Carbs = 0 },
                     },
                 },
@@ -1330,9 +1329,9 @@ public class StatisticsServiceClinicalAccuracyTests
 
         var result = _sut.CalculateOverallAverages(dayData);
 
-        // Insulin averages use DaysWithData (1 day had insulin > 0)
-        // So AvgTotalDaily = 30 / 1 = 30
-        result!.AvgTotalDaily.Should().Be(30);
+        // Insulin averages use DaysWithData (1 day had bolus > 0)
+        // So AvgBolus = 20 / 1 = 20
+        result!.AvgBolus.Should().Be(20);
 
         // TIR averages use dataPoints.Count (2 days total)
         // So AvgTimeInRange = (80 + 60) / 2 = 70

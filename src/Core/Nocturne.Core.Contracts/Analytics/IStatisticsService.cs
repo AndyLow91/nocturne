@@ -274,20 +274,6 @@ public interface IStatisticsService
     OverallAverages? CalculateOverallAverages(IEnumerable<DayData> dailyDataPoints);
 
     /// <summary>
-    /// Get total daily insulin from a <see cref="TreatmentSummary"/>.
-    /// </summary>
-    /// <param name="treatmentSummary">Treatment summary to read from.</param>
-    /// <returns>Total insulin in units.</returns>
-    double GetTotalInsulin(TreatmentSummary treatmentSummary);
-
-    /// <summary>
-    /// Get bolus insulin as a percentage of total daily insulin.
-    /// </summary>
-    /// <param name="treatmentSummary">Treatment summary to read from.</param>
-    /// <returns>Bolus percentage (0-100).</returns>
-    double GetBolusPercentage(TreatmentSummary treatmentSummary);
-
-    /// <summary>
     /// Calculate comprehensive insulin delivery statistics.
     /// Basal data comes from TempBasals, algorithmBoluses, and basalInjections (MDI); pass empty collections if none are available.
     /// </summary>
