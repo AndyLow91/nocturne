@@ -82,6 +82,10 @@ pub struct DeviceActionIntent {
     pub capabilities: Vec<String>,
     #[serde(default)]
     pub acknowledged: bool,
+    /// What this user's acknowledge press does: `true` acknowledges for everyone, `false` mutes for
+    /// them only. Set on the snapshot; absent from the tenant-wide live push.
+    #[serde(default)]
+    pub acknowledges_for_everyone: Option<bool>,
     #[serde(default)]
     pub glucose_value: Option<f64>,
     #[serde(default)]
@@ -176,16 +180,25 @@ pub async fn active_intents(
         .map_err(|e| ApiError::network(format!("Unexpected active-intents response: {e}")))
 }
 
-/// Acknowledges an excursion (`POST /api/v4/alerts/excursions/{id}/acknowledge`). Best-effort: wired
-/// to the toast's Acknowledge action. A 404 (excursion already gone) or any non-2xx is returned as
-/// an error for the caller to log, never panics.
+/// The acknowledge endpoint's response: `outcome` is `acknowledged` (for everyone), `muted` (for the
+/// caller only) or `closed`.
+#[derive(Deserialize, Debug, Default)]
+pub struct AcknowledgeResponse {
+    #[serde(default)]
+    pub outcome: String,
+}
+
+/// Acknowledges an excursion (`POST /api/v4/alerts/excursions/{id}/acknowledge`), returning what the
+/// server did with the press. Best-effort: wired to the toast's action button. A 404 (excursion
+/// already gone) or any non-2xx is returned as an error for the caller to log, never panics; an
+/// unreadable success body yields an empty outcome.
 pub async fn acknowledge(
     client: &reqwest::Client,
     server: &str,
     token: &str,
     excursion_id: &str,
     acknowledged_by: &str,
-) -> Result<(), String> {
+) -> Result<AcknowledgeResponse, String> {
     let server = server.trim_end_matches('/');
     let resp = client
         .post(format!("{server}/api/v4/alerts/excursions/{excursion_id}/acknowledge"))
@@ -198,7 +211,7 @@ pub async fn acknowledge(
     if !resp.status().is_success() {
         return Err(format!("acknowledge returned HTTP {}", resp.status().as_u16()));
     }
-    Ok(())
+    Ok(resp.json().await.unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -258,6 +271,7 @@ mod tests {
             severity: "info".into(),
             capabilities: vec![NOTIFY_CAPABILITY.into()],
             acknowledged: true,
+            acknowledges_for_everyone: None,
             glucose_value: None,
             trend: None,
         };

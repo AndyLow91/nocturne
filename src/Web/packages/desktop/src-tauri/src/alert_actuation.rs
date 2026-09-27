@@ -650,7 +650,7 @@ fn clear_actuations(state: &mut ActuationState) {
     state.flashing.clear();
 }
 
-/// Shows the toast for `intent`, wiring the Acknowledge button to the ack endpoint. The ack context
+/// Shows the toast for `intent`, wiring its action button to the ack endpoint. The ack context
 /// carries no token — the toast can outlive it; a fresh one is resolved at click time.
 fn show_toast(intent: &DeviceActionIntent, server: &str, runtime: &tokio::runtime::Handle) {
     let ack = AckContext {
@@ -684,6 +684,7 @@ mod tests {
             severity: "warning".into(),
             capabilities: caps.iter().map(|c| c.to_string()).collect(),
             acknowledged: acked,
+            acknowledges_for_everyone: None,
             glucose_value: None,
             trend: None,
         }
