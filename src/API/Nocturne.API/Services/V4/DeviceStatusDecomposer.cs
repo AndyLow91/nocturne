@@ -111,6 +111,13 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         return result;
     }
 
+    /// <inheritdoc />
+    /// <remarks>Mirrors the pump, <see cref="MapToApsSnapshot"/> and uploader conditions in
+    /// <see cref="DecomposeAsync(DeviceStatus, string?, WriteOrigin, CancellationToken)"/>.</remarks>
+    public bool HasLegacyKeyedSnapshot(DeviceStatus ds)
+        => ds.Pump != null || ds.OpenAps != null || ds.Loop != null
+            || ds.Uploader != null || ds.UploaderBattery.HasValue;
+
     /// <summary>AAPS sends <c>date</c> instead of <c>mills</c>; normalize before decomposition.</summary>
     private static void NormalizeMills(DeviceStatus ds)
     {
@@ -588,11 +595,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         if (statuses.Count == 0)
             return new V4Models.DecompositionResult();
 
-        var correlationId = Guid.CreateVersion7();
-        var result = new V4Models.DecompositionResult
-        {
-            CorrelationId = correlationId
-        };
+        var result = new V4Models.DecompositionResult();
 
         var apsList = new List<V4Models.ApsSnapshot>();
         var pumpList = new List<V4Models.PumpSnapshot>();
@@ -600,49 +603,54 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         var extrasList = new List<V4Models.DeviceStatusExtras>();
         var overrideSpans = new List<StateSpan>();
 
-        foreach (var ds in statuses)
+        await using (_deviceService.DeferLastSeen(ct))
         {
-            NormalizeMills(ds);
-
-            var legacyId = ds.Id;
-            var statusMills = ResolveStatusMills(ds);
-
-            Guid? pumpDeviceId = null;
-
-            if (ds.Pump != null)
+            foreach (var ds in statuses)
             {
-                var pumpModel = await BuildPumpSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct);
-                pumpModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpModel.DeviceId, statusMills, ct);
+                NormalizeMills(ds);
 
-                pumpDeviceId = pumpModel.DeviceId;
-                pumpList.Add(pumpModel);
-            }
+                var correlationId = Guid.CreateVersion7();
+                result.CorrelationId ??= correlationId;
+                var legacyId = ds.Id;
+                var statusMills = ResolveStatusMills(ds);
 
-            if (ds.Cgm != null)
-            {
-                await RegisterCgmDeviceAsync(ds, statusMills, ct);
-            }
+                Guid? pumpDeviceId = null;
 
-            if (MapToApsSnapshot(ds, legacyId, source, correlationId) is { } apsModel)
-            {
-                apsModel.DeviceId = pumpDeviceId;
-                apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, statusMills, ct);
-                apsList.Add(apsModel);
-            }
+                if (ds.Pump != null)
+                {
+                    var pumpModel = await BuildPumpSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct);
+                    pumpModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpModel.DeviceId, statusMills, ct);
 
-            if (ds.Uploader != null || ds.UploaderBattery.HasValue)
-            {
-                uploaderList.Add(await BuildUploaderSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct));
-            }
+                    pumpDeviceId = pumpModel.DeviceId;
+                    pumpList.Add(pumpModel);
+                }
 
-            if (ds.Override is { Active: true })
-            {
-                overrideSpans.Add(BuildOverrideSpan(ds, legacyId));
-            }
+                if (ds.Cgm != null)
+                {
+                    await RegisterCgmDeviceAsync(ds, statusMills, ct);
+                }
 
-            if (BuildExtras(ds, correlationId) is { } extrasModel)
-            {
-                extrasList.Add(extrasModel);
+                if (MapToApsSnapshot(ds, legacyId, source, correlationId) is { } apsModel)
+                {
+                    apsModel.DeviceId = pumpDeviceId;
+                    apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, statusMills, ct);
+                    apsList.Add(apsModel);
+                }
+
+                if (ds.Uploader != null || ds.UploaderBattery.HasValue)
+                {
+                    uploaderList.Add(await BuildUploaderSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct));
+                }
+
+                if (ds.Override is { Active: true })
+                {
+                    overrideSpans.Add(BuildOverrideSpan(ds, legacyId));
+                }
+
+                if (BuildExtras(ds, correlationId) is { } extrasModel)
+                {
+                    extrasList.Add(extrasModel);
+                }
             }
         }
 
@@ -651,6 +659,19 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             await BulkCreateAsync(_apsRepo, apsList, result, origin, ct);
             await BulkCreateAsync(_pumpRepo, pumpList, result, origin, ct);
             await BulkCreateAsync(_uploaderRepo, uploaderList, result, origin, ct);
+
+            // Extras carry no legacy id, so nothing holds them when a re-run skips their status's
+            // snapshots; written under that run's fresh correlation id they would join nothing.
+            var written = result.CreatedRecords.OfType<V4Models.IV4Record>()
+                .Select(r => r.CorrelationId)
+                .ToHashSet();
+            var held = apsList.Select(a => a.CorrelationId)
+                .Concat(pumpList.Select(p => p.CorrelationId))
+                .Concat(uploaderList.Select(u => u.CorrelationId))
+                .Where(id => !written.Contains(id))
+                .ToHashSet();
+            extrasList.RemoveAll(e => held.Contains(e.CorrelationId));
+
             await BulkCreateAsync(_extrasRepo, extrasList, result, origin, ct);
         }
 
@@ -905,12 +926,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     private static long ResolveStatusMills(DeviceStatus ds) =>
         new DateTimeOffset(ResolveTimestamp(ds)).ToUnixTimeMilliseconds();
 
-    private static DateTime? ParseTimestampToDateTime(string? timestamp)
-    {
-        if (string.IsNullOrEmpty(timestamp))
-            return null;
-        return DateTimeOffset.TryParse(timestamp, out var dto) ? dto.UtcDateTime : null;
-    }
+    private static DateTime? ParseTimestampToDateTime(string? timestamp) =>
+        UploaderTimestamp.ParseUtcDateTime(timestamp);
 
     private static Dictionary<string, object> BuildOverrideMetadata(OverrideStatus overrideStatus)
     {
