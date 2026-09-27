@@ -35,16 +35,14 @@
   import * as Select from "$lib/components/ui/select";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import {
-    ArrowLeft,
-    Save,
-    Trash2,
-    Zap,
-    Loader2,
-    History as HistoryIcon,
-    PlayCircle,
-    CalendarDays,
-  } from "lucide-svelte";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import Save from "@lucide/svelte/icons/save";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Zap from "@lucide/svelte/icons/zap";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import HistoryIcon from "@lucide/svelte/icons/history";
+  import PlayCircle from "@lucide/svelte/icons/circle-play";
+  import CalendarDays from "@lucide/svelte/icons/calendar-days";
 
   import { EditorActionBar } from "$lib/components/layout";
   import RuleBuilder from "$lib/components/alerts/RuleBuilder.svelte";

@@ -5,7 +5,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Input } from "$lib/components/ui/input";
   import { TextareaAutosize } from "$lib/components/ui/textarea";
-  import { Play } from "lucide-svelte";
+  import Play from "@lucide/svelte/icons/play";
   import { cn } from "$lib/utils";
   import { formatClock, formatShortDate, time } from "$lib/utils/formatting";
   import { useToastSubmission } from "$lib/forms";

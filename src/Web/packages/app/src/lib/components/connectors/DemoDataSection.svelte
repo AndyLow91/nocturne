@@ -2,13 +2,11 @@
   import { formatNumber } from "$lib/utils/formatting";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
-  import {
-    Sparkles,
-    CheckCircle,
-    AlertCircle,
-    Loader2,
-    Trash2,
-  } from "lucide-svelte";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import CheckCircle from "@lucide/svelte/icons/circle-check-big";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import { deleteDemoData as deleteDemoDataRemote } from "$api/generated/services.generated.remote";
   import { describeSubmitError } from "$lib/forms/submit-error";
   import { satisfiesScope } from "$lib/authorization/scopes";

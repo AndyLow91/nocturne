@@ -5,6 +5,7 @@ using Moq;
 using Nocturne.API.Services.Audit;
 using Nocturne.API.Services.V4;
 using Nocturne.Core.Contracts.Audit;
+using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Devices;
 using Nocturne.Core.Contracts.Glucose;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
@@ -88,6 +89,7 @@ public class TreatmentDecomposerDeleteTests : IDisposable
         Mock.Of<IActiveProfileResolver>(),
         Mock.Of<IPatientInsulinRepository>(),
         auditContext,
+        Mock.Of<IDeduplicationService>(),
         NullLogger<TreatmentDecomposer>.Instance);
 
     /// <summary>One record of every type the sweep covers, plus a bolus outside the window.</summary>

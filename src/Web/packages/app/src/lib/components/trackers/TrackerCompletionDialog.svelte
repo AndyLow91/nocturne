@@ -7,7 +7,7 @@
   import { TextareaAutosize } from "$lib/components/ui/textarea";
   import { Input } from "$lib/components/ui/input";
   import { Checkbox } from "$lib/components/ui/checkbox";
-  import { Check } from "lucide-svelte";
+  import Check from "@lucide/svelte/icons/check";
   import { CompletionReason, TrackerCategory } from "$api";
   import * as trackersRemote from "$api/generated/trackers.generated.remote";
   import { useToastSubmission } from "$lib/forms";

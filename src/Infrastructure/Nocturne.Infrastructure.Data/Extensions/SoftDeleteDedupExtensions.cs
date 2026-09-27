@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Nocturne.Infrastructure.Data.Entities;
+using Nocturne.Core.Models;
+using Nocturne.Infrastructure.Data.Entities.V4;
 
 namespace Nocturne.Infrastructure.Data.Extensions;
 
@@ -79,7 +81,48 @@ public static class SoftDeleteDedupExtensions
     }
 
     /// <summary>
-    /// Sibling of <see cref="GetBlockingLegacyIdsAsync{TEntity}"/> for entities keyed
+    /// The legacy ids among <paramref name="incoming"/> that must not be inserted: as the id-set
+    /// overload, except that a user tombstone does not hold a legacy id against a row that
+    /// <see cref="TreatmentClientId.IsDifferentRecord"/> says is another client record. The unique
+    /// legacy-id index counts live rows only, so the new row inserts beside the tombstone.
+    /// </summary>
+    public static async Task<RecreationBlocks<string>> GetBlockingLegacyIdsAsync<TEntity>(
+        this NocturneDbContext ctx,
+        IEnumerable<TEntity> incoming,
+        CancellationToken ct = default)
+        where TEntity : class, IV4Entity
+    {
+        var clientIds = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var entity in incoming)
+        {
+            if (!string.IsNullOrEmpty(entity.LegacyId))
+                clientIds.TryAdd(entity.LegacyId, TreatmentClientId.Of((entity as V4TimeSeriesEntityBase)?.AdditionalPropertiesJson));
+        }
+
+        if (!typeof(V4TimeSeriesEntityBase).IsAssignableFrom(typeof(TEntity)) || clientIds.Values.All(id => id is null))
+            return await ctx.GetBlockingLegacyIdsAsync<TEntity>(clientIds.Keys.ToHashSet(StringComparer.Ordinal), ct);
+
+        var legacyIds = clientIds.Keys.ToList();
+        var blocking = await ctx.Set<TEntity>().IgnoreQueryFilters().AsNoTracking()
+            .Where(e => e.TenantId == ctx.TenantId
+                     && e.LegacyId != null
+                     && legacyIds.Contains(e.LegacyId))
+            .WhereBlocksRecreation()
+            .Select(e => new
+            {
+                Key = e.LegacyId!,
+                Live = e.DeletedAt == null,
+                Json = EF.Property<string?>(e, nameof(V4TimeSeriesEntityBase.AdditionalPropertiesJson)),
+            })
+            .ToListAsync(ct);
+
+        return RecreationBlocks<string>.From(blocking
+            .Where(b => b.Live || !TreatmentClientId.IsDifferentRecord(b.Key, clientIds[b.Key],TreatmentClientId.Of(b.Json)))
+            .Select(b => (b.Key, b.Live)));
+    }
+
+    /// <summary>
+    /// Sibling of <see cref="GetBlockingLegacyIdsAsync{TEntity}(NocturneDbContext, HashSet{string}, CancellationToken)"/> for entities keyed
     /// by <c>CorrelationId</c> (Guid) instead of <c>LegacyId</c> (string). Currently
     /// used by <c>DeviceStatusExtrasEntity</c> only.
     /// </summary>

@@ -12,7 +12,9 @@
   import { updateLanguagePreference } from "$api/user-preferences.remote";
   import { hasLanguagePreference } from "$lib/stores/appearance-store.svelte";
   import { getMyTenants } from "$lib/api/generated/myTenants.generated.remote";
-  import { ChevronDown, Shield, Eye } from "lucide-svelte";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
+  import Shield from "@lucide/svelte/icons/shield";
+  import Eye from "@lucide/svelte/icons/eye";
   import { buildAppNavigation, type NavItem } from "$lib/navigation/app-navigation";
   import {
     goToTenant,

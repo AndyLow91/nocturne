@@ -19,6 +19,12 @@ services:
       read_only: false
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     configs:
     - source: nocturne-init
       target: /docker-entrypoint-initdb.d/00-init.sh
@@ -54,6 +60,12 @@ services:
         condition: service_healthy
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       com.centurylinklabs.watchtower.enable: "true"
   nocturne-web:
@@ -94,6 +106,12 @@ services:
         condition: "service_started"
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       com.centurylinklabs.watchtower.enable: "true"
   gateway:
@@ -185,6 +203,12 @@ services:
         condition: "service_started"
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       com.centurylinklabs.watchtower.enable: "true"
   caddy:
@@ -210,6 +234,12 @@ services:
         condition: "service_started"
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     configs:
     - source: nocturne-caddyfile
       target: /etc/caddy/Caddyfile
@@ -231,6 +261,12 @@ services:
       read_only: false
     networks:
     - "aspire"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 networks:

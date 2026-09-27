@@ -1,7 +1,9 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import * as Select from "$lib/components/ui/select";
-  import { Play, Pause, RotateCcw } from "lucide-svelte";
+  import Play from "@lucide/svelte/icons/play";
+  import Pause from "@lucide/svelte/icons/pause";
+  import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import { AlertReplayEventKind, type AlertRuleSeverity } from "$api-clients";
   import { severityVar } from "./severity";
   import { formatDateTimeCompact } from "$lib/utils/formatting";

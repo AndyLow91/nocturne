@@ -8,8 +8,8 @@
     CardTitle,
   } from "$lib/components/ui/card";
   import * as Select from "$lib/components/ui/select";
-  import ArrowLeft from "lucide-svelte/icons/arrow-left";
-  import GitCompareArrows from "lucide-svelte/icons/git-compare-arrows";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
   import { getCgmComparison, getReportsAnalysis } from "$api/reports.remote";
   import { requireDateParamsContext } from "$lib/hooks/date-params.svelte";
   import { contextResource } from "$lib/hooks/resource-context.svelte";
