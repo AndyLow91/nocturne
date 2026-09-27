@@ -3,32 +3,30 @@
   import { onMount, untrack } from "svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { Switch } from "$lib/components/ui/switch";
-  import {
-    ChevronRight,
-    Droplet,
-    TrendingUp,
-    Syringe,
-    Apple,
-    Clock,
-    AlertTriangle,
-    Battery,
-    BatteryLow,
-    Smartphone,
-    Fuel,
-    RotateCcw,
-    WifiOff,
-    PauseCircle,
-    Wand2,
-    ChartLine,
-    Activity,
-    Bell,
-    BellOff,
-    CalendarClock,
-    CalendarDays,
-    Moon,
-    Ban,
-    Timer,
-  } from "lucide-svelte";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Droplet from "@lucide/svelte/icons/droplet";
+  import TrendingUp from "@lucide/svelte/icons/trending-up";
+  import Syringe from "@lucide/svelte/icons/syringe";
+  import Apple from "@lucide/svelte/icons/apple";
+  import Clock from "@lucide/svelte/icons/clock";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Battery from "@lucide/svelte/icons/battery";
+  import BatteryLow from "@lucide/svelte/icons/battery-low";
+  import Smartphone from "@lucide/svelte/icons/smartphone";
+  import Fuel from "@lucide/svelte/icons/fuel";
+  import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+  import WifiOff from "@lucide/svelte/icons/wifi-off";
+  import PauseCircle from "@lucide/svelte/icons/circle-pause";
+  import Wand2 from "@lucide/svelte/icons/wand-sparkles";
+  import ChartLine from "@lucide/svelte/icons/chart-line";
+  import Activity from "@lucide/svelte/icons/activity";
+  import Bell from "@lucide/svelte/icons/bell";
+  import BellOff from "@lucide/svelte/icons/bell-off";
+  import CalendarClock from "@lucide/svelte/icons/calendar-clock";
+  import CalendarDays from "@lucide/svelte/icons/calendar-days";
+  import Moon from "@lucide/svelte/icons/moon";
+  import Ban from "@lucide/svelte/icons/ban";
+  import Timer from "@lucide/svelte/icons/timer";
   import type { AlertRuleResponse } from "$api-clients";
   import type { ConditionNode } from "./types";
   import {

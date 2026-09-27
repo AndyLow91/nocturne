@@ -51,7 +51,7 @@ public class NightscoutTreatmentReconcileTests
             "a UUID is not an ObjectId, and asking for one by _id fails on older Nightscout");
         harness.LookupUrls.Should().Contain(u => u.EndsWith($"find[id]={TrioGone}")
             && u.Contains($"find[created_at][$gte]={StoredAt.AddHours(-15):o}")
-            && u.Contains($"find[created_at][$lte]={StoredAt.AddHours(15):o}"),
+            && u.Contains($"find[created_at][$lte]={StoredAt.AddHours(15):yyyy-MM-dd'T'HH:mm:ss'Z'}"),
             "neither id field is indexed, so the lookup is bounded to where the treatment can sit");
     }
 
@@ -105,8 +105,8 @@ public class NightscoutTreatmentReconcileTests
     [Fact]
     public async Task A_row_the_lookup_still_finds_is_kept_and_not_looked_up_again()
     {
-        // Missing from the read, as a record at a page boundary or with a created_at outside the
-        // window would be, but the source still has it.
+        // Missing from the read, as a record with a created_at outside the window would be, but the
+        // source still has it.
         var harness = new Harness
         {
             Upstream = [Trio(MongoIdA, TrioKept, Now.AddMinutes(-30))],

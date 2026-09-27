@@ -275,13 +275,12 @@ public class TempBasalRepository : ITempBasalRepository
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<TempBasal>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
+    public async Task<BulkRestoreResult<TempBasal>> BulkRestoreAsync(IEnumerable<Guid> ids, WriteOrigin origin, CancellationToken ct = default)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var restored = (await ctx.RestoreDeletedAsync<TempBasalEntity>(ids, ct))
-            .Select(TempBasalMapper.ToDomainModel).ToList();
-        await RaiseBroadcastAsync(restored, [], [], origin, ct);
-        return restored;
+        var result = (await ctx.RestoreDeletedAsync<TempBasalEntity>(ids, nameof(TempBasal), ct)).Map(TempBasalMapper.ToDomainModel);
+        await RaiseBroadcastAsync(result.Restored, [], [], origin, ct);
+        return result;
     }
 
     /// <inheritdoc />
@@ -358,39 +357,31 @@ public class TempBasalRepository : ITempBasalRepository
     )
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        var written = await strategy.ExecuteAsync(async () =>
-        {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-            var entities = records.Select(TempBasalMapper.ToEntity).ToList();
-            if (entities.Count == 0)
+        var (entities, skippedDeleted) = await ctx.ExecuteInTransactionAsync(
+            async token =>
             {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], 0);
-            }
+                var entities = records.Select(TempBasalMapper.ToEntity).ToList();
 
-            var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
-                entities,
-                e => e.LegacyId,
-                (legacyIds, token) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, token),
-                ct);
+                var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
+                    entities,
+                    e => e.LegacyId,
+                    (legacyIds, t) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, t),
+                    token);
 
-            if (toInsert.Count == 0)
-            {
-                await tx.CommitAsync(ct);
-                return new BulkWrite<TempBasal>([], skippedDeleted);
-            }
+                return (toInsert, skippedDeleted);
+            },
+            (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
+            ct: ct);
 
-            await tx.CommitAsync(ct);
-            await LinkInsertedAsync(toInsert, ct);
+        _logger.LogSkippedDeleted(nameof(TempBasal), skippedDeleted);
+        if (entities.Count == 0)
+            return new BulkWrite<TempBasal>([], skippedDeleted);
 
-            var created = toInsert.Select(TempBasalMapper.ToDomainModel).ToList();
-            await RaiseBroadcastAsync(created, [], [], origin, ct);
-            return new BulkWrite<TempBasal>(created, skippedDeleted);
-        });
+        await LinkInsertedAsync(entities, ct);
 
-        _logger.LogSkippedDeleted(nameof(TempBasal), written.SkippedDeleted);
-        return written;
+        var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
+        await RaiseBroadcastAsync(created, [], [], origin, ct);
+        return new BulkWrite<TempBasal>(created, skippedDeleted);
     }
 
     /// <inheritdoc />

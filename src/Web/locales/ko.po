@@ -11886,6 +11886,8 @@ msgstr ""
 #~ msgstr ""
 
 #. 0: Math.round(toIfccMmolMol(percent))
+#. 0: Math.round(value)
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
 #: src/routes/(authenticated)/reports/ehba1c/+page.svelte
 msgid "{0} mmol/mol"
 msgstr ""
@@ -25464,4 +25466,56 @@ msgstr ""
 
 #: src/routes/(authenticated)/settings/account/+page.svelte
 msgid "Your old recovery codes stopped working after a Nocturne update. Generate new codes to keep a backup way to sign in."
+msgstr ""
+
+#. 0: time(alert.snoozedUntil)
+#: src/lib/components/alerts/AlertBanner.svelte
+msgid "<0/> Snoozed until {0}"
+msgstr ""
+
+#. 0: formatClock(a.snoozedUntil)
+#: src/routes/(authenticated)/alerts/+page.svelte
+msgid "Snoozed until {0}"
+msgstr ""
+
+#: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
+msgid "Watchtower updates images, not the compose file. If you installed before the restart policy and log rotation below were added, download the new bundle and run <0/> to pick them up. That first run recreates the containers, which clears their old logs; your database data is kept."
+msgstr ""
+
+#: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "Restarts and logs"
+msgstr ""
+
+#: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
+msgid "Every service sets <0/>, so Docker restarts it when it exits or when the Docker daemon restarts, unless you stopped it. Docker's default policy is <1/> (<2>Docker docs</2>)."
+msgstr ""
+
+#: ../portal/src/routes/docs/installation/docker-compose/+page.svelte
+msgid "Every service also logs to the <0/> driver, rotated at three files of 10 MB. Left to its defaults, that driver never rotates, because <1/> defaults to unlimited (<2>Docker docs</2>). A logging driver set on a container replaces the daemon's default (<3>Docker docs</3>), so the bundle overrides any <4/> in your <5/>. To keep yours, set <6/> on the services in a <7/>. Compose reads that file only when you pass no <8/> (<9>Docker docs</9>), so with the bring-your-own-proxy command, also pass <10/>."
+msgstr ""
+
+#: ../portal/src/routes/docs/installation/portainer/+page.svelte
+msgid "The stack uses the same restart policy and log rotation as the <0>Docker Compose bundle</0>. Portainer stacks do not read override files, so to keep your own logging driver, edit the <1/> section of each service in the stack editor instead."
+msgstr ""
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "eHbA1c"
+msgstr "eHbA1c"
+
+#: src/routes/(authenticated)/reports/ehba1c/+page.svelte
+msgid "Lab result"
+msgstr "검사 결과"
+
+#: src/lib/components/alerts/AlertBanner.svelte
+msgid "<0/> Mute for me"
+msgstr ""
+
+#: src/lib/components/alerts/FiringToast.svelte
+#: src/lib/components/layout/NotificationItem.svelte
+msgid "Mute for me"
+msgstr ""
+
+#: src/lib/components/members/InviteSummary.svelte
+msgid "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 msgstr ""

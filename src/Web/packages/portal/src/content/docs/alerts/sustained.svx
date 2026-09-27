@@ -1,0 +1,145 @@
+---
+title: Conditions that must last
+---
+
+<script>
+  import Callout from '@nocturne/cms/components/Callout.svelte';
+  import Screenshot from '$lib/components/docs/Screenshot.svelte';
+  import AlertSimulator from '$lib/components/docs/alert-simulator/AlertSimulator.svelte';
+</script>
+
+# Conditions that must last
+
+A single reading can be wrong. Lying on a sensor can press a false low into it
+for a few minutes (a "compression low"), and a fresh sensor can be jumpy for its
+first day. An alert on every one of those readings teaches people to ignore
+alerts.
+
+**Make sustained**, in a row's **...** menu, adds a **for at least N min** box to
+the row. The row then only counts once its condition has been true **for that
+long without a break**.
+
+<Screenshot id="alert-rule-sustained-low" />
+
+## How the clock works
+
+- The first time the condition is true, a clock starts. At that moment the row
+  is **not** yet true.
+- Every check after that, the row is true once the clock has reached the
+  number of minutes you set.
+- The first time the condition is **not** true, the clock is thrown away. The
+  next time it is true, the clock starts again from zero.
+
+With a CGM that sends a reading every 5 minutes, "for at least 15 min" means
+four readings in a row: the one that starts the clock, and three more, the
+last of them 15 minutes after the first.
+
+Here are two rules on a quiet afternoon with a short dip: three readings just
+under 70 mg/dL (3.9 mmol/L), covering ten minutes.
+
+<AlertSimulator
+  scenario="brief-dip"
+  scenarios={["brief-dip", "overnight-low"]}
+  rules={["low", "sustained-low"]}
+/>
+
+"Low" alerts on the first reading under 70. "Low for 15 minutes" never alerts,
+because the dip is over before its clock reaches 15 minutes. Switch to
+**Overnight low**, a real low that lasts: now both alert, and "Low for 15
+minutes" alerts exactly 15 minutes after the first low reading.
+
+That delay is the price. A sustained rule always alerts later than the same
+rule without it, by the number of minutes you set.
+
+<Callout type="warning" title="Do not delay an urgent low">
+
+  A "for at least" setting holds back every alert by its length, including
+  real ones. Leave it off rules for dangerous situations, such as an urgent low,
+  where a late alert costs more than a false one. A common pattern is two rules:
+  an urgent low with no delay, and a milder low with a short one. See
+  [Example rules](/docs/alerts/recipes).
+
+</Callout>
+
+## When readings stop
+
+A gap in readings does **not** reset the clock. Only a reading where the
+condition is false does.
+
+A glucose rule is checked when a reading arrives. If readings stop while a
+clock is running, nothing checks the rule until the next reading. When that
+reading arrives and the condition is still true, the time without readings
+counts towards the clock, so the rule can alert on the very first reading back.
+
+While readings are missing, glucose rules cannot alert at all. That is why
+every setup that relies on alerts should also have a **Signal loss** rule (see
+[Conditions](/docs/alerts/conditions#signal-loss)).
+
+<Callout type="info" title="The simulator and Replay fill gaps with the last reading">
+
+  This simulator, and **Replay** in the app, check every 5 minutes whether or
+  not a reading arrived, reusing the last reading through a gap. Around a gap,
+  a sustained glucose rule can therefore alert earlier in a replay than it
+  would have at the time.
+
+</Callout>
+
+## Order matters
+
+A rule checks its rows from the top down, and stops as soon as it knows the
+answer. With **all of**, the first row that is not true settles it, and the
+rows under it are **not checked at all**. A "for at least" row that is not
+checked does nothing to its clock: it does not start it, and it does not throw
+it away.
+
+So when a "for at least" row sits under another condition, its clock only runs
+while the rows above it are true. That can make it alert **later** than you
+expect, or **sooner**.
+
+Both rules below alert when glucose has been above 180 mg/dL (10.0 mmol/L) for
+at least 30 minutes, and it is not between 18:00 and 20:00. They have the same
+two rows, in a different order.
+
+<AlertSimulator
+  scenario="meal-high"
+  scenarios={["meal-high", "high-dip-high"]}
+  rules={["high-after-dinner-timer-first", "high-after-dinner-gate-first"]}
+/>
+
+**Later.** On **High after a meal**, glucose has been over 180 since well
+before 20:00. "Sustained high first" alerts at 20:00, the moment the window
+ends, because its clock has been running since the rise. In "Time window first",
+the time row stops the rule from reaching the clock until 20:00, so the clock
+only starts then and the alert comes half an hour later.
+
+**Sooner.** Switch to **High, dip, high**. Glucose goes over 180 at about 17:40
+and its clock starts, but at 18:00 the window closes before 30 minutes have
+passed. Glucose comes back down during the evening, but "Time window first"
+never checks the clock while the window is closed, so the clock is never thrown
+away. When the window ends at 20:00, glucose has just gone high again, and the
+clock still counts from 17:40: the rule alerts straight away, after only about
+10 minutes over 180. "Sustained high first" threw its clock away when glucose
+came down, and alerts at 20:20, 30 minutes into the second high.
+
+<Callout type="tip" title="Put 'for at least' rows first">
+
+  Make a row with a "for at least" setting the **first** row of its group. The
+  first row is checked every time, so its clock always reflects what actually
+  happened: it starts when the condition starts and stops when it stops, whatever
+  the rows under it are doing.
+
+</Callout>
+
+The same applies to **any of**, where the first row that **is** true settles
+the rule and the rows under it go unchecked.
+
+## Several conditions that must last
+
+In the rule editor, **Make sustained** is offered on a single condition row,
+not on a group. To require that several conditions hold together for a while,
+make **one** of them sustained, the one that matters most, and put it first.
+
+Making every row sustained adds the delays together. While a sustained row's
+clock is running, the row counts as not true, so under **all of** the rows
+beneath it are not checked and their clocks have not started yet. Two rows of
+"for at least 15 min" under **all of** alert after 30 minutes, not 15.

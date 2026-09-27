@@ -294,7 +294,7 @@ public class DeviceStatusProjectionServiceTests
         result.Override!.Name.Should().Be("Exercise");
         result.Override.Active.Should().BeFalse(); // Has end timestamp, so not active
         result.Override.Multiplier.Should().Be(0.8);
-        result.Override.Duration.Should().Be(60);
+        result.Override.Duration.Should().Be(3600);
         result.Override.CurrentCorrectionRange.Should().NotBeNull();
         result.Override.CurrentCorrectionRange!.MinValue.Should().Be(140.0);
         result.Override.CurrentCorrectionRange.MaxValue.Should().Be(160.0);
@@ -335,12 +335,14 @@ public class DeviceStatusProjectionServiceTests
     }
 
     [Fact]
-    public void ProjectAsync_WithSrvTimestampsInExtras_AssignsTypedPropertiesNotExtensionData()
+    public void ProjectAsync_WithClientSrvTimestampsInExtras_ReportsServerClockAndDoesNotReEmit()
     {
-        // NS-migrated docs carry srvModified/srvCreated in extras. Splatting them into
-        // ExtensionData would serialize each key twice (typed Mills fallback + extras
-        // value); strict client parsers reject duplicate keys.
+        // The record reports the server clock, so client-supplied srvCreated/srvModified must not
+        // override it. Re-emitting the extras would also serialize each key twice, which strict
+        // client parsers reject.
         var aps = CreateApsSnapshot(AidAlgorithm.OpenAps);
+        aps.CreatedAt = ReferenceTime.AddMinutes(3);
+        aps.ModifiedAt = ReferenceTime.AddMinutes(5);
         aps.SuggestedJson = JsonSerializer.Serialize(new OpenApsSuggested { Bg = 120 }, JsonOptions);
 
         var extras = new DeviceStatusExtras
@@ -357,10 +359,31 @@ public class DeviceStatusProjectionServiceTests
 
         var result = DeviceStatusProjectionService.ProjectFromSnapshots(aps, null, null, null, extras);
 
-        result.SrvModified.Should().Be(1_722_945_600_000L);
-        result.SrvCreated.Should().Be(1_722_945_500_000L);
+        result.SrvModified.Should().Be(Mills(aps.ModifiedAt));
+        result.SrvCreated.Should().Be(Mills(aps.CreatedAt));
         result.ExtensionData.Should().NotContainKey("srvModified");
         result.ExtensionData.Should().NotContainKey("srvCreated");
+    }
+
+    [Fact]
+    public void ProjectAsync_WithoutApsSnapshot_ReportsAnchorServerClock()
+    {
+        // Orphan pump/uploader records (xDrip+) have no APS anchor; the server clock comes from the
+        // same anchor the timestamp uses, in the same precedence.
+        var pump = CreatePumpSnapshot();
+        pump.CreatedAt = ReferenceTime.AddMinutes(1);
+        pump.ModifiedAt = ReferenceTime.AddMinutes(2);
+        var uploader = CreateUploaderSnapshot();
+        uploader.CreatedAt = ReferenceTime.AddMinutes(8);
+        uploader.ModifiedAt = ReferenceTime.AddMinutes(9);
+
+        var fromPump = DeviceStatusProjectionService.ProjectFromSnapshots(null, pump, uploader, null, null);
+        fromPump.SrvCreated.Should().Be(Mills(pump.CreatedAt));
+        fromPump.SrvModified.Should().Be(Mills(pump.ModifiedAt));
+
+        var fromUploader = DeviceStatusProjectionService.ProjectFromSnapshots(null, null, uploader, null, null);
+        fromUploader.SrvCreated.Should().Be(Mills(uploader.CreatedAt));
+        fromUploader.SrvModified.Should().Be(Mills(uploader.ModifiedAt));
     }
 
     [Fact]
@@ -558,6 +581,7 @@ public class DeviceStatusProjectionServiceTests
         results[0].OpenAps.Should().NotBeNull();
         results[0].Pump.Should().NotBeNull();
         results[0].Pump!.Reservoir.Should().Be(60.0);
+        results[0].SrvModified.Should().Be(Mills(aps.ModifiedAt));
     }
 
     #endregion
@@ -824,6 +848,9 @@ public class DeviceStatusProjectionServiceTests
     #endregion
 
     #region Helpers
+
+    private static long Mills(DateTime value) =>
+        new DateTimeOffset(value, TimeSpan.Zero).ToUnixTimeMilliseconds();
 
     private static ApsSnapshot CreateApsSnapshot(AidAlgorithm algorithm)
     {

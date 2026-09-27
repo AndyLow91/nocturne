@@ -323,16 +323,25 @@ public class DeduplicationService : IDeduplicationService
     /// Whether the tight path refuses to put a record from <paramref name="source"/> into a group
     /// already holding <paramref name="groupSources"/>. Two same-amount records from one source
     /// seconds apart are two doses, and the tight window's tolerances cannot tell them from one, so
-    /// a group takes at most one record per source. The exception is a source that
-    /// <see cref="DataSources.EmitsDuplicateEvents"/>, whose twins must still merge.
+    /// a group takes at most one record per source. The exception is a source and record type that
+    /// <see cref="EmitsDuplicateEvents"/>, whose twins must still merge.
     /// <see cref="DeduplicationInput.UnknownDataSource"/> counts as one source like any other.
     /// Only dose-like record types are guarded; see <see cref="TracksTightSources"/>.
     /// </summary>
     internal static bool RefusesTightJoin(RecordType recordType, string source, IReadOnlySet<string>? groupSources) =>
         TracksTightSources(recordType)
-        && !DataSources.EmitsDuplicateEvents(source)
+        && !EmitsDuplicateEvents(recordType, source)
         && groupSources is not null
         && groupSources.Contains(source);
+
+    /// <summary>
+    /// True for a source and record type known to report one event twice under two ids. Tidepool
+    /// imports some carb events as two food records. It is not known to double any other type, so
+    /// two Tidepool boluses of one size at one second are two doses and stay apart.
+    /// </summary>
+    private static bool EmitsDuplicateEvents(RecordType recordType, string source) =>
+        recordType == RecordType.CarbIntake
+        && string.Equals(source, DataSources.TidepoolConnector, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether <see cref="RefusesTightJoin"/> applies to this record type. Sensor glucose and state
@@ -362,13 +371,12 @@ public class DeduplicationService : IDeduplicationService
         // adjacent chunk through the freshly-written rows the next window query re-reads
         // (the +/-MatchingWindow expansion covers the seam); ReconcileNewLinksAsync collapses
         // any residual cross-chunk pair idempotently.
-        var ordered = records.OrderBy(r => r.Mills).ToList();
         var processed = 0;
         var groupsCreated = 0;
         var recordsLinked = 0;
         var duplicateGroups = 0;
 
-        foreach (var chunk in ordered.Chunk(DedupChunkSize))
+        foreach (var chunk in TimeOrderedChunks(records, r => r.Mills))
         {
             var result = await DeduplicateChunkAsync(recordType, chunk, ct);
             processed += result.Processed;
@@ -378,6 +386,33 @@ public class DeduplicationService : IDeduplicationService
         }
 
         return new DeduplicationBatchResult(processed, groupsCreated, recordsLinked, duplicateGroups);
+    }
+
+    /// <summary>
+    /// Orders <paramref name="items"/> by event time and slices them into chunks of at most
+    /// <see cref="DedupChunkSize"/>, also starting a new chunk wherever two consecutive items sit
+    /// more than <paramref name="maxGapMillis"/> apart.
+    /// </summary>
+    private static IEnumerable<List<T>> TimeOrderedChunks<T>(
+        IEnumerable<T> items, Func<T, long> mills, long maxGapMillis = long.MaxValue)
+    {
+        var chunk = new List<T>();
+        var previous = 0L;
+        foreach (var item in items.OrderBy(mills))
+        {
+            var at = mills(item);
+            if (chunk.Count == DedupChunkSize || (chunk.Count > 0 && at - previous > maxGapMillis))
+            {
+                yield return chunk;
+                chunk = [];
+            }
+
+            chunk.Add(item);
+            previous = at;
+        }
+
+        if (chunk.Count > 0)
+            yield return chunk;
     }
 
     /// <summary>
@@ -750,87 +785,121 @@ public class DeduplicationService : IDeduplicationService
         CancellationToken ct)
     {
         var recordTypeStr = RecordTypeKeys.Key(recordType);
-        var wideEligible = WideMatchableTypes.Contains(recordType);
 
-        // The span the candidate-bounded path actually loaded. Groups whose extent reaches within a
-        // wide window of either end may have an ambiguator just outside it, so the wide pass defers
-        // them. Null on the full path, which loads everything and has no boundary — absence rather
-        // than a sentinel value, so the deferral below cannot be reached with a bound that would
-        // overflow the subtraction.
-        long? neighbourMinTs = null;
-        long? neighbourMaxTs = null;
-
-        List<LinkedRecordEntity> primaries;
         if (candidateCanonicalIds == null)
         {
             // Full reconcile: load every primary of this type, ordered by source timestamp.
-            // Read-only (union-find input); the rows actually re-pointed below are loaded
-            // separately and tracked. AsNoTracking keeps this O(all primaries) read off the heap.
-            primaries = await _context.LinkedRecords
+            // Read-only (union-find input); the rows actually re-pointed are loaded separately
+            // and tracked. AsNoTracking keeps this O(all primaries) read off the heap.
+            var allPrimaries = await _context.LinkedRecords
                 .AsNoTracking()
                 .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary)
                 .OrderBy(lr => lr.SourceTimestamp)
                 .ToListAsync(ct);
+
+            return await MergePrimariesAsync(recordType, allPrimaries, null, null, null, ct);
         }
-        else
+
+        // Candidate-bounded reconcile: never load all primaries. Load only the candidate
+        // canonicals' primary links to learn their event timestamps, then DB-bound each neighbour
+        // query to a run of candidates plus the window either side. This keeps the candidate path
+        // O(candidates + window-slice) rather than O(all primaries).
+        var candidatePrimaries = await PrimariesOf(recordTypeStr, candidateCanonicalIds).ToListAsync(ct);
+
+        if (candidatePrimaries.Count == 0)
+            return 0;
+
+        // Wide-eligible types must see their wide neighbours too, or a drifted pair could
+        // never heal on the candidate-bounded path. The reach is twice the wide window rather
+        // than one: deciding a pair needs to see any third same-value group that would make it
+        // ambiguous, and such a group can sit a full window beyond the pair's own edge. At one
+        // window the same three groups merge or refuse depending on which one is the candidate.
+        var neighbourWindowMillis = WideMatchableTypes.Contains(recordType)
+            ? 2 * WideMatchingWindowMillis
+            : MatchingWindowMillis;
+
+        // Links are paged in creation order, so one batch can hold candidates years apart in event
+        // time. A single range over them would load every primary in between. Runs split where two
+        // candidates' neighbour ranges cannot meet, so each load stays a window slice.
+        var merged = 0;
+        foreach (var run in TimeOrderedChunks(candidatePrimaries, p => p.SourceTimestamp, 2 * neighbourWindowMillis))
         {
-            // Candidate-bounded reconcile: never load all primaries. Load only the candidate
-            // canonicals' primary links to learn their event timestamps, then DB-bound the
-            // neighbour query to [minCandidateTs - window, maxCandidateTs + window]. This keeps
-            // the candidate path O(candidates + window-slice) rather than O(all primaries).
-            var candidatePrimaries = await PrimariesOf(recordTypeStr, candidateCanonicalIds).ToListAsync(ct);
-
-            if (candidatePrimaries.Count == 0)
-                return 0;
-
-            // Wide-eligible types must see their wide neighbours too, or a drifted pair could
-            // never heal on the candidate-bounded path. The reach is twice the wide window rather
-            // than one: deciding a pair needs to see any third same-value group that would make it
-            // ambiguous, and such a group can sit a full window beyond the pair's own edge. At one
-            // window the same three groups merge or refuse depending on which one is the candidate.
-            var neighbourWindowMillis = wideEligible ? 2 * WideMatchingWindowMillis : MatchingWindowMillis;
-            var minTs = candidatePrimaries.Min(p => p.SourceTimestamp) - neighbourWindowMillis;
-            var maxTs = candidatePrimaries.Max(p => p.SourceTimestamp) + neighbourWindowMillis;
-            neighbourMinTs = minTs;
-            neighbourMaxTs = maxTs;
-
-            if (wideEligible)
-            {
-                // A wide-joined group spans up to a window, so its primary can sit outside the
-                // neighbour range while its members sit inside it. Select the groups by their links
-                // and then load those groups' primaries, so no group is ever half-visible to the
-                // extent comparison below. Second, unremarked consequence: the tight pass now sees
-                // those same extra primaries, so its reach on this path widens too — convergent,
-                // since it only lets the tight rules collapse pairs a later pass would have anyway.
-                var neighbourCanonicals = await _context.LinkedRecords
-                    .AsNoTracking()
-                    .Where(lr => lr.RecordType == recordTypeStr
-                                 && lr.SourceTimestamp >= minTs && lr.SourceTimestamp <= maxTs)
-                    .Select(lr => lr.CanonicalId)
-                    .Distinct()
-                    .ToListAsync(ct);
-
-                // Selected by canonical id alone. A timestamp bound here would be unsound at any
-                // width: everything below — the union-find, the extents, the boundary deferral —
-                // is built from this list, so a group dropped for having a distant primary is not
-                // deferred, it is invisible, and the pairs it would have made ambiguous merge.
-                primaries = await _context.LinkedRecords
-                    .AsNoTracking()
-                    .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
-                                 && neighbourCanonicals.Contains(lr.CanonicalId))
-                    .OrderBy(lr => lr.SourceTimestamp)
-                    .ToListAsync(ct);
-            }
-            else
-            {
-                primaries = await _context.LinkedRecords
-                    .AsNoTracking()
-                    .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
-                                 && lr.SourceTimestamp >= minTs && lr.SourceTimestamp <= maxTs)
-                    .OrderBy(lr => lr.SourceTimestamp)
-                    .ToListAsync(ct);
-            }
+            var minTs = run[0].SourceTimestamp - neighbourWindowMillis;
+            var maxTs = run[^1].SourceTimestamp + neighbourWindowMillis;
+            var primaries = await LoadNeighbourPrimariesAsync(recordType, minTs, maxTs, ct);
+            merged += await MergePrimariesAsync(recordType, primaries, candidateCanonicalIds, minTs, maxTs, ct);
         }
+
+        return merged;
+    }
+
+    /// <summary>
+    /// The primaries <see cref="MergeDuplicateGroupsAsync"/> must see to decide every pair touching
+    /// a candidate whose neighbour range is <paramref name="minTs"/> to <paramref name="maxTs"/>.
+    /// </summary>
+    private async Task<List<LinkedRecordEntity>> LoadNeighbourPrimariesAsync(
+        RecordType recordType, long minTs, long maxTs, CancellationToken ct)
+    {
+        var recordTypeStr = RecordTypeKeys.Key(recordType);
+
+        if (!WideMatchableTypes.Contains(recordType))
+        {
+            return await _context.LinkedRecords
+                .AsNoTracking()
+                .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
+                             && lr.SourceTimestamp >= minTs && lr.SourceTimestamp <= maxTs)
+                .OrderBy(lr => lr.SourceTimestamp)
+                .ToListAsync(ct);
+        }
+
+        // A wide-joined group spans up to a window, so its primary can sit outside the
+        // neighbour range while its members sit inside it. Select the groups by their links
+        // and then load those groups' primaries, so no group is ever half-visible to the
+        // extent comparison. Second, unremarked consequence: the tight pass now sees
+        // those same extra primaries, so its reach on this path widens too, which is convergent,
+        // since it only lets the tight rules collapse pairs a later pass would have anyway.
+        var neighbourCanonicals = await _context.LinkedRecords
+            .AsNoTracking()
+            .Where(lr => lr.RecordType == recordTypeStr
+                         && lr.SourceTimestamp >= minTs && lr.SourceTimestamp <= maxTs)
+            .Select(lr => lr.CanonicalId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        // Selected by canonical id alone. A timestamp bound here would be unsound at any
+        // width: everything in the merge (the union-find, the extents, the boundary deferral)
+        // is built from this list, so a group dropped for having a distant primary is not
+        // deferred, it is invisible, and the pairs it would have made ambiguous merge.
+        return await _context.LinkedRecords
+            .AsNoTracking()
+            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
+                         && neighbourCanonicals.Contains(lr.CanonicalId))
+            .OrderBy(lr => lr.SourceTimestamp)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The union-find, wide pass and re-pointing behind <see cref="MergeDuplicateGroupsAsync"/>, over
+    /// <paramref name="primaries"/> ordered by source timestamp.
+    /// </summary>
+    /// <param name="neighbourMinTs">
+    /// The start of the span the candidate-bounded path loaded. Groups whose extent reaches within a
+    /// wide window of either end may have an ambiguator just outside it, so the wide pass defers
+    /// them. Null on the full path, which loads everything and has no boundary: absence rather than
+    /// a sentinel value, so the deferral cannot be reached with a bound that would overflow the
+    /// subtraction.
+    /// </param>
+    /// <param name="neighbourMaxTs">The end of that span; null exactly when <paramref name="neighbourMinTs"/> is.</param>
+    private async Task<int> MergePrimariesAsync(
+        RecordType recordType,
+        List<LinkedRecordEntity> primaries,
+        IReadOnlySet<Guid>? candidateCanonicalIds,
+        long? neighbourMinTs,
+        long? neighbourMaxTs,
+        CancellationToken ct)
+    {
+        var recordTypeStr = RecordTypeKeys.Key(recordType);
+        var wideEligible = WideMatchableTypes.Contains(recordType);
 
         if (primaries.Count < 2)
             return 0;
@@ -1204,8 +1273,18 @@ public class DeduplicationService : IDeduplicationService
                 }
 
                 var candidateCanonicalIds = group.Select(l => l.CanonicalId).ToHashSet();
-                // GroupsMerged is the reduction in group count (k canonicals -> 1 == k-1), matching MergeDuplicateGroupsAsync.
-                merged += await MergeDuplicateGroupsAsync(type, candidateCanonicalIds, cancellationToken);
+                try
+                {
+                    // GroupsMerged is the reduction in group count (k canonicals -> 1 == k-1), matching MergeDuplicateGroupsAsync.
+                    merged += await MergeDuplicateGroupsAsync(type, candidateCanonicalIds, cancellationToken);
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogError(ex,
+                        "Dedup reconcile for tenant {TenantId} failed merging {RecordType}; the cursor stays at {CursorCreatedAt} {CursorLinkId} and every pass retries this batch until it succeeds",
+                        _context.TenantId, type, cursor?.CreatedAt, cursor?.Id);
+                    throw;
+                }
             }
 
             var last = batch[^1];
@@ -1532,16 +1611,18 @@ public class DeduplicationService : IDeduplicationService
     /// <summary>
     /// One record type's <see cref="DeduplicateAllAsync"/> phase. <see cref="Name"/> is reported as
     /// <see cref="DeduplicationProgress.CurrentPhase"/>, so callers observe it.
-    /// <see cref="RecordIds"/> is every id a link of this type can point at: the type's rows with
-    /// <see cref="NocturneDbContext.SoftDeleteFilterKey"/> lifted, because a soft-deleted record is
-    /// still linked. Tenant isolation stays on, which the <see cref="ITenantScoped"/> constraint on
+    /// <see cref="OrphanedLinks"/> is this type's links whose record id is absent from the type's rows
+    /// with <see cref="NocturneDbContext.SoftDeleteFilterKey"/> lifted, because a soft-deleted record
+    /// is still linked. It is a correlated <c>NOT EXISTS</c>: a negated <c>Contains</c> translates to
+    /// <c>NOT IN</c>, which PostgreSQL rescans per link once the record table outgrows work_mem.
+    /// Tenant isolation stays on, which the <see cref="ITenantScoped"/> constraint on
     /// <see cref="Phase{TEntity}"/> is what guarantees.
     /// </summary>
     private sealed record TypePhase(
         RecordType RecordType,
         string Name,
         Func<NocturneDbContext, CancellationToken, Task<int>> CountAsync,
-        Func<NocturneDbContext, IQueryable<Guid>> RecordIds,
+        Func<NocturneDbContext, IQueryable<LinkedRecordEntity>> OrphanedLinks,
         PhaseRunner RunAsync);
 
     /// <summary>
@@ -1565,9 +1646,15 @@ public class DeduplicationService : IDeduplicationService
             recordType,
             name,
             (context, ct) => set(context).CountAsync(ct),
-            context => set(context)
-                .IgnoreQueryFilters([NocturneDbContext.SoftDeleteFilterKey])
-                .Select(id),
+            context =>
+            {
+                var key = RecordTypeKeys.Key(recordType);
+                var recordIds = set(context)
+                    .IgnoreQueryFilters([NocturneDbContext.SoftDeleteFilterKey])
+                    .Select(id);
+                return context.LinkedRecords
+                    .Where(lr => lr.RecordType == key && !recordIds.Any(recordId => recordId == lr.RecordId));
+            },
             (service, totalRecords, startOffset, progress, ct) => service.DeduplicateTypeAsync(
                 recordType,
                 set(service._context),
@@ -1643,16 +1730,15 @@ public class DeduplicationService : IDeduplicationService
 
         foreach (var phase in TypePhases)
         {
-            var recordTypeStr = RecordTypeKeys.Key(phase.RecordType);
-            var recordIds = phase.RecordIds(context);
-
-            deleted += await context.LinkedRecords
-                .Where(lr => lr.RecordType == recordTypeStr && !recordIds.Contains(lr.RecordId))
-                .ExecuteDeleteAsync(ct);
+            deleted += await phase.OrphanedLinks(context).ExecuteDeleteAsync(ct);
         }
 
         return deleted;
     }
+
+    internal static IQueryable<LinkedRecordEntity> OrphanedLinksOf(
+        NocturneDbContext context, RecordType recordType) =>
+        TypePhases.Single(p => p.RecordType == recordType).OrphanedLinks(context);
 
     /// <inheritdoc />
     public async Task<DeduplicationResult> DeduplicateAllAsync(

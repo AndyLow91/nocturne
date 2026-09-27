@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Nocturne.Connectors.Core.Constants;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
@@ -89,13 +90,15 @@ internal interface ILegacyTreatmentTable
     );
 
     /// <summary>
-    /// The oldest <paramref name="limit"/> records whose <c>SysUpdatedAt</c> is strictly after
-    /// <paramref name="threshold"/>, oldest first.
+    /// A page of records changed at or after <paramref name="cursorMills"/>, oldest first, ending on
+    /// a millisecond boundary.
     /// </summary>
+    /// <remarks>The boundary rule is <see cref="HistoryPage"/>'s.</remarks>
     Task<IReadOnlyList<FetchedRecord>> ModifiedSinceAsync(
         NocturneDbContext context,
-        DateTime threshold,
+        long cursorMills,
         int limit,
+        ILogger logger,
         CancellationToken ct
     );
 
@@ -117,10 +120,8 @@ internal sealed class LegacyTreatmentTable<TRecord, TEntity>(
     Func<TRecord, CarbFoodIndex, Treatment> project
 ) : ILegacyTreatmentTable
     where TRecord : class
-    where TEntity : class, ISystemTimestamped
+    where TEntity : class, ISystemTimestamped, IIdentified
 {
-    private const string ModifiedProperty = nameof(ISystemTimestamped.SysUpdatedAt);
-
     /// <inheritdoc />
     public string RecordType { get; } = typeof(TRecord).Name;
 
@@ -142,17 +143,21 @@ internal sealed class LegacyTreatmentTable<TRecord, TEntity>(
     /// <inheritdoc />
     public async Task<IReadOnlyList<FetchedRecord>> ModifiedSinceAsync(
         NocturneDbContext context,
-        DateTime threshold,
+        long cursorMills,
         int limit,
+        ILogger logger,
         CancellationToken ct
     )
     {
-        var entities = await table(context)
-            .AsNoTracking()
-            .Where(e => EF.Property<DateTime>(e, ModifiedProperty) > threshold)
-            .OrderBy(e => EF.Property<DateTime>(e, ModifiedProperty))
-            .Take(limit)
-            .ToListAsync(ct);
+        var entities = await HistoryPage.GetAsync(
+            table(context).AsNoTracking(),
+            e => e.SysUpdatedAt,
+            e => e.Id,
+            cursorMills,
+            limit,
+            logger,
+            RecordType,
+            ct);
 
         return entities.Select(e => new FetchedRecord(this, toRecord(e), e.SysUpdatedAt)).ToList();
     }
@@ -236,6 +241,12 @@ internal static class LegacyTreatmentTables
             c => c.BolusCalculations, BolusCalculationMapper.ToDomainModel,
             (r, _) => ProjectBolusCalculation(r)),
     ];
+
+    private static readonly Dictionary<ILegacyTreatmentTable, int> Order =
+        All.Select((table, index) => (table, index)).ToDictionary(x => x.table, x => x.index);
+
+    /// <summary>Position in <see cref="All"/>, the tiebreak after the modification stamp.</summary>
+    internal static int OrderOf(ILegacyTreatmentTable table) => Order[table];
 
     /// <summary>
     /// Turns a page of rows into legacy treatments: a bolus and a carb intake sharing a correlation
