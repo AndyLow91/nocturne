@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nocturne.Connectors.Core.Interfaces;
@@ -23,7 +25,7 @@ public class CareLinkSignInFailureTests
     [Fact]
     public async Task Sync_WhenCareLinkCannotBeReached_DoesNotBlameTheCredentials()
     {
-        var result = await SyncWhenSignInThrows(new HttpRequestException("No such host is known"));
+        var result = await SyncAgainst(new CareLinkLoginHandler { Unreachable = true });
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("usually temporary")
@@ -35,30 +37,51 @@ public class CareLinkSignInFailureTests
     [Fact]
     public async Task Sync_WhenCareLinkRefusesTheSignIn_SendsTheTenantToTheirCredentials()
     {
-        var result = await SyncWhenSignInThrows(
-            new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized));
+        // Auth0 answers a wrong password with 200 and an error page.
+        var result = await SyncAgainst(new CareLinkLoginHandler());
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("did not accept this sign-in");
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
-    private static Task<SyncResult> SyncWhenSignInThrows(Exception failure)
+    private static async Task<SyncResult> SyncAgainst(CareLinkLoginHandler handler)
     {
-        var provider = new FailingSignInProvider(failure);
+        using var authClient = new HttpClient(handler, disposeHandler: false);
+        using var serviceClient = new HttpClient(handler, disposeHandler: false);
+        var resolver = new ConnectorServerResolver<CareLinkConnectorConfiguration>(
+            null, null, CareLinkConstants.Servers.Eu);
+
+        using var provider = new TestableProvider(
+            authClient,
+            new ConnectorTokenCache(),
+            resolver,
+            ResolvedTenant(),
+            NullLogger<CareLinkAuthTokenProvider>.Instance,
+            Mock.Of<IRetryDelayStrategy>(),
+            handler);
         var configService = new Mock<IConnectorConfigurationService>();
         configService
             .Setup(s => s.GetSecretsAsync("CareLink", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<string, string>());
         var service = new CareLinkConnectorService(
-            new HttpClient(),
-            new ConnectorServerResolver<CareLinkConnectorConfiguration>(null, null, null),
+            serviceClient,
+            resolver,
             provider,
             configService.Object,
             NullLogger<CareLinkConnectorService>.Instance);
 
-        return service.SyncDataAsync(
-            new SyncRequest { DataTypes = [SyncDataType.Glucose] }, new CareLinkConnectorConfiguration(), CancellationToken.None);
+        try
+        {
+            return await service.SyncDataAsync(
+                new SyncRequest { DataTypes = [SyncDataType.Glucose] },
+                new CareLinkConnectorConfiguration { Username = "user@example.com", Password = "hunter2", Server = "EU" },
+                CancellationToken.None);
+        }
+        finally
+        {
+            handler.Dispose();
+        }
     }
 
     private static ITenantAccessor ResolvedTenant()
@@ -69,24 +92,76 @@ public class CareLinkSignInFailureTests
         return tenant.Object;
     }
 
-    private sealed class FailingSignInProvider(Exception failure) : CareLinkAuthTokenProvider(
-        new HttpClient(),
-        new ConnectorTokenCache(),
-        new ConnectorServerResolver<CareLinkConnectorConfiguration>(null, null, null),
-        ResolvedTenant(),
-        NullLogger<CareLinkAuthTokenProvider>.Instance,
-        Mock.Of<IRetryDelayStrategy>())
+    /// <summary>Routes the provider's own auth-flow requests through the test handler.</summary>
+    private sealed class TestableProvider(
+        HttpClient httpClient,
+        IConnectorTokenCache tokenCache,
+        IConnectorServerResolver<CareLinkConnectorConfiguration> serverResolver,
+        ITenantAccessor tenantAccessor,
+        ILogger<CareLinkAuthTokenProvider> logger,
+        IRetryDelayStrategy retryDelayStrategy,
+        HttpMessageHandler handler)
+        : CareLinkAuthTokenProvider(httpClient, tokenCache, serverResolver, tenantAccessor, logger, retryDelayStrategy)
     {
-        protected override async Task<(string? Token, DateTime ExpiresAt, IReadOnlyDictionary<string, string>? Metadata)> AcquireTokenAsync(
-            CareLinkConnectorConfiguration config, CancellationToken cancellationToken)
+        protected override CareLinkAuthFlowService CreateAuthFlow() => new(NullLogger.Instance, handler);
+    }
+
+    /// <summary>
+    ///     Carries the Auth0 PKCE flow to the credential POST, which answers with Auth0's wrong-password
+    ///     page; or, when <see cref="Unreachable"/>, fails every request before any answer arrives.
+    /// </summary>
+    private sealed class CareLinkLoginHandler : HttpMessageHandler
+    {
+        private const string LoginHost = "carelink-login.example";
+        private const string SsoConfigUrl = $"https://{LoginHost}/configs/carepartner_auth0_sso_config.json";
+        private const string FormActionUrl = $"https://{LoginHost}/u/login";
+
+        public bool Unreachable { get; init; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var token = await ExecuteWithRetryAsync<string>(
-                _ => Task.FromException<(string?, bool)>(failure),
-                Mock.Of<IRetryDelayStrategy>(),
-                maxRetries: 2,
-                "test sign-in",
-                cancellationToken);
-            return (token, DateTime.MinValue, null);
+            if (Unreachable)
+                throw new HttpRequestException("No such host is known");
+
+            var url = request.RequestUri!.ToString();
+
+            if (url.Contains("/discover/", StringComparison.Ordinal))
+                return Answer($$"""
+                    {"CP":[{"region":"EU","Auth0SSOConfiguration":"{{SsoConfigUrl}}"}]}
+                    """);
+
+            if (url == SsoConfigUrl)
+                return Answer($$"""
+                    {
+                      "server": { "hostname": "{{LoginHost}}", "port": 443, "prefix": "" },
+                      "client": {
+                        "client_id": "client-1",
+                        "scope": "profile openid offline_access",
+                        "audience": "carepartner.patient.ous",
+                        "redirect_uri": "com.medtronic.carepartner:/sso"
+                      },
+                      "system_endpoints": {
+                        "authorization_endpoint_path": "/authorize",
+                        "token_endpoint_path": "/oauth/token"
+                      }
+                    }
+                    """);
+
+            if (url.StartsWith($"https://{LoginHost}/authorize", StringComparison.Ordinal))
+                return Answer($"<html><form action=\"{FormActionUrl}\" method=\"post\">"
+                              + "<input type=\"hidden\" name=\"state\" value=\"state-1\" /></form></html>");
+
+            if (url == FormActionUrl)
+                return Answer("Wrong username or password");
+
+            throw new InvalidOperationException($"Unexpected CareLink request: {url}");
         }
+
+        private static Task<HttpResponseMessage> Answer(string body) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "text/html")
+            });
     }
 }

@@ -23,7 +23,7 @@ public class MyFitnessPalSignInFailureTests
     [Fact]
     public async Task Sync_WhenMyFitnessPalCannotBeReached_DoesNotBlameTheCredentials()
     {
-        var result = await SyncWhenSignInThrows(new HttpRequestException("No such host is known"));
+        var result = await SyncAgainst(_ => throw new HttpRequestException("No such host is known"));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("usually temporary")
@@ -35,28 +35,42 @@ public class MyFitnessPalSignInFailureTests
     [Fact]
     public async Task Sync_WhenMyFitnessPalRefusesTheSignIn_SendsTheTenantToTheirCredentials()
     {
-        var result = await SyncWhenSignInThrows(
-            new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized));
+        var result = await SyncAgainst(_ => Answer(HttpStatusCode.Unauthorized, "{\"error\":\"invalid_grant\"}"));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("did not accept this sign-in");
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
-    private static Task<SyncResult> SyncWhenSignInThrows(Exception failure)
+    private static async Task<SyncResult> SyncAgainst(Func<HttpRequestMessage, HttpResponseMessage> answer)
     {
-        var provider = new FailingSignInProvider(failure);
+        using var authClient = new HttpClient(new StubHandler(answer));
+        using var serviceClient = new HttpClient(new StubHandler(answer));
+        var resolver = new ConnectorServerResolver<MyFitnessPalConnectorConfiguration>(null, null, null);
+
+        using var provider = new MyFitnessPalAuthTokenProvider(
+            authClient,
+            new ConnectorTokenCache(),
+            resolver,
+            ResolvedTenant(),
+            NullLogger<MyFitnessPalAuthTokenProvider>.Instance,
+            Mock.Of<IRetryDelayStrategy>());
         var service = new MyFitnessPalConnectorService(
-            new HttpClient(),
-            new ConnectorServerResolver<MyFitnessPalConnectorConfiguration>(null, null, null),
+            serviceClient,
+            resolver,
             NullLogger<MyFitnessPalConnectorService>.Instance,
             Mock.Of<IRetryDelayStrategy>(),
             provider,
             Mock.Of<IConnectorConfigurationService>());
 
-        return service.SyncDataAsync(
-            new SyncRequest { DataTypes = [SyncDataType.Food] }, new MyFitnessPalConnectorConfiguration(), CancellationToken.None);
+        return await service.SyncDataAsync(
+            new SyncRequest { DataTypes = [SyncDataType.Food] },
+            new MyFitnessPalConnectorConfiguration { Username = "someone@example.com", Password = "hunter2" },
+            CancellationToken.None);
     }
+
+    private static HttpResponseMessage Answer(HttpStatusCode status, string body) =>
+        new(status) { Content = new StringContent(body) };
 
     private static ITenantAccessor ResolvedTenant()
     {
@@ -66,24 +80,9 @@ public class MyFitnessPalSignInFailureTests
         return tenant.Object;
     }
 
-    private sealed class FailingSignInProvider(Exception failure) : MyFitnessPalAuthTokenProvider(
-        new HttpClient(),
-        new ConnectorTokenCache(),
-        new ConnectorServerResolver<MyFitnessPalConnectorConfiguration>(null, null, null),
-        ResolvedTenant(),
-        NullLogger<MyFitnessPalAuthTokenProvider>.Instance,
-        Mock.Of<IRetryDelayStrategy>())
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> answer) : HttpMessageHandler
     {
-        protected override async Task<(string? Token, DateTime ExpiresAt, IReadOnlyDictionary<string, string>? Metadata)> AcquireTokenAsync(
-            MyFitnessPalConnectorConfiguration config, CancellationToken cancellationToken)
-        {
-            var token = await ExecuteWithRetryAsync<string>(
-                _ => Task.FromException<(string?, bool)>(failure),
-                Mock.Of<IRetryDelayStrategy>(),
-                maxRetries: 2,
-                "test sign-in",
-                cancellationToken);
-            return (token, DateTime.MinValue, null);
-        }
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(answer(request));
     }
 }

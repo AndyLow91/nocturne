@@ -33,6 +33,13 @@ public static class LibreLinkUpConstants
     }
 
     /// <summary>
+    ///     The <c>status</c> LibreLinkUp's login answers a refused credential with. The refusal
+    ///     arrives as HTTP 200 (<c>{"status":2,"error":{"message":"notAuthenticated"}}</c>), so the
+    ///     status line alone reads as a malformed success.
+    /// </summary>
+    public const int RejectedCredentialStatus = 2;
+
+    /// <summary>
     ///     Configuration specific to LibreLinkUp
     /// </summary>
     public static class Configuration

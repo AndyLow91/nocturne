@@ -38,6 +38,12 @@ public abstract class AuthTokenProviderBase<TConfig>(
     private SignInFailure? _signInFailure;
 
     /// <summary>
+    ///     Whether the last answer judged in the current login attempt refused the credentials; see
+    ///     <see cref="RecordLoginAnswer(bool)"/>.
+    /// </summary>
+    private bool _attemptRefusedCredentials;
+
+    /// <summary>
     ///     How much a failed login says about the credentials. Only a source that refused them earns
     ///     the wording that sends someone to their password: telling a person to change a working one
     ///     during a source's outage costs them their data while they chase a fault that is not theirs.
@@ -47,7 +53,10 @@ public abstract class AuthTokenProviderBase<TConfig>(
         /// <summary>The source could not be signed in to. Says nothing about the credentials.</summary>
         Unavailable,
 
-        /// <summary>The source rejected the credentials: it answered 401 or 403.</summary>
+        /// <summary>
+        ///     The source rejected the credentials: it answered 401 or 403, or its provider recorded
+        ///     an equivalent refusal through <see cref="RecordLoginAnswer(bool)"/>.
+        /// </summary>
         CredentialsRefused,
     }
 
@@ -255,6 +264,24 @@ public abstract class AuthTokenProviderBase<TConfig>(
     protected static int LoginAttempts(TConfig config) => Math.Max(1, config.MaxRetryAttempts);
 
     /// <summary>
+    ///     Records whether an answer the login got refused the credentials, for an attempt that then
+    ///     ends with a null token and no retry. The last answer recorded in an attempt wins, so a
+    ///     rejected refresh token followed by a password grant failing another way is not reported
+    ///     as a refused password. <see cref="HandleErrorResponseAsync"/> records every status it sees;
+    ///     a provider calls this itself for a status it handles inline or for a refusal the source
+    ///     answers in a success body.
+    /// </summary>
+    protected void RecordLoginAnswer(bool credentialsRefused) => _attemptRefusedCredentials = credentialsRefused;
+
+    /// <summary>
+    ///     Records a failed status: 401 and 403 are the only answers about the credentials themselves.
+    ///     Every other status — a 404, a 405, a source's own 5xx variant — says the source could not
+    ///     be signed in to, which is not the same claim.
+    /// </summary>
+    protected void RecordLoginAnswer(HttpStatusCode status) =>
+        RecordLoginAnswer(status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
+
+    /// <summary>
     ///     Attempts <paramref name="operation"/> under the shared connector retry loop; see
     ///     <see cref="ConnectorRetryLoop.RunAsync{T}"/> for the attempt-budget and delay contract.
     /// </summary>
@@ -274,6 +301,7 @@ public abstract class AuthTokenProviderBase<TConfig>(
         return await ConnectorRetryLoop.RunAsync<T>(
             async (attempt, _) =>
             {
+                _attemptRefusedCredentials = false;
                 try
                 {
                     var (result, shouldRetry) = await operation(attempt);
@@ -283,10 +311,11 @@ public abstract class AuthTokenProviderBase<TConfig>(
                     if (shouldRetry)
                         return RetryStep<T>.RetryAfterDelay;
 
-                    // The source answered with something no further attempt can change, but nothing
-                    // here says the credentials were the problem — that verdict only ever arrives as
-                    // a status, on the exception path below.
-                    _signInFailure = SignInFailure.Unavailable;
+                    // The source answered with something no further attempt can change. Only an answer
+                    // the provider recorded as a refusal says the credentials were the problem.
+                    _signInFailure = _attemptRefusedCredentials
+                        ? SignInFailure.CredentialsRefused
+                        : SignInFailure.Unavailable;
                     return RetryStep<T>.Complete(default);
                 }
                 catch (HttpRequestException ex)
@@ -307,10 +336,8 @@ public abstract class AuthTokenProviderBase<TConfig>(
                     if (shouldRetry)
                         return RetryStep<T>.RetryAfterDelay;
 
-                    // 401 and 403 are the only answers about the credentials themselves. Every other
-                    // non-retryable status — a 404, a 405, a source's own 5xx variant — says the
-                    // source could not be signed in to, which is not the same claim.
-                    _signInFailure = ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                    RecordLoginAnswer(ex.StatusCode!.Value);
+                    _signInFailure = _attemptRefusedCredentials
                         ? SignInFailure.CredentialsRefused
                         : SignInFailure.Unavailable;
 
@@ -341,6 +368,8 @@ public abstract class AuthTokenProviderBase<TConfig>(
     ///     Reads the error response body from a failed HTTP response, logs it with the appropriate
     ///     severity based on whether the error is retryable, and returns whether a retry is warranted.
     ///     This consolidates the common error handling pattern used across connector token providers.
+    ///     The status is recorded through <see cref="RecordLoginAnswer(HttpStatusCode)"/>, so a 401 or
+    ///     403 handled here is reported as refused credentials.
     /// </summary>
     /// <param name="response">The failed HTTP response (caller must verify !IsSuccessStatusCode before calling)</param>
     /// <param name="operationName">A human-readable name for the operation, used in log messages</param>
@@ -351,6 +380,7 @@ public abstract class AuthTokenProviderBase<TConfig>(
         string operationName,
         CancellationToken cancellationToken)
     {
+        RecordLoginAnswer(response.StatusCode);
         var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (response.IsRetryableError())
