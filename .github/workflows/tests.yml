@@ -31,6 +31,7 @@ jobs:
       e2e: ${{ steps.filter.outputs.e2e == 'true' || github.event_name != 'pull_request' }}
       migrations: ${{ steps.filter.outputs.migrations == 'true' || github.event_name != 'pull_request' }}
       crates: ${{ steps.filter.outputs.crates == 'true' || github.event_name != 'pull_request' }}
+      desktop: ${{ steps.filter.outputs.desktop == 'true' || github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -75,6 +76,9 @@ jobs:
               - 'src/API/**'
               - 'tests/Parity/**'
               - 'tests/Unit/Nocturne.Alerts.Native.Tests/**'
+            desktop:
+              - *shared
+              - 'src/Web/packages/desktop/src-tauri/**'
 
   # Compiles every test project once and runs the API client codegen (NSwag, then the
   # Zod schemas and remote functions through pnpm) as the API build's post-build step. The test jobs
@@ -326,6 +330,48 @@ jobs:
         with:
           name: alerts-ffi-parity-trx
           path: "**/*.trx"
+
+  # The desktop Companion's Tauri crate. Windows only: tauri-winrt-notification's `windows`
+  # dependency does not compile elsewhere (see desktop-release.yml). generate_context! embeds
+  # frontendDist at compile time, so an empty one stands in for the web build no test reads.
+  desktop-rust:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: src/Web/packages/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt, llvm-tools-preview
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src/Web/packages/desktop/src-tauri -> target
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-llvm-cov
+      - name: Stand-in frontendDist
+        run: mkdir -p ../build
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        if: ${{ !cancelled() }}
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Tests with coverage
+        if: ${{ !cancelled() }}
+        run: cargo llvm-cov --locked --cobertura --output-path "$GITHUB_WORKSPACE/TestResults/desktop-rust/cobertura.xml"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: coverage-rust-desktop
+          path: TestResults/desktop-rust/cobertura.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Every web check that needs no browser: typechecks, lint, and the pure-node vitest suites, on
   # the build job's generated client. After the install and the client, every step runs even when
@@ -645,8 +691,10 @@ jobs:
   # request's sticky comment, and applies the patch coverage gate. A fork's pull request runs with
   # a read-only token, so its comment is posted by coverage-comment.yml from the uploaded report.
   coverage:
-    needs: [changes, unit, integration-db, web-static, web-app-tests]
-    if: ${{ !cancelled() && (needs.changes.outputs.dotnet == 'true' || needs.changes.outputs.web == 'true') }}
+    needs: [changes, unit, integration-db, web-static, web-app-tests, desktop-rust]
+    if: >-
+      ${{ !cancelled() && (needs.changes.outputs.dotnet == 'true' || needs.changes.outputs.web == 'true'
+      || needs.changes.outputs.desktop == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -700,7 +748,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -o pipefail
-          args=(--reports 'coverage-merged/Cobertura.xml,coverage-input/coverage-web-*/**/cobertura-coverage.xml'
+          args=(--reports 'coverage-merged/Cobertura.xml,coverage-input/coverage-web-*/**/cobertura-coverage.xml,coverage-input/coverage-rust-*/**/cobertura.xml'
                 --threshold "$COVERAGE_PATCH_THRESHOLD"
                 --out-markdown coverage.md --out-json coverage-summary.json)
           [ -f baseline/coverage-summary.json ] && args+=(--baseline baseline/coverage-summary.json)
@@ -764,6 +812,7 @@ jobs:
       - unit
       - alert-corpus-check
       - alerts-ffi-parity
+      - desktop-rust
       - web-static
       - web-app-tests
       - integration-db
