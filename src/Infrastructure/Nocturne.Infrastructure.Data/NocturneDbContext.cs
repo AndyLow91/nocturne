@@ -572,16 +572,24 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     ];
 
     /// <summary>
-    /// The timestamp columns whose database default is <c>CURRENT_TIMESTAMP</c>, grouped by the
-    /// column the default lands on. Listed rather than discovered from the
-    /// <see cref="ISystemCreated"/>, <see cref="ISystemTimestamped"/>, <see cref="IEntityCreated"/>
-    /// and <see cref="IEntityTimestamped"/> markers <see cref="UpdateTimestamps"/> switches on,
-    /// which neither imply the default nor are implied by it: the record, snapshot and schedule
-    /// tables declare the sys_* markers with no default behind them, while the alert, audit and
-    /// tenant-config tables carry the default without declaring a marker at all. The three
-    /// off-convention column names each govern a single table. <see cref="TenantRoleEntity"/> and
-    /// <see cref="TenantMemberRoleEntity"/> are absent because their defaults are spelled
-    /// <c>now()</c>. Adding a table here is a migration.
+    /// The marker-declared timestamp columns, by the marker that declares them. Every column here
+    /// gets a <c>CURRENT_TIMESTAMP</c> default, so a write that bypasses <see cref="UpdateTimestamps"/>
+    /// — raw SQL, <c>ExecuteUpdate</c>-style bulk paths, a manual fix in psql — still lands a real
+    /// time rather than <c>0001-01-01</c> in a non-nullable column.
+    /// </summary>
+    internal static readonly (Type Marker, string Property)[] MarkerTimestampColumns =
+    [
+        (typeof(ISystemCreated), nameof(ISystemCreated.SysCreatedAt)),
+        (typeof(ISystemTimestamped), nameof(ISystemTimestamped.SysUpdatedAt)),
+        (typeof(IEntityCreated), nameof(IEntityCreated.CreatedAt)),
+        (typeof(IEntityTimestamped), nameof(IEntityTimestamped.UpdatedAt)),
+    ];
+
+    /// <summary>
+    /// The timestamp columns outside <see cref="MarkerTimestampColumns"/> whose database default is
+    /// also <c>CURRENT_TIMESTAMP</c>, grouped by the column the default lands on: tables that carry
+    /// the default without declaring the marker for it, and three off-convention column names that
+    /// each govern a single table. Adding a table here is a migration.
     /// </summary>
     internal static readonly (string Property, Type[] Entities)[] CurrentTimestampDefaults =
     [
@@ -589,27 +597,15 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         [
             typeof(AlertCustomSoundEntity),
             typeof(AlertDeliveryEntity),
-            typeof(AlertExcursionMuteEntity),
             typeof(AlertInviteEntity),
             typeof(AlertRuleChannelEntity),
             typeof(AlertRuleEntity),
-            typeof(AuthAuditLogEntity),
             typeof(ClientDeviceEntity),
-            typeof(ClockFaceEntity),
             typeof(DndWindowEntity),
             typeof(InAppNotificationEntity),
-            typeof(LoginCodeEntity),
             typeof(MutationAuditLogEntity),
-            typeof(OAuthAuthorizationCodeEntity),
-            typeof(OAuthClientEntity),
-            typeof(OAuthDeviceCodeEntity),
-            typeof(OAuthGrantEntity),
-            typeof(OidcProviderEntity),
             typeof(ReadAccessLogEntity),
-            typeof(RefreshTokenEntity),
-            typeof(RoleEntity),
             typeof(SubjectAvatarEntity),
-            typeof(SubjectEntity),
             typeof(TenantAlertSettingsEntity),
             typeof(TenantDataRetentionConfigEntity),
         ]),
@@ -619,31 +615,8 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             typeof(AlertTrackerStateEntity),
             typeof(ClientDeviceEntity),
             typeof(ClockFaceEntity),
-            typeof(OAuthClientEntity),
-            typeof(OidcProviderEntity),
-            typeof(RefreshTokenEntity),
-            typeof(RoleEntity),
-            typeof(SubjectEntity),
             typeof(TenantAlertSettingsEntity),
             typeof(TenantDataRetentionConfigEntity),
-        ]),
-        (nameof(ISystemCreated.SysCreatedAt),
-        [
-            typeof(ClockFaceEntity),
-            typeof(LinkedRecordEntity),
-            typeof(TenantAuditConfigEntity),
-            typeof(UserFoodFavoriteEntity),
-        ]),
-        (nameof(ISystemTimestamped.SysUpdatedAt),
-        [
-            typeof(ClockFaceEntity),
-            typeof(ConnectorFoodEntryEntity),
-            typeof(FoodEntity),
-            typeof(HeartRateEntity),
-            typeof(SettingsEntity),
-            typeof(StepCountEntity),
-            typeof(TenantAuditConfigEntity),
-            typeof(TreatmentFoodEntity),
         ]),
         (nameof(SubjectRoleEntity.AssignedAt), [typeof(SubjectRoleEntity)]),
         (nameof(OAuthRefreshTokenEntity.IssuedAt), [typeof(OAuthRefreshTokenEntity)]),
@@ -651,10 +624,20 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     ];
 
     /// <summary>
-    /// Applies <see cref="CurrentTimestampDefaults"/>.
+    /// Applies <see cref="MarkerTimestampColumns"/> to every mapped entity declaring the marker,
+    /// then <see cref="CurrentTimestampDefaults"/>.
     /// </summary>
     private static void ConfigureCurrentTimestampDefaults(ModelBuilder modelBuilder)
     {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(e => !e.IsOwned()).ToList())
+        {
+            foreach (var (marker, property) in MarkerTimestampColumns)
+            {
+                if (marker.IsAssignableFrom(entityType.ClrType))
+                    modelBuilder.Entity(entityType.ClrType).Property(property).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            }
+        }
+
         foreach (var (property, entities) in CurrentTimestampDefaults)
         {
             foreach (var entity in entities.Select(t => modelBuilder.Entity(t)))
@@ -2372,14 +2355,11 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         modelBuilder.Entity<TenantRoleEntity>(entity =>
         {
             entity.HasIndex(e => new { e.TenantId, e.Slug }).IsUnique();
-            entity.Property(e => e.SysCreatedAt).HasDefaultValueSql("now()");
-            entity.Property(e => e.SysUpdatedAt).HasDefaultValueSql("now()");
         });
 
         modelBuilder.Entity<TenantMemberRoleEntity>(entity =>
         {
             entity.HasIndex(e => new { e.TenantMemberId, e.TenantRoleId }).IsUnique();
-            entity.Property(e => e.SysCreatedAt).HasDefaultValueSql("now()");
         });
 
         modelBuilder.Entity<AlertRuleEntity>(entity =>
