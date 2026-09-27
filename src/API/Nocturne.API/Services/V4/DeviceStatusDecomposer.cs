@@ -919,12 +919,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     private static long ResolveStatusMills(DeviceStatus ds) =>
         new DateTimeOffset(ResolveTimestamp(ds)).ToUnixTimeMilliseconds();
 
-    private static DateTime? ParseTimestampToDateTime(string? timestamp)
-    {
-        if (string.IsNullOrEmpty(timestamp))
-            return null;
-        return DateTimeOffset.TryParse(timestamp, out var dto) ? dto.UtcDateTime : null;
-    }
+    private static DateTime? ParseTimestampToDateTime(string? timestamp) =>
+        UploaderTimestamp.ParseUtcDateTime(timestamp);
 
     private static Dictionary<string, object> BuildOverrideMetadata(OverrideStatus overrideStatus)
     {

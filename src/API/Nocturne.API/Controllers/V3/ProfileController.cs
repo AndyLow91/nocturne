@@ -403,11 +403,10 @@ public class ProfileController : BaseV3Controller<Profile>
         var identifierParts = new List<string>();
 
         if (
-            !string.IsNullOrEmpty(profile.CreatedAt)
-            && DateTime.TryParse(profile.CreatedAt, out var parsedDate)
+            UploaderTimestamp.TryParse(profile.CreatedAt, out var parsedDate)
         )
         {
-            identifierParts.Add(parsedDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
+            identifierParts.Add(parsedDate.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
         }
 
         // Add profile name if available for better identification

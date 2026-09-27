@@ -526,7 +526,7 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
                 break;
 
             var oldestDate = statuses
-                .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
+                .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
                 .Where(dt => dt.HasValue)
                 .Min();
 
