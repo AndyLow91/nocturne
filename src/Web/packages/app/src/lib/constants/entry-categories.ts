@@ -108,3 +108,66 @@ export function countEntryRecords(records: EntryRecord[]): Record<EntryCategoryI
   for (const r of records) counts[r.kind]++;
   return counts;
 }
+
+export type EntryCategoryFilter = EntryCategoryId | "all";
+
+/** The Treatment Log's filter: one category (or all) and a free-text search. */
+export interface EntryFilter {
+  category: EntryCategoryFilter;
+  search: string;
+}
+
+export function isEntryCategoryFilter(value: string | null): value is EntryCategoryFilter {
+  return value === "all" || (value !== null && Object.hasOwn(ENTRY_CATEGORIES, value));
+}
+
+/**
+ * The records a Treatment Log filter keeps. The page's rows and its stats card
+ * (`getTreatmentStats`) both select through this, so they cover the same records.
+ */
+export function filterEntryRecords(records: EntryRecord[], filter: EntryFilter): EntryRecord[] {
+  let filtered = records;
+
+  if (filter.category !== "all") {
+    filtered = filtered.filter((r) => r.kind === filter.category);
+  }
+
+  const query = filter.search.trim().toLowerCase();
+  if (query) {
+    filtered = filtered.filter((r) => {
+      const searchable: string[] = [ENTRY_CATEGORIES[r.kind].name];
+
+      switch (r.kind) {
+        case "bolus":
+          if (r.data.bolusType) searchable.push(r.data.bolusType);
+          break;
+        case "carbs":
+          break;
+        case "bgCheck":
+          if (r.data.glucoseType) searchable.push(r.data.glucoseType);
+          break;
+        case "note":
+          if (r.data.text) searchable.push(r.data.text);
+          if (r.data.eventType) searchable.push(r.data.eventType);
+          break;
+        case "deviceEvent":
+          if (r.data.eventType) searchable.push(r.data.eventType);
+          if (r.data.notes) searchable.push(r.data.notes);
+          break;
+        case "basalInjection":
+          if (r.data.insulinContext?.insulinName)
+            searchable.push(r.data.insulinContext.insulinName);
+          if (r.data.notes) searchable.push(r.data.notes);
+          break;
+      }
+
+      if (r.data.dataSource) searchable.push(r.data.dataSource);
+      if (r.data.app) searchable.push(r.data.app);
+      if (r.data.device) searchable.push(r.data.device);
+
+      return searchable.join(" ").toLowerCase().includes(query);
+    });
+  }
+
+  return filtered;
+}

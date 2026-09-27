@@ -530,7 +530,7 @@ public class TreatmentSummary
     public int CarbEntryCount { get; set; }
 
     /// <summary>
-    /// Carbohydrate to insulin ratio (grams of carbs per unit of insulin)
+    /// Grams of carbs per unit of bolus insulin
     /// </summary>
     public double CarbToInsulinRatio { get; set; }
 
@@ -593,7 +593,8 @@ public class FoodTotals
 }
 
 /// <summary>
-/// Insulin totals
+/// Insulin totals of a <see cref="TreatmentSummary"/>. It summarises bolus records only;
+/// basal delivery is reported by <see cref="InsulinDeliveryStatistics"/>.
 /// </summary>
 public class InsulinTotals
 {
@@ -601,21 +602,6 @@ public class InsulinTotals
     /// Total bolus insulin in units
     /// </summary>
     public double Bolus { get; set; }
-
-    /// <summary>
-    /// Total basal insulin in units (scheduled + additional)
-    /// </summary>
-    public double Basal { get; set; }
-
-    /// <summary>
-    /// Scheduled (profile) basal insulin in units
-    /// </summary>
-    public double ScheduledBasal { get; set; }
-
-    /// <summary>
-    /// Additional basal insulin above scheduled rate (TBR - scheduled)
-    /// </summary>
-    public double AdditionalBasal { get; set; }
 }
 
 /// <summary>
@@ -624,29 +610,9 @@ public class InsulinTotals
 public class OverallAverages
 {
     /// <summary>
-    /// Average total daily insulin
-    /// </summary>
-    public double AvgTotalDaily { get; set; }
-
-    /// <summary>
     /// Average daily bolus insulin
     /// </summary>
     public double AvgBolus { get; set; }
-
-    /// <summary>
-    /// Average daily basal insulin
-    /// </summary>
-    public double AvgBasal { get; set; }
-
-    /// <summary>
-    /// Percentage of total insulin that is bolus
-    /// </summary>
-    public double BolusPercentage { get; set; }
-
-    /// <summary>
-    /// Percentage of total insulin that is basal
-    /// </summary>
-    public double BasalPercentage { get; set; }
 
     /// <summary>
     /// Average daily carbohydrates

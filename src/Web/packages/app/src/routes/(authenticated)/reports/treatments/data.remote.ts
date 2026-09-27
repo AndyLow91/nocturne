@@ -17,59 +17,91 @@ import {
 	UpdateBasalInjectionRequestSchema,
 } from '$lib/api/generated/schemas';
 import { DateRangeSchema, resolveReportRange } from '$api/report-range';
+import {
+	countEntryRecords,
+	filterEntryRecords,
+	isEntryCategoryFilter,
+	mergeEntryRecords,
+	type EntryCategoryFilter,
+} from '$lib/constants/entry-categories';
+
+async function fetchEntries(startDate: string, endDate: string) {
+	const { apiClient } = getRequestEvent().locals;
+	const [
+		bolusResponse,
+		carbResponse,
+		bgCheckResponse,
+		noteResponse,
+		deviceEventResponse,
+		basalInjectionResponse,
+	] = await Promise.all([
+		apiClient.bolus.getAll(startDate, endDate, 10000),
+		apiClient.nutrition.getCarbIntakes(startDate, endDate, 10000),
+		apiClient.bGCheck.getAll(startDate, endDate, 10000),
+		apiClient.note.getAll(startDate, endDate, 10000),
+		apiClient.deviceEvent.getAll(startDate, endDate, 10000),
+		apiClient.basalInjection.getAll(startDate, endDate, 10000),
+	]);
+
+	return {
+		boluses: bolusResponse.data ?? [],
+		carbIntakes: carbResponse.data ?? [],
+		bgChecks: bgCheckResponse.data ?? [],
+		notes: noteResponse.data ?? [],
+		deviceEvents: deviceEventResponse.data ?? [],
+		basalInjections: basalInjectionResponse.data ?? [],
+	};
+}
 
 /**
  * Get all v4 entry types for the treatments page.
- * Fetches boluses, carb intakes, BG checks, notes, and device events in parallel.
- * Treatment summary comes from the backend via calculateTreatmentSummary.
+ * Fetches boluses, carb intakes, BG checks, notes, device events and basal injections in parallel.
  */
 export const getTreatmentsData = query(
 	DateRangeSchema.optional(),
 	async (input) => {
-		const { locals } = getRequestEvent();
-		const { apiClient } = locals;
-		const { startDate, endDate, dayCount } = await resolveReportRange(input);
-		const [
-			bolusResponse,
-			carbResponse,
-			bgCheckResponse,
-			noteResponse,
-			deviceEventResponse,
-			basalInjectionResponse,
-		] = await Promise.all([
-			apiClient.bolus.getAll(startDate, endDate, 10000),
-			apiClient.nutrition.getCarbIntakes(startDate, endDate, 10000),
-			apiClient.bGCheck.getAll(startDate, endDate, 10000),
-			apiClient.note.getAll(startDate, endDate, 10000),
-			apiClient.deviceEvent.getAll(startDate, endDate, 10000),
-			apiClient.basalInjection.getAll(startDate, endDate, 10000),
-		]);
-
-		const boluses = bolusResponse.data ?? [];
-		const carbIntakes = carbResponse.data ?? [];
-		const bgChecks = bgCheckResponse.data ?? [];
-		const notes = noteResponse.data ?? [];
-		const deviceEvents = deviceEventResponse.data ?? [];
-		const basalInjections = basalInjectionResponse.data ?? [];
-
-		const treatmentSummary =
-			boluses.length > 0 || carbIntakes.length > 0
-				? await apiClient.statistics.calculateTreatmentSummary({ boluses, carbIntakes, dayCount })
-				: null;
+		const { startDate, endDate } = await resolveReportRange(input);
+		const entries = await fetchEntries(startDate, endDate);
 
 		return {
-			boluses,
-			carbIntakes,
-			bgChecks,
-			notes,
-			deviceEvents,
-			basalInjections,
-			treatmentSummary,
+			...entries,
 			dateRange: {
 				from: startDate,
 				to: endDate,
 			},
 		};
+	}
+);
+
+/**
+ * Figures for the Treatment Log's stats card. Every one of them is taken from
+ * the records the page's filter keeps: the counts here, and the backend
+ * treatment summary over the kept boluses and carb intakes.
+ */
+export const getTreatmentStats = query(
+	z.object({
+		range: DateRangeSchema.optional(),
+		category: z.custom<EntryCategoryFilter>(
+			(value) => typeof value === 'string' && isEntryCategoryFilter(value)
+		),
+		search: z.string(),
+	}),
+	async ({ range, category, search }) => {
+		const { apiClient } = getRequestEvent().locals;
+		const { startDate, endDate, dayCount } = await resolveReportRange(range);
+		const records = filterEntryRecords(
+			mergeEntryRecords(await fetchEntries(startDate, endDate)),
+			{ category, search }
+		);
+
+		const boluses = records.flatMap((r) => (r.kind === 'bolus' ? [r.data] : []));
+		const carbIntakes = records.flatMap((r) => (r.kind === 'carbs' ? [r.data] : []));
+		const treatmentSummary =
+			boluses.length > 0 || carbIntakes.length > 0
+				? await apiClient.statistics.calculateTreatmentSummary({ boluses, carbIntakes, dayCount })
+				: null;
+
+		return { counts: countEntryRecords(records), treatmentSummary };
 	}
 );
 
