@@ -20,7 +20,7 @@ namespace Nocturne.API.Tests.Integration.Auth;
 /// the platform_admin role cannot reach the platform-admin API.
 /// </summary>
 [Trait("Category", "Integration")]
-public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
+public class MultitenantIsolationIntegrationTests : ApiIntegrationTestBase
 {
     private Guid _tenantAId;
     private Guid _tenantBId;
@@ -33,7 +33,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
     private string _baseDomain = null!;
 
     public MultitenantIsolationIntegrationTests(
-        AspireIntegrationTestFixture fixture,
+        ApiIntegrationTestFixture fixture,
         ITestOutputHelper output)
         : base(fixture, output) { }
 
@@ -52,7 +52,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         (_subjectAId, _accessTokenA) = await AuthTestHelpers.SeedAuthenticatedSubjectAsync(conn, _tenantAId, "Tenant A User");
 
         // Create tenant B
-        _tenantBId = await AuthTestHelpers.SeedTenantAsync(conn, "tenant-b", "Tenant B");
+        _tenantBId = await AuthTestHelpers.SeedTenantAsync(Fixture, "tenant-b", "Tenant B");
         (_subjectBId, _accessTokenB) = await AuthTestHelpers.SeedAuthenticatedSubjectAsync(conn, _tenantBId, "Tenant B User");
 
         // Get the tenant A slug from DB
@@ -243,7 +243,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         var createResponse = await clientA.PostAsJsonAsync("/api/v4/guest-links", new
         {
             label = "Cross-Tenant Test",
-            scopes = new[] { "entries.read" }
+            scopes = new[] { "glucose.read" }
         });
         createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -262,6 +262,25 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
     }
 
     [Fact]
+    public async Task CrossTenant_PendingGuestCode_NotReported()
+    {
+        using var clientA = AuthTestHelpers.CreateAuthenticatedTenantClient(Fixture, _slugA, _baseDomain, _accessTokenA);
+        var createResponse = await clientA.PostAsJsonAsync("/api/v4/guest-links", new { label = "Pending Probe" });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var anonymousA = AuthTestHelpers.CreateTenantClient(Fixture, _slugA, _baseDomain);
+        using var anonymousB = AuthTestHelpers.CreateTenantClient(Fixture, _slugB, _baseDomain);
+
+        var pendingA = await anonymousA.GetFromJsonAsync<JsonElement>("/api/v4/guest-links/pending");
+        var pendingB = await anonymousB.GetFromJsonAsync<JsonElement>("/api/v4/guest-links/pending");
+
+        pendingA.GetProperty("pending").GetBoolean().Should().BeTrue(
+            "an anonymous visitor to tenant A should learn that A has a code waiting");
+        pendingB.GetProperty("pending").GetBoolean().Should().BeFalse(
+            "a code created in tenant A must not be reported on tenant B");
+    }
+
+    [Fact]
     public async Task CrossTenant_DirectGrant_NotUsable()
     {
         // Arrange - create a direct grant token in tenant A
@@ -269,7 +288,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         var createResponse = await clientA.PostAsJsonAsync("/api/auth/direct-grants", new
         {
             label = "cross-tenant-test",
-            scopes = new[] { "entries.read" }
+            scopes = new[] { "glucose.read" }
         });
         createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -278,7 +297,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         var nocToken = createBody.GetProperty("token").GetString()!;
 
         // Act - use the noc_ token on tenant B's subdomain
-        using var clientB = Fixture.CreateHttpClient("nocturne-api", "api");
+        using var clientB = Fixture.CreateHttpClient("nocturne-api", "http");
         clientB.DefaultRequestHeaders.Host = $"{_slugB}.{_baseDomain}";
         clientB.DefaultRequestHeaders.Add("Authorization", $"Bearer {nocToken}");
 
@@ -310,7 +329,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
 
         var (_, codeChallenge) = AuthTestHelpers.GeneratePkceChallenge();
         var authorizeUrl = $"/api/oauth/authorize?response_type=code&client_id={clientId}" +
-                           $"&redirect_uri=http://localhost:9999/callback&scope=entries.read" +
+                           $"&redirect_uri=http://localhost:9999/callback&scope=glucose.read" +
                            $"&code_challenge={codeChallenge}&code_challenge_method=S256";
 
         var response = await noRedirectClient.GetAsync(authorizeUrl);
@@ -325,7 +344,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
     public async Task UnknownSubdomain_Returns404()
     {
         // Arrange
-        using var client = Fixture.CreateHttpClient("nocturne-api", "api");
+        using var client = Fixture.CreateHttpClient("nocturne-api", "http");
         client.DefaultRequestHeaders.Host = $"nonexistent.{_baseDomain}";
 
         // Act
@@ -375,7 +394,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
     public async Task ApexDomain_MultipleTenants_Returns404()
     {
         // Arrange - both tenants are active (set up in InitializeAsync)
-        using var client = Fixture.CreateHttpClient("nocturne-api", "api");
+        using var client = Fixture.CreateHttpClient("nocturne-api", "http");
         client.DefaultRequestHeaders.Host = _baseDomain;
 
         // Act
@@ -404,7 +423,7 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         try
         {
             // Act - request without subdomain (apex domain)
-            using var client = Fixture.CreateHttpClient("nocturne-api", "api");
+            using var client = Fixture.CreateHttpClient("nocturne-api", "http");
             client.DefaultRequestHeaders.Host = _baseDomain;
 
             var response = await client.GetAsync("/api/v1/status");
@@ -541,9 +560,9 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
     }
 
     [Fact]
-    public async Task RevokedMember_Token_IsDenied_OnOwnTenant()
+    public async Task RemovedMember_Token_IsDenied_OnOwnTenant()
     {
-        // Sanity: subject A is a member of tenant A and can write before revocation.
+        // Sanity: subject A is a member of tenant A and can write before removal.
         var now = DateTimeOffset.UtcNow;
         using (var before = AuthTestHelpers.CreateTenantBearerClient(Fixture, _slugA, _baseDomain, _accessTokenA))
         {
@@ -554,26 +573,26 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
             ok.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Created);
         }
 
-        // Revoke subject A's membership in tenant A. No app path soft-revokes today, so simulate it
-        // directly, the same way other tests toggle tenants.is_active.
+        // Remove subject A's membership in tenant A the way RemoveMemberAsync does, directly on the
+        // database so the removal does not depend on the member-management endpoints.
         var connStr = await GetPostgresConnectionStringAsync();
         await using (var conn = new NpgsqlConnection(connStr))
         {
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE tenant_members SET revoked_at = now() WHERE subject_id = @s AND tenant_id = @t;";
+            cmd.CommandText = "DELETE FROM tenant_members WHERE subject_id = @s AND tenant_id = @t;";
             cmd.Parameters.AddWithValue("s", _subjectAId);
             cmd.Parameters.AddWithValue("t", _tenantAId);
             await cmd.ExecuteNonQueryAsync();
         }
 
         // The same previously-valid token is now rejected for both read and write — the membership
-        // gate (via the RevokedAt query filter) no longer sees subject A as a member of tenant A.
+        // gate no longer sees subject A as a member of tenant A.
         using var client = AuthTestHelpers.CreateTenantBearerClient(Fixture, _slugA, _baseDomain, _accessTokenA);
 
         var read = await client.GetAsync("/api/v1/entries/current");
         read.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
-            "a revoked member must not authenticate, even with a previously-valid access token");
+            "a removed member must not authenticate, even with a previously-valid access token");
 
         var write = await client.PostAsJsonAsync("/api/v1/entries", new[]
         {
@@ -581,6 +600,6 @@ public class MultitenantIsolationIntegrationTests : AspireIntegrationTestBase
         });
         write.StatusCode.Should().BeOneOf(
             new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden },
-            "a revoked member must not be able to write");
+            "a removed member must not be able to write");
     }
 }
