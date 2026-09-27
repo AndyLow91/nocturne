@@ -12,8 +12,10 @@ namespace Nocturne.Infrastructure.Data.Migrations
         {
             // Ingest used to flag each profile document's own default store, so a tenant fed by
             // several documents holds several defaults. Keep the newest, the store the newest
-            // document named. FORCE ROW LEVEL SECURITY binds the migrator, hence the per-tenant
-            // GUC loop; each statement still names the tenant for a migrator that bypasses RLS.
+            // document named. Profile-switch snapshots ('@@@@@' stores) were flagged too but are
+            // not documents, so they are cleared first and never win. FORCE ROW LEVEL SECURITY
+            // binds the migrator, hence the per-tenant GUC loop; each statement still names the
+            // tenant for a migrator that bypasses RLS.
             migrationBuilder.Sql("""
                 DO $$
                 DECLARE
@@ -21,6 +23,12 @@ namespace Nocturne.Infrastructure.Data.Migrations
                 BEGIN
                     FOR t IN SELECT id FROM tenants LOOP
                         PERFORM set_config('app.current_tenant_id', t.id::text, true);
+
+                        UPDATE therapy_settings
+                        SET is_default = false
+                        WHERE tenant_id = t.id
+                          AND is_default
+                          AND strpos(profile_name, '@@@@@') > 0;
 
                         WITH ranked AS (
                             SELECT id,

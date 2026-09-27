@@ -21,6 +21,9 @@ public class SingleDefaultTherapySettingsFixture : IAsyncLifetime
     /// <summary>Two documents, each flagging its own default store; the names differ only by case.</summary>
     internal static readonly Guid Duplicated = Guid.Parse("44444444-4444-7444-8444-444444444444");
 
+    /// <summary>A real document's default, and a newer flagged profile-switch snapshot.</summary>
+    internal static readonly Guid Switched = Guid.Parse("66666666-6666-7666-8666-666666666666");
+
     /// <summary>One default, already settled.</summary>
     internal static readonly Guid Settled = Guid.Parse("55555555-5555-7555-8555-555555555555");
 
@@ -75,7 +78,8 @@ public class SingleDefaultTherapySettingsFixture : IAsyncLifetime
         cmd.CommandText = $$"""
             INSERT INTO tenants (id, slug, display_name, is_active, sys_created_at, sys_updated_at) VALUES
               ('{{Duplicated}}', 'duplicated', 'Duplicated', true, now(), now()),
-              ('{{Settled}}',    'settled',    'Settled',    true, now(), now());
+              ('{{Settled}}',    'settled',    'Settled',    true, now(), now()),
+              ('{{Switched}}',   'switched',   'Switched',   true, now(), now());
 
             SELECT set_config('app.current_tenant_id', '{{Duplicated}}', false);
             INSERT INTO therapy_settings
@@ -98,6 +102,16 @@ public class SingleDefaultTherapySettingsFixture : IAsyncLifetime
                'only:Default', 'Default', 3, 20, 20, true, false, now(), now()),
               ('bbbbbbbb-0000-7000-8000-000000000005', '{{Settled}}', '2026-03-01T00:00:00Z',
                'other:Night', 'Night', 3, 20, 20, false, false, now(), now());
+
+            SELECT set_config('app.current_tenant_id', '{{Switched}}', false);
+            INSERT INTO therapy_settings
+              (id, tenant_id, timestamp, legacy_id, profile_name, dia, carbs_hr, delay, is_default,
+               is_externally_managed, sys_created_at, sys_updated_at)
+            VALUES
+              ('bbbbbbbb-0000-7000-8000-000000000006', '{{Switched}}', '2026-01-01T00:00:00Z',
+               'doc:Default', 'Default', 3, 20, 20, true, false, now(), now()),
+              ('bbbbbbbb-0000-7000-8000-000000000007', '{{Switched}}', '2026-04-01T00:00:00Z',
+               'switch:Day@@@@@1775001600000', 'Day@@@@@1775001600000', 3, 20, 20, true, false, now(), now());
 
             SELECT set_config('app.current_tenant_id', '', false);
             """;
@@ -122,6 +136,14 @@ public class SingleDefaultTherapySettingsTests(SingleDefaultTherapySettingsFixtu
     public async Task A_single_default_is_left_alone_even_when_older_rows_exist()
     {
         var defaults = await fixture.DefaultProfileNamesAsync(SingleDefaultTherapySettingsFixture.Settled);
+
+        defaults.Should().Equal(["Default"]);
+    }
+
+    [Fact]
+    public async Task A_newer_profile_switch_snapshot_does_not_take_the_default()
+    {
+        var defaults = await fixture.DefaultProfileNamesAsync(SingleDefaultTherapySettingsFixture.Switched);
 
         defaults.Should().Equal(["Default"]);
     }

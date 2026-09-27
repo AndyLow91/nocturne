@@ -23,6 +23,13 @@ namespace Nocturne.Core.Models.V4;
 public class TherapySettings : V4RecordBase, IProfileScoped
 {
     /// <summary>
+    /// Separates the profile name from the switch time in the store name of a profile a Profile
+    /// Switch treatment carried inline (<c>"{name}@@@@@{mills}"</c>). Such a row is a snapshot of
+    /// the switch, not a profile document, so it never takes part in the default (see <see cref="IsDefault"/>).
+    /// </summary>
+    public const string ProfileSwitchStoreMarker = "@@@@@";
+
+    /// <summary>
     /// Named profile this came from (e.g., "Default", "Weekday")
     /// </summary>
     public string ProfileName { get; set; } = "Default";

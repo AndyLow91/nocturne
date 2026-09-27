@@ -69,8 +69,17 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
     /// id they would fork off the settings row they belong to rather than join it.
     /// </para>
     /// </remarks>
-    public async Task<V4Models.DecompositionResult> DecomposeBatchAsync(
+    public Task<V4Models.DecompositionResult> DecomposeBatchAsync(
         IReadOnlyList<Profile> profiles, WriteOrigin origin, CancellationToken ct = default)
+        => DecomposeCoreAsync(profiles, origin, settlesDefault: true, ct);
+
+    /// <inheritdoc />
+    public Task<V4Models.DecompositionResult> DecomposeProfileSwitchAsync(
+        Profile profile, WriteOrigin origin, CancellationToken ct = default)
+        => DecomposeCoreAsync([profile], origin, settlesDefault: false, ct);
+
+    private async Task<V4Models.DecompositionResult> DecomposeCoreAsync(
+        IReadOnlyList<Profile> profiles, WriteOrigin origin, bool settlesDefault, CancellationToken ct)
     {
         var firstMinted = Guid.CreateVersion7();
         var result = new V4Models.DecompositionResult { CorrelationId = firstMinted };
@@ -96,8 +105,8 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
         if (entries.Count == 0)
             return result;
 
-        var claim = await ResolveDefaultClaimAsync(entries, ct);
-        var storedDefaults = claim.Claims
+        var claim = settlesDefault ? await ResolveDefaultClaimAsync(entries, ct) : new DefaultClaim(false, null);
+        var storedDefaults = claim.Claims || !settlesDefault
             ? []
             : (await _therapySettingsRepo.GetDefaultsAsync(ct))
                 .Select(d => d.LegacyId).OfType<string>().ToHashSet(StringComparer.Ordinal);
@@ -159,6 +168,7 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
     /// <c>defaultProfile</c> names none of its stores claims with no store, leaving no default, as
     /// Nightscout finds none. A batch that does not claim keeps the stored flags as they are, so
     /// re-syncing an older document neither takes the default nor drops a user's choice.
+    /// Profile-switch snapshots are not documents, so they neither claim nor count as stored newer.
     /// </remarks>
     private async Task<DefaultClaim> ResolveDefaultClaimAsync(List<StoreEntry> entries, CancellationToken ct)
     {
@@ -169,9 +179,7 @@ public class ProfileDecomposer : DecomposerBase, IProfileDecomposer, IDecomposer
             .ThenByDescending(p => p.Id, StringComparer.Ordinal)
             .First();
 
-        var storedNewest = (await _therapySettingsRepo.GetAsync(
-            from: null, to: null, device: null, source: null,
-            limit: 1, offset: 0, descending: true, ct: ct)).FirstOrDefault();
+        var storedNewest = await _therapySettingsRepo.GetNewestDocumentRowAsync(ct);
         var claims = storedNewest is null
             || storedNewest.Mills <= newest.Mills
             || storedNewest.LegacyId?.StartsWith($"{newest.Id}:", StringComparison.Ordinal) == true;

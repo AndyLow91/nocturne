@@ -217,6 +217,45 @@ public class ProfileDecomposerTests
         repos.SetDefaultCalls.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A profile switch carrying its profile inline (AAPS sends one on every switch) is not a
+    /// profile document: it must not take the default from the document before it, and its newer
+    /// snapshot must not stop that document from settling the default when it is re-synced.
+    /// </summary>
+    [Fact]
+    public async Task ProfileSwitchSnapshot_LeavesTheDocumentsDefault()
+    {
+        const string switchStore = "Day@@@@@1700000900000";
+        var repos = new Repositories(storedSettings:
+        [
+            new TherapySettings
+            {
+                LegacyId = "doc:Default", ProfileName = "Default", IsDefault = true,
+                Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime,
+            },
+            new TherapySettings
+            {
+                LegacyId = $"switch:{switchStore}", ProfileName = switchStore,
+                Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(1700000900000).UtcDateTime,
+            },
+        ]);
+
+        await repos.Decomposer.DecomposeProfileSwitchAsync(
+            BuildProfile(id: "switch", stores: [switchStore], mills: 1700000900000, defaultProfile: switchStore),
+            WriteOrigin.Live);
+
+        repos.Written.OfType<TherapySettings>().Should().ContainSingle()
+            .Which.IsDefault.Should().BeFalse();
+        repos.SetDefaultCalls.Should().BeEmpty();
+
+        await repos.Decomposer.DecomposeAsync(
+            BuildProfile(id: "doc", stores: ["Default"], mills: 1700000000000), WriteOrigin.Live);
+
+        var flagged = WrittenDefaults(repos).Should().ContainSingle().Subject;
+        flagged.LegacyId.Should().Be("doc:Default");
+        repos.SetDefaultCalls.Should().Equal([flagged.Id]);
+    }
+
     [Fact]
     public async Task DecomposeBatchAsync_WithNoStoreEntries_WritesNothing()
     {
@@ -255,10 +294,11 @@ public class ProfileDecomposerTests
             var therapy = Mock<ITherapySettingsRepository, TherapySettings>(anchorCorrelationId, refused, onUpsert);
             var therapyMock = Moq.Mock.Get(therapy);
             therapyMock
-                .Setup(x => x.GetAsync(
-                    It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<string?>(),
-                    It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(stored.OrderByDescending(s => s.Timestamp).Take(1).ToList());
+                .Setup(x => x.GetNewestDocumentRowAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(stored
+                    .Where(s => !s.ProfileName.Contains(TherapySettings.ProfileSwitchStoreMarker))
+                    .OrderByDescending(s => s.Timestamp)
+                    .FirstOrDefault());
             therapyMock
                 .Setup(x => x.GetDefaultsAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(stored.Where(s => s.IsDefault).ToList());

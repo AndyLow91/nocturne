@@ -123,6 +123,19 @@ public class TherapySettingsRepository : V4RepositoryBase<TherapySettings, Thera
     }
 
     /// <inheritdoc />
+    public async Task<TherapySettings?> GetNewestDocumentRowAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        var entity = await ctx
+            .TherapySettings.AsNoTracking()
+            .Where(e => !e.ProfileName.Contains(TherapySettings.ProfileSwitchStoreMarker))
+            .OrderByDescending(e => e.Timestamp)
+            .ThenByDescending(e => e.Id)
+            .FirstOrDefaultAsync(ct);
+        return entity is null ? null : TherapySettingsMapper.ToDomainModel(entity);
+    }
+
+    /// <inheritdoc />
     public async Task SetDefaultAsync(Guid? id, CancellationToken ct = default)
     {
         await using var ctx = await ContextFactory.CreateAsync(ct);

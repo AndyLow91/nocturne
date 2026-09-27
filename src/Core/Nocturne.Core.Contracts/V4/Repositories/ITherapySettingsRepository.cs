@@ -44,6 +44,13 @@ public interface ITherapySettingsRepository : IProfileScopedRepository<TherapySe
     Task<IReadOnlyList<TherapySettings>> GetDefaultsAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// The newest row decomposed from a profile document, leaving out profile-switch snapshots
+    /// (see <see cref="TherapySettings.ProfileSwitchStoreMarker"/>).
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    Task<TherapySettings?> GetNewestDocumentRowAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Makes the row <paramref name="id"/> the tenant's only <see cref="TherapySettings.IsDefault"/> row,
     /// or clears the flag on every row when <paramref name="id"/> is <c>null</c>.
     /// </summary>
