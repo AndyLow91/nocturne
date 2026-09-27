@@ -6,6 +6,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Nocturne.API.Helpers;
 using Nocturne.API.Services.Audit;
+using Nocturne.Connectors.Core.Services;
 using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Constants;
 using Nocturne.Core.Models;
@@ -1199,13 +1200,19 @@ internal class MigrationJob
 
     /// <summary>
     ///     How a paged pull bounds and advances its time cursor: <paramref name="Filter"/> is the
-    ///     query-string fragment restricting a page to records at or before the cursor, and
+    ///     query-string fragment restricting a page to records at or before the cursor,
     ///     <paramref name="Oldest"/> reads the page's oldest record, answering <c>null</c> when the
-    ///     page carries no usable timestamp to page back from.
+    ///     page carries no usable timestamp to page back from, <paramref name="AdmittedThrough"/>
+    ///     is the latest record time the filter for a cursor admits, <paramref name="Envelope"/> is
+    ///     how far above the anchor the first page reaches, and <paramref name="AtOrBefore"/> is
+    ///     whether a record's instant is at or before the anchor.
     /// </summary>
     private sealed record PageCursor(
         Func<DateTime, string> Filter,
-        Func<IReadOnlyList<ProcessableDocumentBase>, DateTime?> Oldest
+        Func<IReadOnlyList<ProcessableDocumentBase>, DateTime?> Oldest,
+        Func<DateTime, DateTime> AdmittedThrough,
+        TimeSpan Envelope,
+        Func<ProcessableDocumentBase, DateTime, bool> AtOrBefore
     );
 
     /// <summary>Entries page on the numeric <c>date</c> field, which mirrors mills exactly.</summary>
@@ -1217,15 +1224,21 @@ internal class MigrationJob
             return dated.Count == 0
                 ? null
                 : DateTimeOffset.FromUnixTimeMilliseconds(dated.Min(d => d.Mills)).UtcDateTime;
-        });
+        },
+        to => to,
+        TimeSpan.Zero,
+        (_, _) => true);
 
-    /// <summary>Every other collection pages on the ISO-8601 <c>created_at</c> string.</summary>
+    /// <summary>
+    ///     Every other collection pages on the ISO-8601 <c>created_at</c> string, inside the
+    ///     <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/>.
+    /// </summary>
     private static readonly PageCursor s_createdAtCursor = new(
-        to => $"&find[created_at][$lte]={to.ToUniversalTime():o}",
-        page => page
-            .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
-            .Where(dt => dt.HasValue)
-            .Min());
+        to => $"&find[created_at][$lte]={BackwardTimePager.CreatedAtUpperBound(to)}",
+        page => BackwardTimePager.OldestWrittenCreatedAt(page, d => d.CreatedAt),
+        BackwardTimePager.CreatedAtAdmittedThrough,
+        BackwardTimePager.CreatedAtOffsetEnvelope,
+        (d, anchor) => BackwardTimePager.CreatedAtWithin(d.CreatedAt, null, anchor));
 
     /// <summary>
     ///     A legacy collection pulled page by page over a time cursor. <paramref name="Name"/> is
@@ -1333,28 +1346,47 @@ internal class MigrationJob
         var totalMigrated = 0L;
         var totalFailed = 0L;
         var tally = new DecompositionTally();
-        DateTime? currentTo = FirstPageAnchor;
         var failedIds = new HashSet<string>(StringComparer.Ordinal);
+        var pageNumber = 0;
 
         using var scope = CreateTenantScope();
         var decompose = collection.Decompose(scope.ServiceProvider);
 
-        for (var pageNumber = 1; ; pageNumber++)
+        var anchor = FirstPageAnchor;
+        var pages = BackwardTimePager.PageAsync<T>(
+            from: null,
+            to: anchor + collection.Cursor.Envelope,
+            ApiPageSize,
+            BackwardTimePager.WidestPageSize(ApiPageSize),
+            async (bound, count) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                pageNumber++;
+
+                var url = $"/api/v1/{collection.Name}.json?count={count}";
+                if (bound.HasValue)
+                    url += collection.Cursor.Filter(bound.Value);
+
+                var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+                    httpClient, url, collection.Label, ct);
+
+                var (parsed, newlyFailed) = ParseDocuments<T>(documents, collection.Label, pageNumber, failedIds);
+                totalFailed += newlyFailed;
+                return new TimePage<T>(parsed, documents.Length);
+            },
+            // With no date on a full page to page back from, the cursor cannot move, and ending
+            // here would drop every older document without saying so.
+            page => collection.Cursor.Oldest(page) ?? throw new MigrationSourceException(
+                $"Nightscout sent a page of {collection.Label} that Nocturne could not read, so the rest were not fetched.",
+                MigrationFailureCause.Internal),
+            collection.Cursor.AdmittedThrough,
+            _logger,
+            "Migration",
+            collection.Name);
+
+        await foreach (var served in pages)
         {
-            ct.ThrowIfCancellationRequested();
-
-            var url = $"/api/v1/{collection.Name}.json?count={ApiPageSize}";
-            if (currentTo.HasValue)
-                url += collection.Cursor.Filter(currentTo.Value);
-
-            var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
-                httpClient, url, collection.Label, ct);
-
-            if (documents.Length == 0) break;
-
-            var (page, newlyFailed) = ParseDocuments<T>(documents, collection.Label, pageNumber, failedIds);
-            totalFailed += newlyFailed;
-
+            var page = served.Where(d => collection.Cursor.AtOrBefore(d, anchor)).ToArray();
             if (page.Length > 0)
             {
                 try
@@ -1374,21 +1406,6 @@ internal class MigrationJob
                 Math.Max(knownTotal, totalMigrated + totalFailed + tally.DocumentsSkipped),
                 totalMigrated, totalFailed, false, tally);
             UpdateOverallProgress();
-
-            if (documents.Length < ApiPageSize) break;
-
-            // With no date on a full page to page back from, the cursor cannot move, and ending
-            // here would drop every older document without saying so.
-            var oldestDate = page.Length == 0 ? null : collection.Cursor.Oldest(page);
-            if (!oldestDate.HasValue)
-            {
-                throw new MigrationSourceException(
-                    $"Nightscout sent a page of {collection.Label} that Nocturne could not read, so the rest were not fetched.",
-                    MigrationFailureCause.Internal);
-            }
-
-            if (currentTo.HasValue && oldestDate.Value >= currentTo.Value) break;
-            currentTo = oldestDate.Value.AddMilliseconds(-1);
         }
 
         UpdateCollectionProgress(collection.Name,
