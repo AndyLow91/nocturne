@@ -11,6 +11,7 @@ using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Serializers;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
@@ -1472,6 +1473,129 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
     /// <inheritdoc />
     /// <remarks>
+    /// A connector's rows can sit under an uploader's <c>id</c> where its <c>_id</c> belongs (see
+    /// <see cref="UploaderIdJsonModifier"/>); read by <c>_id</c>, the same treatments would otherwise be
+    /// stored a second time beside them. Equivalents sharing that <c>id</c> were merged into the row of
+    /// the last one written, so the row moves to the equivalent at its time. A row the user deleted
+    /// stays under the client id and its tombstone is copied onto every equivalent, because
+    /// <see cref="SoftDeleteDedupExtensions.WhereBlocksRecreation{TEntity}"/> blocks only the id a
+    /// tombstone carries; left in place, it still reaches an equivalent a later publish delivers.
+    /// An id something already holds is left alone rather than merged into.
+    /// </remarks>
+    public async Task<int> RekeyClientIdRecordsAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default)
+    {
+        var equivalents = new Dictionary<string, List<Treatment>>(StringComparer.Ordinal);
+        foreach (var treatment in treatments)
+        {
+            if (treatment.Id is { Length: > 0 } id && TreatmentClientId.Of(treatment) is { Length: > 0 } clientId
+                && clientId != id)
+            {
+                if (!equivalents.TryGetValue(clientId, out var group))
+                    equivalents[clientId] = group = [];
+                group.Add(treatment);
+            }
+        }
+
+        if (equivalents.Count == 0)
+            return 0;
+
+        string[] clientIds = [.. equivalents.Keys];
+        var stored = new List<ClientIdRow>();
+        foreach (var table in DecomposedTables)
+            stored.AddRange(await table.ClientIdRowsAsync(source, clientIds, ct));
+        stored.AddRange((await StateSpansFromSource(source, clientIds).AsNoTracking()
+                .Select(s => new { Key = s.OriginalId!, s.StartTimestamp, Live = s.DeletedAt == null })
+                .ToListAsync(ct))
+            .Select(s => new ClientIdRow(s.Key, s.StartTimestamp, s.Live)));
+        if (stored.Count == 0)
+            return 0;
+
+        var (held, _) = await GetHeldLegacyIdsAsync(
+            equivalents.Values.SelectMany(g => g).Select(t => t.Id!).ToHashSet(), ct);
+        var moves = new List<(string From, string To)>();
+        var copies = new List<(string From, string[] To)>();
+        foreach (var rows in stored.GroupBy(r => r.LegacyId, StringComparer.Ordinal))
+        {
+            var group = equivalents[rows.Key];
+            if (!rows.Any(r => r.Live))
+            {
+                string[] unheld = [.. group.Select(t => t.Id!).Where(id => !held.Contains(id)).Distinct()];
+                if (unheld.Length > 0)
+                    copies.Add((rows.Key, unheld));
+                continue;
+            }
+
+            var storedAt = rows.Select(r => ToMills(r.At)).ToHashSet();
+            var target = group.FirstOrDefault(t => storedAt.Contains(t.Mills)) ?? group[0];
+            if (!held.Contains(target.Id!))
+                moves.Add((rows.Key, target.Id!));
+        }
+
+        if (moves.Count == 0 && copies.Count == 0)
+            return 0;
+
+        return await _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+            var moved = 0;
+            foreach (var (from, to) in moves)
+            {
+                foreach (var table in DecomposedTables)
+                    moved += await table.RekeyAsync(source, from, to, ct);
+
+                moved += await StateSpansFromSource(source, [from])
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.OriginalId, to), ct);
+            }
+
+            foreach (var (from, to) in copies)
+            {
+                foreach (var table in DecomposedTables)
+                    await table.AddTombstoneCopiesAsync(source, from, to, ct);
+
+                var spanTombstones = await StateSpansFromSource(source, [from]).AsNoTracking()
+                    .Where(s => s.DeletedAt != null).ToListAsync(ct);
+                AddTombstoneCopies(_dbContext, spanTombstones, to, (s, id) => s.OriginalId = id);
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return moved;
+        });
+    }
+
+    private static long ToMills(DateTime at) =>
+        new DateTimeOffset(DateTime.SpecifyKind(at, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+
+    /// <summary>Stages a user tombstone like each of <paramref name="tombstones"/> under each of <paramref name="keys"/>.</summary>
+    private static void AddTombstoneCopies<T>(
+        NocturneDbContext context, IEnumerable<T> tombstones, string[] keys, Action<T, string> setKey)
+        where T : class, IIdentified
+    {
+        foreach (var row in tombstones)
+        {
+            foreach (var key in keys)
+            {
+                var copy = (T)context.Entry(row).CurrentValues.ToObject();
+                copy.Id = Guid.CreateVersion7();
+                setKey(copy, key);
+                context.Add(copy);
+                context.Entry(copy).Property("DeletedByUser").CurrentValue = true;
+            }
+        }
+    }
+
+    private sealed record ClientIdRow(string LegacyId, DateTime At, bool Live);
+
+    private IQueryable<StateSpanEntity> StateSpansFromSource(string source, string[] originalIds) =>
+        _dbContext.StateSpans.IgnoreQueryFilters()
+            .Where(s => s.TenantId == _dbContext.TenantId && s.Source == source
+                     && s.OriginalId != null && originalIds.Contains(s.OriginalId))
+            .WhereBlocksRecreation();
+
+    /// <inheritdoc />
+    /// <remarks>
     /// A connector's rows carry the <see cref="UpstreamFingerprint"/> of the document they were last
     /// written from (<see cref="UpstreamFingerprintScope"/>). A stored treatment is decomposed again
     /// unless every row this source holds under its id carries the current fingerprint. An edit made
@@ -1699,6 +1823,15 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         /// <summary>Stamps this source's rows that carry no fingerprint yet.</summary>
         Task StampUnfingerprintedAsync(
             string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct);
+
+        /// <summary>This source's live rows and user tombstones under <paramref name="legacyIds"/>.</summary>
+        Task<List<ClientIdRow>> ClientIdRowsAsync(string source, string[] legacyIds, CancellationToken ct);
+
+        /// <summary>Moves this source's live rows and user tombstones from one legacy id to another.</summary>
+        Task<int> RekeyAsync(string source, string from, string to, CancellationToken ct);
+
+        /// <summary>Stages a copy of this source's user tombstones under <paramref name="legacyId"/> for each of <paramref name="copyTo"/>.</summary>
+        Task AddTombstoneCopiesAsync(string source, string legacyId, string[] copyTo, CancellationToken ct);
     }
 
     private sealed class DecomposedTable<T>(
@@ -1753,6 +1886,34 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
                     .ExecuteUpdateAsync(u => u.SetProperty(e => e.UpstreamFingerprint, fingerprint), ct);
             }
         }
+
+        public async Task<List<ClientIdRow>> ClientIdRowsAsync(string source, string[] legacyIds, CancellationToken ct)
+        {
+            var stored = FromSource(BlockingRows().AsNoTracking(), source, legacyIds);
+            var live = await storedAt(stored.Where(e => e.DeletedAt == null)).ToListAsync(ct);
+            var deleted = await storedAt(stored.Where(e => e.DeletedAt != null)).ToListAsync(ct);
+            return
+            [
+                .. live.Select(r => new ClientIdRow(r.LegacyId, r.At, Live: true)),
+                .. deleted.Select(r => new ClientIdRow(r.LegacyId, r.At, Live: false)),
+            ];
+        }
+
+        public Task<int> RekeyAsync(string source, string from, string to, CancellationToken ct)
+            => FromSource(BlockingRows(), source, [from]).ExecuteUpdateAsync(u => u.SetProperty(e => e.LegacyId, to), ct);
+
+        public async Task AddTombstoneCopiesAsync(string source, string legacyId, string[] copyTo, CancellationToken ct)
+        {
+            if (copyTo.Length == 0)
+                return;
+
+            var tombstones = await FromSource(BlockingRows().AsNoTracking(), source, [legacyId])
+                .Where(e => e.DeletedAt != null).ToListAsync(ct);
+            AddTombstoneCopies(context, tombstones, copyTo, (e, id) => e.LegacyId = id);
+        }
+
+        private IQueryable<T> BlockingRows() =>
+            rows.IgnoreQueryFilters().Where(e => e.TenantId == context.TenantId).WhereBlocksRecreation();
 
         private static IQueryable<T> FromSource(IQueryable<T> query, string source, string[] legacyIds)
             => query.Where(e => e.DataSource == source && e.LegacyId != null && legacyIds.Contains(e.LegacyId));
