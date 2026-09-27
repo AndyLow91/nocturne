@@ -799,6 +799,25 @@ public class EntriesControllerTests
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             times);
 
+    [Theory]
+    [InlineData("""{"_id":"6ab400000000000000000001","id":"B5E5A1C2-0000-4000-8000-000000000001","sgv":120,"date":1700000000000}""")]
+    [InlineData("""{"id":"B5E5A1C2-0000-4000-8000-000000000001","_id":"6ab400000000000000000001","sgv":120,"date":1700000000000}""")]
+    public async Task CreateEntries_UploaderLowercaseId_DoesNotReplaceObjectId(string body)
+    {
+        List<Entry>? processedInput = null;
+        _mockDocumentProcessingService
+            .Setup(x => x.ProcessDocuments(It.IsAny<IEnumerable<Entry>>()))
+            .Callback<IEnumerable<Entry>>(entries => processedInput = entries.ToList())
+            .Returns<IEnumerable<Entry>>(entries => entries);
+        StubNothingStored();
+
+        await _controller.CreateEntries(JsonDocument.Parse(body).RootElement.Clone());
+
+        var entry = processedInput.Should().ContainSingle().Subject;
+        entry.Id.Should().Be("6ab400000000000000000001");
+        entry.AdditionalProperties!["id"].ToString().Should().Be("B5E5A1C2-0000-4000-8000-000000000001");
+    }
+
     private void StubNothingStored() => StubStoredAt();
 
     /// <summary>
