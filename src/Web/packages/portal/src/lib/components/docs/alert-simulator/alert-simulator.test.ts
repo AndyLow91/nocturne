@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ConditionNode } from './wire';
 import { SCENARIOS, carbsOnBoard, insulinOnBoard, ticksFor, type Scenario } from './fixtures';
 import { PRESETS, presetRule } from './presets';
-import { replayResult, ruleResponses } from './replay-view';
-import { asGroup, collapse, fromRow, toRow } from './tree';
+import { chartData, replayResult, ruleResponses } from './replay-view';
+import { LEAF_KINDS, asGroup, collapse, defaultLeaf, fromRow, toRow } from './tree';
 
 const MINUTE = 60_000;
 
@@ -108,6 +108,51 @@ describe('replay in the shape the app reads', () => {
 		]);
 		expect(result.leafTransitionsByRule?.[rules[0].id]).toEqual([{ leafId: 0, points: [{ atMs: 1, value: true }] }]);
 		expect(result.windowStart).toBe(new Date(trace.start).toISOString());
+	});
+
+	it('stores every leaf kind with its own payload as the params', () => {
+		const leaves = LEAF_KINDS.map(({ kind }, i) => ({ id: `r${i}`, name: kind, severity: 'info' as const, condition: defaultLeaf(kind) }));
+		const responses = ruleResponses(leaves);
+		responses.forEach((response, i) => {
+			const leaf = leaves[i].condition as Record<string, unknown>;
+			expect(response.conditionType).toBe(leaf.type);
+			expect(response.conditionParams).toEqual(leaf[leaf.type as string]);
+		});
+		const wrapped = ruleResponses([
+			{ id: 'n', name: 'not', severity: 'critical', condition: { type: 'not', not: { child: defaultLeaf('iob') } } },
+			{ id: 's', name: 'held', severity: 'warning', condition: { type: 'sustained', sustained: { minutes: 5, child: defaultLeaf('cob') } } },
+		]);
+		expect(wrapped.map((r) => r.conditionType)).toEqual(['not', 'sustained']);
+		expect(wrapped[0]).toMatchObject({ severity: 'critical', autoResolveEnabled: false });
+	});
+
+	it('times each fact a leaf reads, leaving out ticks where it is unknown', () => {
+		const trace: Scenario = {
+			...scenario([[5, 100], [10, 90]]),
+			carbs: [{ at: 10 * MINUTE, grams: 20, label: 'Juice', absorbMinutes: 60 }],
+			boluses: [{ at: 0, units: 2 }],
+		};
+		const { factTimelines } = replayResult(trace, [], ticksFor(trace), { order: [], events: [], leaf_transitions: [], ticks: [] });
+		expect(factTimelines?.latest_glucose.map((p) => p.value)).toEqual([100, 90, 90, 90, 90]);
+		expect(factTimelines?.trend_rate).toHaveLength(5);
+		expect(factTimelines?.iob).toHaveLength(6);
+		expect(factTimelines?.cob.map((p) => p.value).slice(0, 3)).toEqual([0, 0, 20]);
+		expect(factTimelines?.time_since_last_carb_minutes.map((p) => p.value)).toEqual([0, 5, 10, 15]);
+	});
+
+	it('draws the scenario as the app would chart it', () => {
+		const trace: Scenario = {
+			...scenario([[0, 100], [5, 120]]),
+			carbs: [{ at: 0, grams: 30, label: 'Toast', absorbMinutes: 60 }],
+			boluses: [{ at: 0, units: 3 }],
+		};
+		const data = chartData(trace);
+		expect(data.glucoseData.map((p) => p.sgv)).toEqual([100, 120]);
+		expect(data.carbMarkers).toMatchObject([{ carbs: 30, label: 'Toast', treatmentId: 'carbs-0' }]);
+		expect(data.bolusMarkers).toMatchObject([{ insulin: 3, treatmentId: 'bolus-0' }]);
+		expect(data.iobSeries[0].value).toBe(3);
+		expect(data.maxCob).toBe(30);
+		expect(data.maxIob).toBe(3);
 	});
 });
 
