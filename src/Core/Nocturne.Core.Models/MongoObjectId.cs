@@ -38,6 +38,12 @@ public static class MongoObjectId
     public static string FromGuid(Guid id) => id.ToString("N").Substring(0, 24);
 
     /// <summary>
+    /// A fresh ObjectId for a record uploaded without an id. Stored as its legacy id, it is the id
+    /// every surface puts on the wire verbatim, so later lookups and write-back resolve it directly.
+    /// </summary>
+    public static string NewObjectId() => FromGuid(Guid.CreateVersion7());
+
+    /// <summary>
     /// Coerces any identifier into a 24-hex ObjectId for the wire:
     /// an existing ObjectId passes through, a UUID becomes its 24-hex prefix, and anything else
     /// (e.g. a synthetic or non-UUID legacy id) is hashed deterministically to 24 hex.

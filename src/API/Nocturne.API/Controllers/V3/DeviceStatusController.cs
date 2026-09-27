@@ -256,13 +256,14 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
                     );
                     if (existing != null)
                     {
+                        var existingIdentifier = MongoObjectId.Coerce(existing.Id);
                         return Ok(
                             new
                             {
                                 status = 200,
-                                identifier = existing.Id,
+                                identifier = existingIdentifier,
                                 isDeduplication = true,
-                                deduplicatedIdentifier = existing.Id,
+                                deduplicatedIdentifier = existingIdentifier,
                             }
                         );
                     }
@@ -509,10 +510,9 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
     /// <param name="deviceStatus">Device status to process</param>
     private void ProcessDeviceStatusForCreation(DeviceStatus deviceStatus)
     {
-        // Generate identifier if not present (legacy behavior)
         if (string.IsNullOrEmpty(deviceStatus.Id))
         {
-            deviceStatus.Id = GenerateIdentifier(deviceStatus);
+            deviceStatus.Id = MongoObjectId.NewObjectId();
         }
 
         // Ensure DeviceStatus has required properties for V3 compatibility
@@ -520,41 +520,6 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
         {
             deviceStatus.CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
         }
-    }
-
-    /// <summary>
-    /// Generate identifier for device status following legacy API v3 logic
-    /// Uses created_at and device fields for deduplication fallback
-    /// </summary>
-    /// <param name="deviceStatus">Device status record</param>
-    /// <returns>Generated identifier</returns>
-    private string GenerateIdentifier(DeviceStatus deviceStatus)
-    {
-        // Legacy API v3 uses created_at + device for devicestatus deduplication
-        var identifierParts = new List<string>();
-
-        if (!string.IsNullOrEmpty(deviceStatus.CreatedAt))
-        {
-            identifierParts.Add(deviceStatus.CreatedAt);
-        }
-
-        if (!string.IsNullOrEmpty(deviceStatus.Device))
-        {
-            identifierParts.Add(deviceStatus.Device);
-        }
-
-        // Add timestamp for uniqueness
-        identifierParts.Add(DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"));
-
-        // If we have identifying parts, create a hash-based identifier
-        if (identifierParts.Any())
-        {
-            var combined = string.Join("-", identifierParts);
-            return $"devicestatus-{combined.GetHashCode():X}";
-        }
-
-        // Fallback to GUID for unique identification
-        return Guid.CreateVersion7().ToString();
     }
 
     /// <summary>
