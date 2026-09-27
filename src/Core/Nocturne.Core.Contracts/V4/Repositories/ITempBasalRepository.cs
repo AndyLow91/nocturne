@@ -17,7 +17,7 @@ namespace Nocturne.Core.Contracts.V4.Repositories;
 /// <seealso cref="TempBasal"/>
 /// <seealso cref="Treatments.IIobCalculator"/>
 /// <seealso cref="IStateSpanService"/>
-public interface ITempBasalRepository : IDeviceAttributedRepository<TempBasal>, IBulkCreateRepository<TempBasal>
+public interface ITempBasalRepository : IDeviceAttributedRepository<TempBasal>, IBulkCreateRepository<TempBasal>, IBulkUpsertRepository<TempBasal>
 {
     /// <summary>Retrieve a page of <see cref="TempBasal"/> records filtered by time range, device, and source.</summary>
     /// <param name="from">Inclusive start of the time window, or <c>null</c> for no lower bound.</param>

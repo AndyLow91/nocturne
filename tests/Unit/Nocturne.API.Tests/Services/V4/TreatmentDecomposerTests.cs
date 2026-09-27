@@ -3160,7 +3160,7 @@ public class TreatmentDecomposerTests : IDisposable
             .ReturnsAsync((StateSpan ss, CancellationToken _) => ss);
 
         _tempBasalRepoMock
-            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.TempBasal>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.TempBasal>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.TempBasal> list, WriteOrigin origin, CancellationToken _) => [.. list]);
 
         // Act

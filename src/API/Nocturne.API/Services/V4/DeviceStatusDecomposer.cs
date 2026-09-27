@@ -648,9 +648,9 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
 
         using (SystemAttributedBatchWrites(_auditContext))
         {
-            await BulkCreateAsync(_apsRepo, apsList, result, origin, ct);
-            await BulkCreateAsync(_pumpRepo, pumpList, result, origin, ct);
-            await BulkCreateAsync(_uploaderRepo, uploaderList, result, origin, ct);
+            await BulkUpsertAsync(_apsRepo, apsList, result, origin, ct);
+            await BulkUpsertAsync(_pumpRepo, pumpList, result, origin, ct);
+            await BulkUpsertAsync(_uploaderRepo, uploaderList, result, origin, ct);
             await BulkCreateAsync(_extrasRepo, extrasList, result, origin, ct);
         }
 
@@ -666,7 +666,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         // Post-insert pump suspension pass: sequential, order-dependent
         if (pumpList.Count > 0)
         {
-            var persistedPumps = result.CreatedRecords.OfType<V4Models.PumpSnapshot>()
+            var persistedPumps = result.CreatedRecords.Concat(result.UpdatedRecords)
+                .OfType<V4Models.PumpSnapshot>()
                 .OrderBy(p => p.Timestamp)
                 .ToList();
 

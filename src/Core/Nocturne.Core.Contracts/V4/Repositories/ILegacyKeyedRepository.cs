@@ -23,6 +23,28 @@ public interface IBulkCreateRepository<TRecord>
 }
 
 /// <summary>
+/// Batch create-or-update for one record type: the batch twin of looking a record up by its
+/// <see cref="IV4Record.LegacyId"/> and then updating the stored row or creating a new one, which
+/// is what the decomposers' single-record path does.
+/// </summary>
+/// <typeparam name="TRecord">The record type stored by this repository.</typeparam>
+public interface IBulkUpsertRepository<TRecord>
+{
+    /// <summary>
+    /// Updates in place every record whose legacy id a live stored row carries, and writes the rest
+    /// as <see cref="IBulkCreateRepository{TRecord}.BulkCreateAsync"/> would, in one transaction. A
+    /// legacy id repeated in the batch keeps its last record. A stored device attribution survives
+    /// an update whose record carries none.
+    /// </summary>
+    /// <returns>
+    /// The written records, with <see cref="BulkWrite{TRecord}.Updated"/> naming those that updated
+    /// a stored row, and how many were withheld because the user had deleted them.
+    /// </returns>
+    Task<BulkWrite<TRecord>> BulkUpsertAsync(
+        IEnumerable<TRecord> records, WriteOrigin origin, CancellationToken ct = default);
+}
+
+/// <summary>
 /// One record's outcome from <see cref="ILegacyKeyedRepository{TRecord}.BulkUpsertByLegacyIdAsync"/>:
 /// the persisted record and whether it was inserted rather than updated in place.
 /// </summary>
@@ -33,10 +55,12 @@ public sealed record LegacyUpsert<TRecord>(TRecord Record, bool Created);
 /// A V4 repository addressable by the legacy MongoDB <c>_id</c> its records were decomposed from.
 /// This is the surface the decomposers upsert through, so their create-or-update body can live in
 /// one generic place (<c>DecomposerBase.UpsertByLegacyIdAsync</c> per record,
-/// <see cref="BulkUpsertByLegacyIdAsync"/> per batch).
+/// <see cref="BulkUpsertByLegacyIdAsync"/> or <see cref="IBulkUpsertRepository{TRecord}.BulkUpsertAsync"/>
+/// per batch).
 /// </summary>
 /// <typeparam name="TRecord">The V4 record type stored by this repository.</typeparam>
-public interface ILegacyKeyedRepository<TRecord> : IV4Repository<TRecord>, IBulkCreateRepository<TRecord>
+public interface ILegacyKeyedRepository<TRecord>
+    : IV4Repository<TRecord>, IBulkCreateRepository<TRecord>, IBulkUpsertRepository<TRecord>
     where TRecord : class, IV4Record
 {
     /// <summary>
@@ -52,7 +76,8 @@ public interface ILegacyKeyedRepository<TRecord> : IV4Repository<TRecord>, IBulk
     /// The legacy id is the only identity this method matches on. The types whose creates upsert on a
     /// sync key (sensor glucose, boluses, carb intakes, the device-status snapshots) do not support it
     /// and throw <see cref="NotSupportedException"/>; their batch path is
-    /// <see cref="IBulkCreateRepository{TRecord}.BulkCreateAsync"/>.
+    /// <see cref="IBulkUpsertRepository{TRecord}.BulkUpsertAsync"/>, which matches the legacy id
+    /// first and the sync key after.
     /// </remarks>
     /// <param name="preserveStoredCorrelationId">
     /// Whether a stored, non-empty correlation id outlives the record's own. Only an anchor record

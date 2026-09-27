@@ -511,10 +511,9 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
     /// These rows are also the user-editable food-breakdown surface
     /// (<see cref="ITreatmentFoodService"/>, <c>/carbs/{id}/foods</c>), so re-decomposing a
     /// treatment must neither duplicate the line nor overwrite what a user has since attributed to
-    /// it. Reaching a stored carb intake is routine rather than exceptional: a create that matches
-    /// on the sync key upserts the stored row in place and still reports as created, so a connector
-    /// replaying its catch-up overlap window arrives here on every poll. The existence check is
-    /// what makes this write idempotent — the "created" signal cannot carry it, and there is no
+    /// it. A stored carb intake can still reach this: a single-path create that matches on the
+    /// sync key upserts the stored row in place through <c>CreateAsync</c> and reports as created.
+    /// The existence check is what makes this write idempotent there, and there is no
     /// unique index to lean on because a carb intake legitimately holds many lines once a user has
     /// attributed several foods to it.
     /// </remarks>
@@ -1250,10 +1249,10 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
             if (c.ProduceCarbIntake)
             {
                 carbList.Add(MapToCarbIntake(treatment, correlationId));
-                // First-wins, matching the bulk write's own keep-first dedup by legacy id, so the
-                // line describes the carb intake that was actually inserted.
+                // Last-wins, matching the bulk upsert's own keep-last by legacy id, so the line
+                // describes the carb intake that was actually written.
                 if (treatment.Id is { } carbLegacyId)
-                    foodLineTreatments.TryAdd(carbLegacyId, treatment);
+                    foodLineTreatments[carbLegacyId] = treatment;
             }
 
             if (c.ProduceBGCheck)
@@ -1345,18 +1344,18 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
         using (SystemAttributedBatchWrites(_auditContext))
         {
-            await BulkCreateAsync(_bolusRepository, bolusList, result, origin, ct);
-            await BulkCreateAsync(_carbIntakeRepository, carbList, result, origin, ct);
-            await BulkCreateAsync(_bgCheckRepository, bgCheckList, result, origin, ct);
-            await BulkCreateAsync(_noteRepository, noteList, result, origin, ct);
-            await BulkCreateAsync(_bolusCalculationRepository, bolusCalcList, result, origin, ct);
-            await BulkCreateAsync(_deviceEventRepository, deviceEventList, result, origin, ct);
-            await BulkCreateAsync(_tempBasalRepository, tempBasalList, result, origin, ct);
+            await BulkUpsertAsync(_bolusRepository, bolusList, result, origin, ct);
+            await BulkUpsertAsync(_carbIntakeRepository, carbList, result, origin, ct);
+            await BulkUpsertAsync(_bgCheckRepository, bgCheckList, result, origin, ct);
+            await BulkUpsertAsync(_noteRepository, noteList, result, origin, ct);
+            await BulkUpsertAsync(_bolusCalculationRepository, bolusCalcList, result, origin, ct);
+            await BulkUpsertAsync(_deviceEventRepository, deviceEventList, result, origin, ct);
+            await BulkUpsertAsync(_tempBasalRepository, tempBasalList, result, origin, ct);
         }
 
-        // Post-insert food pass: the carb intake's id is only known once it is persisted. This set
-        // is not create-only — a sync-key upsert of a stored carb intake lands in it too — so the
-        // writer, not this loop, is what keeps the line idempotent.
+        // Post-insert food pass: the carb intake's id is only known once it is persisted. Created
+        // only, as on the single path: a carb intake that updated a stored row keeps whatever food
+        // lines it has, including none if the user deleted the seeded one.
         foreach (var carbIntake in result.CreatedRecords.OfType<V4Models.CarbIntake>())
         {
             if (carbIntake.LegacyId is { } legacyId && foodLineTreatments.TryGetValue(legacyId, out var treatment))
@@ -1387,10 +1386,11 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         // Post-insert linking: Bolus → BolusCalculation by matching LegacyId
         if (bolusCalcLinkTreatmentIds.Count > 0)
         {
-            var persistedBoluses = result.CreatedRecords.OfType<V4Models.Bolus>()
+            var persisted = result.CreatedRecords.Concat(result.UpdatedRecords).ToList();
+            var persistedBoluses = persisted.OfType<V4Models.Bolus>()
                 .Where(b => b.LegacyId != null && bolusCalcLinkTreatmentIds.Contains(b.LegacyId))
                 .ToList();
-            var persistedCalcs = result.CreatedRecords.OfType<V4Models.BolusCalculation>()
+            var persistedCalcs = persisted.OfType<V4Models.BolusCalculation>()
                 .Where(c => c.LegacyId != null && bolusCalcLinkTreatmentIds.Contains(c.LegacyId))
                 .ToDictionary(c => c.LegacyId!);
 

@@ -39,15 +39,15 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         _stateSpanServiceMock = new Mock<IStateSpanService>();
         _deviceServiceMock = new Mock<IDeviceService>();
 
-        // BulkCreateAsync returns the input records
+        // BulkUpsertAsync returns the input records
         _apsRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.ApsSnapshot> records, WriteOrigin origin, CancellationToken _) => [.. records]);
         _pumpRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.PumpSnapshot> records, WriteOrigin origin, CancellationToken _) => [.. records]);
         _uploaderRepoMock
-            .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<V4Models.UploaderSnapshot> records, WriteOrigin origin, CancellationToken _) => [.. records]);
         _extrasRepoMock
             .Setup(x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.DeviceStatusExtras>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
@@ -116,19 +116,19 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
 
         // Assert
         _apsRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.ApsSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         _pumpRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.PumpSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         _uploaderRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.UploaderSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -145,13 +145,13 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
 
         // Assert
         _apsRepoMock.Verify(
-            x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
+            x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.ApsSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _pumpRepoMock.Verify(
-            x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
+            x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.PumpSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _uploaderRepoMock.Verify(
-            x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
+            x => x.BulkUpsertAsync(It.IsAny<IEnumerable<V4Models.UploaderSnapshot>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _extrasRepoMock.Verify(
             x => x.BulkCreateAsync(It.IsAny<IEnumerable<V4Models.DeviceStatusExtras>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
@@ -221,19 +221,19 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
 
         // Assert - all three snapshot types extracted from one device status
         _apsRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.ApsSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         _pumpRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.PumpSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         _uploaderRepoMock.Verify(
-            x => x.BulkCreateAsync(
+            x => x.BulkUpsertAsync(
                 It.Is<IEnumerable<V4Models.UploaderSnapshot>>(list => list.Count() == 1),
                 It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()),
             Times.Once);

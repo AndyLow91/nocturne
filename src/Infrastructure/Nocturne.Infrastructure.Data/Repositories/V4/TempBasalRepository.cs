@@ -351,37 +351,112 @@ public class TempBasalRepository : ITempBasalRepository
     /// Performs a bulk creation of temporary basal records, handling deduplication.
     /// </summary>
     /// <returns>A collection of created records.</returns>
-    public async Task<BulkWrite<TempBasal>> BulkCreateAsync(
+    public Task<BulkWrite<TempBasal>> BulkCreateAsync(
         IEnumerable<TempBasal> records,
         WriteOrigin origin, CancellationToken ct = default
-    )
+    ) => BulkWriteAsync(records.ToList(), origin, updateByLegacyId: false, ct);
+
+    /// <inheritdoc />
+    public Task<BulkWrite<TempBasal>> BulkUpsertAsync(
+        IEnumerable<TempBasal> records, WriteOrigin origin, CancellationToken ct = default)
+        => BulkWriteAsync(records.ToList(), origin, updateByLegacyId: true, ct);
+
+    private async Task<BulkWrite<TempBasal>> BulkWriteAsync(
+        List<TempBasal> records, WriteOrigin origin, bool updateByLegacyId, CancellationToken ct)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        var (entities, skippedDeleted) = await ctx.ExecuteInTransactionAsync(
+        var (updated, materiallyChanged, entities, skippedDeleted) = await ctx.ExecuteInTransactionAsync(
             async token =>
             {
-                var entities = records.Select(TempBasalMapper.ToEntity).ToList();
+                var (updated, materiallyChanged, candidates) = updateByLegacyId
+                    ? await UpdateByLegacyIdAsync(ctx, records, token)
+                    : ([], [], records.Select(TempBasalMapper.ToEntity).ToList());
 
                 var (toInsert, skippedDeleted) = await ctx.InsertUnblockedAsync(
-                    entities,
+                    candidates,
                     e => e.LegacyId,
                     (legacyIds, t) => ctx.GetBlockingLegacyIdsAsync<TempBasalEntity>(legacyIds, t),
                     token);
 
-                return (toInsert, skippedDeleted);
+                return (updated, materiallyChanged, toInsert, skippedDeleted);
             },
             (attempt, token) => ctx.AnyLandedAsync(attempt.toInsert, token),
             ct: ct);
 
         _logger.LogSkippedDeleted(nameof(TempBasal), skippedDeleted);
-        if (entities.Count == 0)
+        if (entities.Count == 0 && updated.Count == 0)
             return new BulkWrite<TempBasal>([], skippedDeleted);
 
-        await LinkInsertedAsync(entities, ct);
+        if (entities.Count > 0)
+            await LinkInsertedAsync(entities, ct);
 
         var created = entities.Select(TempBasalMapper.ToDomainModel).ToList();
-        await RaiseBroadcastAsync(created, [], [], origin, ct);
-        return new BulkWrite<TempBasal>(created, skippedDeleted);
+        var updatedModels = updated.Select(TempBasalMapper.ToDomainModel).ToList();
+        await RaiseBroadcastAsync(
+            created, materiallyChanged.Select(TempBasalMapper.ToDomainModel).ToList(), [], origin, ct);
+        return new BulkWrite<TempBasal>([.. updatedModels, .. created], skippedDeleted)
+        {
+            Updated = updatedModels,
+        };
+    }
+
+    /// <summary>
+    /// The temp-basal twin of <c>V4RepositoryBase.SplitLegacyIdUpdatesAsync</c>: updates the live
+    /// rows carrying a record's legacy id, last record winning, and returns the rest to insert.
+    /// </summary>
+    private static async Task<(List<TempBasalEntity> Updated, List<TempBasalEntity> MateriallyChanged, List<TempBasalEntity> ToInsert)>
+        UpdateByLegacyIdAsync(NocturneDbContext ctx, List<TempBasal> records, CancellationToken ct)
+    {
+        var lastByLegacyId = new Dictionary<string, TempBasal>(StringComparer.Ordinal);
+        foreach (var record in records)
+        {
+            if (!string.IsNullOrEmpty(record.LegacyId))
+                lastByLegacyId[record.LegacyId] = record;
+        }
+
+        var legacyIds = lastByLegacyId.Keys.ToList();
+        var storedByLegacyId = new Dictionary<string, TempBasalEntity>(StringComparer.Ordinal);
+        if (legacyIds.Count > 0)
+        {
+            var stored = await ctx.TempBasals
+                .Where(e => e.LegacyId != null && legacyIds.Contains(e.LegacyId))
+                .ToListAsync(ct);
+            foreach (var entity in stored)
+                storedByLegacyId.TryAdd(entity.LegacyId!, entity);
+        }
+
+        var updated = new List<TempBasalEntity>();
+        var materiallyChanged = new List<TempBasalEntity>();
+        var toInsert = new List<TempBasalEntity>();
+        foreach (var record in records)
+        {
+            if (string.IsNullOrEmpty(record.LegacyId))
+            {
+                toInsert.Add(TempBasalMapper.ToEntity(record));
+                continue;
+            }
+
+            if (!ReferenceEquals(lastByLegacyId[record.LegacyId], record))
+                continue;
+
+            if (!storedByLegacyId.TryGetValue(record.LegacyId, out var entity))
+            {
+                toInsert.Add(TempBasalMapper.ToEntity(record));
+                continue;
+            }
+
+            record.PatientDeviceId ??= entity.PatientDeviceId;
+            record.Id = entity.Id;
+            TempBasalMapper.UpdateEntity(entity, record);
+            updated.Add(entity);
+            if (V4MaterialChange.HasMaterialChange(ctx.Entry(entity)))
+                materiallyChanged.Add(entity);
+        }
+
+        if (updated.Count > 0)
+            await ctx.SaveChangesAsync(ct);
+
+        return (updated, materiallyChanged, toInsert);
     }
 
     /// <inheritdoc />
