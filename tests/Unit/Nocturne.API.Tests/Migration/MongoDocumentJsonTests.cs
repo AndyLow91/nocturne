@@ -68,4 +68,14 @@ public class MongoDocumentJsonTests
 
         render.Should().Throw<OverflowException>();
     }
+
+    [Fact]
+    public void A_bson_date_beyond_datetime_range_throws_argument_out_of_range()
+    {
+        var document = new BsonDocument { { "created_at", new BsonDateTime(long.MaxValue) } };
+
+        var render = () => MigrationJob.ToNightscoutJson(document);
+
+        render.Should().Throw<ArgumentOutOfRangeException>();
+    }
 }

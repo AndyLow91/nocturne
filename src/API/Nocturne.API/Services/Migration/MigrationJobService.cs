@@ -1628,10 +1628,10 @@ internal class MigrationJob
                 {
                     documents.Add(ToNightscoutJson(bson));
                 }
-                catch (OverflowException)
+                catch (Exception ex) when (ex is OverflowException or ArgumentOutOfRangeException)
                 {
                     _logger.LogWarning(
-                        "Skipped {Collection} document {Index} in batch {Batch}: a decimal is out of range",
+                        "Skipped {Collection} document {Index} in batch {Batch}: a decimal or date is out of range",
                         collection.Label, index, batchNumber);
                     totalFailed++;
                 }
@@ -1675,6 +1675,7 @@ internal class MigrationJob
     /// and a BSON date as an ISO-8601 string, which is what the domain models read.
     /// </summary>
     /// <exception cref="OverflowException">A Decimal128 lies outside the range of <see cref="decimal"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A BSON date lies outside the range of <see cref="DateTime"/>.</exception>
     internal static System.Text.Json.JsonElement ToNightscoutJson(BsonDocument document) =>
         System.Text.Json.JsonSerializer.SerializeToElement(ToJsonNode(document));
 

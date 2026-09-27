@@ -122,6 +122,27 @@ public class MongoMigrationStorageTests : ApiIntegrationTestBase, IClassFixture<
     }
 
     [Fact]
+    public async Task A_document_with_an_out_of_range_date_fails_alone()
+    {
+        var database = await SeedAsync(
+            ("treatments",
+            [
+                new() { { "_id", ObjectId.GenerateNewId() }, { "eventType", "Correction Bolus" }, { "insulin", 1.5 }, { "created_at", new BsonDateTime(long.MaxValue) } },
+                new() { { "_id", ObjectId.GenerateNewId() }, { "eventType", "Correction Bolus" }, { "insulin", 2.5 }, { "created_at", Iso(20) } },
+            ]));
+
+        var status = await RunToCompletionAsync(database, ["treatments"]);
+
+        status.State.Should().Be(MigrationJobState.Completed);
+        var treatments = status.CollectionProgress["treatments"];
+        treatments.DocumentsFailed.Should().Be(1);
+        treatments.DocumentsMigrated.Should().Be(1);
+
+        await using var db = Fixture.CreateDbContext(Fixture.TenantId);
+        (await db.Boluses.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public async Task A_collection_MongoDB_mode_cannot_import_is_skipped_not_counted()
     {
         var database = await SeedAsync(
