@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Nocturne.API.Attributes;
+using Nocturne.API.Authorization;
 using Nocturne.API.Controllers.V4.Base;
+using Nocturne.API.Extensions;
 using Nocturne.API.Services.Analytics;
 using Nocturne.Core.Contracts.Analytics;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models;
 using Nocturne.Core.Models.Authorization;
+using Nocturne.Core.Models.V4;
 using OpenApi.Remote.Attributes;
 
 namespace Nocturne.API.Controllers.V4.Analytics;
@@ -15,8 +18,9 @@ namespace Nocturne.API.Controllers.V4.Analytics;
 /// </summary>
 /// <remarks>
 /// Every response is an aggregate (record counts and a treatment summary), so the controller sits
-/// behind <see cref="Scope.ReportsRead"/> like <see cref="DataOverviewController"/>; public shares
-/// are narrowed further by per-category share RLS.
+/// behind <see cref="Scope.ReportsRead"/> like <see cref="DataOverviewController"/>. The counts and
+/// the search still expose the records themselves, so each kind is read only when the caller also
+/// holds the category scope its list route requires; share RLS does not cover signed-in members.
 /// </remarks>
 /// <seealso cref="TreatmentLogFilter"/>
 [ApiController]
@@ -73,7 +77,8 @@ public class TreatmentLogController(
         if (dayCount < 1)
             return Problem(detail: "dayCount must be at least 1.", statusCode: 400, title: "Bad Request");
 
-        var records = TreatmentLogFilter.Apply(await FetchAsync(from, to, ct), category, search);
+        var records = TreatmentLogFilter.Apply(
+            await FetchAsync(from, to, HttpContext.GetGrantedScopes(), ct), category, search);
 
         return Ok(new TreatmentLogStats
         {
@@ -84,14 +89,31 @@ public class TreatmentLogController(
         });
     }
 
-    private async Task<TreatmentLogRecords> FetchAsync(DateTime from, DateTime to, CancellationToken ct)
+    private async Task<TreatmentLogRecords> FetchAsync(
+        DateTime from, DateTime to, IReadOnlySet<string> granted, CancellationToken ct)
     {
-        var boluses = bolusRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct);
-        var carbIntakes = carbIntakeRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct);
-        var bgChecks = bgCheckRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct);
-        var notes = noteRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct);
-        var deviceEvents = deviceEventRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct);
-        var basalInjections = basalInjectionRepository.GetAsync(from, to, null, null, RecordLimit, 0, descending: true, ct);
+        var treatments = AnalyticsReadScopes.Allows(granted, Scope.TreatmentsRead);
+        var devices = AnalyticsReadScopes.Allows(granted, Scope.DevicesRead);
+        var glucose = AnalyticsReadScopes.Allows(granted, Scope.GlucoseRead);
+
+        var boluses = treatments
+            ? bolusRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct)
+            : Task.FromResult(Enumerable.Empty<Bolus>());
+        var carbIntakes = treatments
+            ? carbIntakeRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct)
+            : Task.FromResult(Enumerable.Empty<CarbIntake>());
+        var bgChecks = glucose
+            ? bgCheckRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct)
+            : Task.FromResult(Enumerable.Empty<BGCheck>());
+        var notes = treatments
+            ? noteRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct)
+            : Task.FromResult(Enumerable.Empty<Note>());
+        var deviceEvents = devices
+            ? deviceEventRepository.GetAsync(from, to, null, null, RecordLimit, ct: ct)
+            : Task.FromResult(Enumerable.Empty<DeviceEvent>());
+        var basalInjections = treatments
+            ? basalInjectionRepository.GetAsync(from, to, null, null, RecordLimit, 0, descending: true, ct)
+            : Task.FromResult(Enumerable.Empty<BasalInjection>());
 
         await Task.WhenAll(boluses, carbIntakes, bgChecks, notes, deviceEvents, basalInjections);
 

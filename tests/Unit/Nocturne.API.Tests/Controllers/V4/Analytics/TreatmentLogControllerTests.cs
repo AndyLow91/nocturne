@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Nocturne.API.Controllers.V4.Analytics;
+using Nocturne.API.Extensions;
 using Nocturne.API.Services.Analytics;
 using Nocturne.Core.Contracts.V4.Repositories;
+using Nocturne.Core.Models.Authorization;
 using Nocturne.Core.Models.V4;
 using BolusType = Nocturne.Core.Models.V4.BolusType;
 
@@ -54,6 +57,14 @@ public class TreatmentLogControllerTests
         _controller = new TreatmentLogController(
             _boluses.Object, _carbs.Object, _bgChecks.Object, _notes.Object,
             _deviceEvents.Object, _basalInjections.Object, new StatisticsService());
+        Grant(Scope.ReportsRead, Scope.GlucoseRead, Scope.TreatmentsRead, Scope.DevicesRead);
+    }
+
+    private void Grant(params string[] scopes)
+    {
+        var context = new DefaultHttpContext();
+        context.Items[AuthContextKeys.GrantedScopes] = new HashSet<string>(scopes);
+        _controller.ControllerContext = new ControllerContext { HttpContext = context };
     }
 
     private async Task<TreatmentLogStats> Stats(
@@ -139,6 +150,49 @@ public class TreatmentLogControllerTests
 
         result.Result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(400);
         _boluses.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Viewer_without_treatments_or_devices_read_sees_only_bg_checks()
+    {
+        Grant(Scope.ReportsRead, Scope.GlucoseRead);
+
+        var stats = await Stats(TreatmentLogCategory.All, null);
+
+        stats.Counts.Should().BeEquivalentTo(new TreatmentLogCounts { All = 1, BgCheck = 1 });
+        stats.TreatmentSummary.Should().BeNull();
+        _boluses.VerifyNoOtherCalls();
+        _carbs.VerifyNoOtherCalls();
+        _notes.VerifyNoOtherCalls();
+        _basalInjections.VerifyNoOtherCalls();
+        _deviceEvents.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Search_cannot_probe_note_text_without_treatments_read()
+    {
+        Grant(Scope.ReportsRead, Scope.GlucoseRead);
+
+        var stats = await Stats(TreatmentLogCategory.Note, "evening");
+
+        stats.Counts.Note.Should().Be(0);
+        stats.Counts.All.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Bg_checks_need_glucose_read_and_device_events_need_devices_read()
+    {
+        Grant(Scope.ReportsRead, Scope.TreatmentsRead);
+
+        var stats = await Stats(TreatmentLogCategory.All, null);
+
+        stats.Counts.Should().BeEquivalentTo(new TreatmentLogCounts
+        {
+            All = 6, Bolus = 2, Carbs = 2, Note = 1, BasalInjection = 1,
+        });
+        stats.TreatmentSummary.Should().NotBeNull();
+        _bgChecks.VerifyNoOtherCalls();
+        _deviceEvents.VerifyNoOtherCalls();
     }
 
     private static int CountOf(TreatmentLogCounts counts, TreatmentLogCategory kind) => kind switch
