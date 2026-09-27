@@ -7,14 +7,12 @@
   import { Input } from "$lib/components/ui/input";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
-  import {
-    CheckCircle,
-    AlertCircle,
-    AlertTriangle,
-    Loader2,
-    Pencil,
-    Trash2,
-  } from "lucide-svelte";
+  import CheckCircle from "@lucide/svelte/icons/circle-check-big";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import { describeSubmitError, errorStatus } from "$lib/forms";
   import { satisfiesScope } from "$lib/authorization/scopes";
   import { page } from "$app/state";
@@ -69,7 +67,6 @@
         return { variant: "secondary", text: "Unknown" };
     }
   }
-
 
   async function deleteDataSource() {
     if (!selectedDataSource) return;
@@ -151,7 +148,9 @@
             </p>
           </div>
           <div>
-            <span class="text-muted-foreground">Total Records</span>
+            <span class="text-muted-foreground">
+              Records in the last 30 days
+            </span>
             <p class="mt-1 font-medium">
               {formatNumber(selectedDataSource.totalEntries)}
             </p>
@@ -161,17 +160,11 @@
         <Separator />
 
         {#if canManage}
-          <div
-            class="rounded-lg border border-warning/30 bg-warning/10 p-4"
-          >
+          <div class="rounded-lg border border-warning/30 bg-warning/10 p-4">
             <div class="flex items-start gap-3">
-              <AlertTriangle
-                class="h-5 w-5 text-warning shrink-0 mt-0.5"
-              />
+              <AlertTriangle class="h-5 w-5 text-warning shrink-0 mt-0.5" />
               <div>
-                <p
-                  class="text-sm font-medium text-warning"
-                >
+                <p class="text-sm font-medium text-warning">
                   Delete All Data from This Source
                 </p>
                 <p class="text-sm text-warning mt-1">
@@ -208,7 +201,10 @@
   <AlertDialog.Root bind:open={showDeleteConfirmDialog}>
     <AlertDialog.Content>
       <AlertDialog.Header>
-        <AlertDialog.Title variant="destructive" class="flex items-center gap-2">
+        <AlertDialog.Title
+          variant="destructive"
+          class="flex items-center gap-2"
+        >
           <AlertTriangle class="h-5 w-5" />
           Permanently Delete Data
         </AlertDialog.Title>
@@ -229,14 +225,14 @@
               <ul
                 class="text-sm text-destructive list-disc list-inside mt-2 space-y-1"
               >
-                <li>
-                  All glucose records ({formatNumber(
-                    selectedDataSource.totalEntries
-                  )} records)
-                </li>
+                <li>All glucose records</li>
                 <li>All treatments entered by this device</li>
                 <li>All device status records</li>
               </ul>
+              <p class="text-sm text-destructive mt-2">
+                This source sent {formatNumber(selectedDataSource.totalEntries)}
+                records in the last 30 days.
+              </p>
             </div>
 
             {#if deleteResult}
@@ -244,9 +240,7 @@
                 <div
                   class="rounded-lg border border-success/30 bg-success/10 p-4"
                 >
-                  <div
-                    class="flex items-center gap-2 text-success"
-                  >
+                  <div class="flex items-center gap-2 text-success">
                     <CheckCircle class="h-5 w-5" />
                     <span class="font-medium">Data deleted successfully</span>
                   </div>
@@ -258,9 +252,7 @@
                 <div
                   class="rounded-lg border border-destructive/30 bg-destructive/10 p-4"
                 >
-                  <div
-                    class="flex items-center gap-2 text-destructive"
-                  >
+                  <div class="flex items-center gap-2 text-destructive">
                     <AlertCircle class="h-5 w-5" />
                     <span class="font-medium">
                       {deleteResult.alreadyGone

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Nocturne.API.Services;
 using Nocturne.API.Services.Audit;
 using Nocturne.API.Services.BackgroundServices;
 using Nocturne.API.Tests.TestDoubles;
@@ -44,6 +45,8 @@ public class ConnectorBackgroundServiceTests
         private readonly Action? _onSyncCompleted;
         private readonly TimeSpan? _perTenantTimeout;
         private readonly TimeSpan? _unconfiguredRecheck;
+        private readonly Func<DateTime, DateTime?>? _alignedSync;
+        private readonly TimeSpan? _minAlignedSpacing;
         private readonly int _hangFirstNCalls;
         private int _callCount;
 
@@ -59,8 +62,11 @@ public class ConnectorBackgroundServiceTests
             ConnectorSyncBudget? budget = null,
             ConnectorPollerNudge? nudge = null,
             TimeSpan? unconfiguredRecheck = null,
-            ConnectorSyncMetrics? metrics = null)
-            : base(serviceProvider, budget ?? new ConnectorSyncBudget(), serviceProvider.GetRequiredService<ActiveTenantSnapshot>(), logger, nudge, metrics)
+            ConnectorSyncMetrics? metrics = null,
+            TenantRunGuard? runGuard = null,
+            Func<DateTime, DateTime?>? alignedSync = null,
+            TimeSpan? minAlignedSpacing = null)
+            : base(serviceProvider, budget ?? new ConnectorSyncBudget(), serviceProvider.GetRequiredService<ActiveTenantSnapshot>(), logger, nudge, metrics, runGuard)
         {
             _syncResult = syncResult;
             _onSync = onSync;
@@ -69,11 +75,24 @@ public class ConnectorBackgroundServiceTests
             _hangFirstNCalls = hangFirstNCalls;
             _onSyncCompleted = onSyncCompleted;
             _unconfiguredRecheck = unconfiguredRecheck;
+            _alignedSync = alignedSync;
+            _minAlignedSpacing = minAlignedSpacing;
         }
 
         protected override TimeSpan PerTenantSyncTimeout => _perTenantTimeout ?? base.PerTenantSyncTimeout;
 
         protected override TimeSpan UnconfiguredRecheckInterval => _unconfiguredRecheck ?? base.UnconfiguredRecheckInterval;
+
+        protected override TimeSpan MinimumAlignedSyncSpacing => _minAlignedSpacing ?? base.MinimumAlignedSyncSpacing;
+
+        protected override Task<DateTime?> GetAlignedSyncTimeAsync(
+            IServiceProvider scopeProvider,
+            TestConnectorConfig config,
+            DateTime now,
+            CancellationToken cancellationToken) =>
+            _alignedSync is null
+                ? base.GetAlignedSyncTimeAsync(scopeProvider, config, now, cancellationToken)
+                : Task.FromResult(_alignedSync(now));
 
         /// <summary>Number of times PerformSyncAsync has been entered (across all tenants).</summary>
         public int CallCount => _callCount;
@@ -1236,6 +1255,123 @@ public class ConnectorBackgroundServiceTests
         configLoads.Should().Be(1, "the interval is known from the first read; the next reads wait for it to elapse");
     }
 
+    private static TestConnectorBackgroundService AlignedPoller(
+        SqliteTestDatabase db,
+        Func<DateTime, DateTime?> alignedSync,
+        SyncResult? syncResult = null,
+        TimeSpan? minAlignedSpacing = null) =>
+        new(
+            BuildServiceProvider(
+                db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 60 }),
+            syncResult ?? new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            alignedSync: alignedSync,
+            minAlignedSpacing: minAlignedSpacing);
+
+    /// <summary>
+    /// A connector that knows when its source next has data brings the sync forward to then: the
+    /// interval is the longest the poller waits, not the shortest. The aligned time is spent by the
+    /// sync it scheduled, so a later tick is back under the interval.
+    /// </summary>
+    [Fact]
+    public async Task AlignedSyncTime_OnceArrived_SyncsInsideTheInterval_AndIsSpentByThatSync()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var answers = new Queue<DateTime?>();
+        var sut = AlignedPoller(
+            db,
+            now => answers.Count > 0 ? answers.Dequeue() : now,
+            minAlignedSpacing: TimeSpan.Zero);
+
+        // First sync aligns the next one to "now", which has arrived by the next tick.
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        sut.CallCount.Should().Be(1);
+
+        answers.Enqueue(null); // the aligned sync reports no further alignment
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        sut.CallCount.Should().Be(2, "the aligned time had arrived, although the 60-minute interval had not");
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        sut.CallCount.Should().Be(2, "the alignment was spent by the sync it scheduled; the interval stands again");
+    }
+
+    [Fact]
+    public async Task AlignedSyncTime_NotYetArrived_WaitsForIt()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var sut = AlignedPoller(db, now => now.AddMinutes(10), minAlignedSpacing: TimeSpan.Zero);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(1);
+    }
+
+    /// <summary>
+    /// A connector that answers "now" after every sync would otherwise be synced on every tick.
+    /// </summary>
+    [Fact]
+    public async Task AlignedSyncTime_IsNeverSooner_ThanTheMinimumSpacing()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var sut = AlignedPoller(db, now => now, minAlignedSpacing: TimeSpan.FromMinutes(5));
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Only a sync that succeeded says anything about the source's cadence; a failing source is left
+    /// on the plain interval rather than retried at the aligned time.
+    /// </summary>
+    [Fact]
+    public async Task AFailedSync_IsNotAligned()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var asked = 0;
+        var sut = AlignedPoller(
+            db,
+            now => { asked++; return now; },
+            syncResult: new SyncResult { Success = false, Message = "down" },
+            minAlignedSpacing: TimeSpan.Zero);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(1);
+        asked.Should().Be(0);
+    }
+
+    /// <summary>
+    /// The alignment is an optimisation over a sync that already succeeded: when working it out
+    /// fails, the sync is still reported healthy and the interval still applies.
+    /// </summary>
+    [Fact]
+    public async Task AnAlignmentThatThrows_LeavesTheSyncHealthyAndTheIntervalInCharge()
+    {
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(Guid.NewGuid(), "test-tenant");
+        var configServiceMock = BuildEnabledConfigMock();
+        var sut = new TestConnectorBackgroundService(
+            BuildServiceProvider(
+                db, configServiceMock, new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 60 }),
+            new SyncResult { Success = true },
+            NullLogger<TestConnectorBackgroundService>.Instance,
+            alignedSync: _ => throw new InvalidOperationException("no readings table"),
+            minAlignedSpacing: TimeSpan.Zero);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(1);
+        configServiceMock.Verify(
+            x => x.UpdateHealthStateAsync(
+                "TestConnector", It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<string?>(), It.IsAny<DateTime?>(), true, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     /// <summary>
     /// The schedule must never hide a configuration the tenant just saved: the configuration
     /// service's cache-invalidation hook reaches the poller through <see cref="ConnectorPollerNudge"/>
@@ -1423,6 +1559,34 @@ public class ConnectorBackgroundServiceTests
             Events.Enqueue("sync");
             return Task.FromResult(new SyncResult { Success = true });
         }
+    }
+
+    /// <summary>
+    /// A manual sync holds the same (tenant, connector) key the poller uses, so the cycle must
+    /// skip that tenant rather than queue behind it.
+    /// </summary>
+    [Fact]
+    public async Task SyncAllTenants_WhenASyncIsAlreadyRunning_SkipsThatTenantWithoutWaiting()
+    {
+        var tenantId = Guid.NewGuid();
+        using var db = TestDbContextFactory.CreateSqlite().SeedTenant(tenantId, "test-tenant");
+
+        var guard = new TenantRunGuard();
+        using var held = guard.TryAcquire(tenantId, "testconnector");
+        held.Should().NotBeNull();
+
+        var logger = new MessageRecordingLogger();
+        var sut = new TestConnectorBackgroundService(
+            BuildServiceProvider(
+                db, BuildEnabledConfigMock(), new TestConnectorConfig { Enabled = true, SyncIntervalMinutes = 5 }),
+            new SyncResult { Success = true },
+            logger,
+            runGuard: guard);
+
+        await sut.ExecuteOnceAsync(CancellationToken.None);
+
+        sut.CallCount.Should().Be(0, "a held key makes the cycle skip the tenant, not run it");
+        logger.Messages.Should().Contain(m => m.Contains("skipped"));
     }
 
     /// <summary>

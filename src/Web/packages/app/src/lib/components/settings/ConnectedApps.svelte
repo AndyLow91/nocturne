@@ -4,17 +4,15 @@
   import { ConfirmDialog } from "$lib/components/ui/confirm-dialog";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
-  import {
-    Shield,
-    Trash2,
-    Check,
-    AlertTriangle,
-    Clock,
-    LoaderCircle,
-    Plus,
-    BadgeCheck,
-    ExternalLink,
-  } from "lucide-svelte";
+  import Shield from "@lucide/svelte/icons/shield";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Check from "@lucide/svelte/icons/check";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Clock from "@lucide/svelte/icons/clock";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Plus from "@lucide/svelte/icons/plus";
+  import BadgeCheck from "@lucide/svelte/icons/badge-check";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
   import { formatMediumDateTime } from "$lib/utils/formatting";
   import { list, revoke } from "$lib/api/generated/connectedApps.generated.remote";
   import { getOAuthScopeDescription } from "$lib/constants/oauth-scopes";
@@ -170,6 +168,10 @@
               {#snippet description()}
                 Revoke {app.clientName ?? "this app"}'s access to your data?
                 The app will need to be re-authorized to regain access.
+                {#if (app.deviceCount ?? 0) > 0}
+                  Its {app.deviceCount} paired device{app.deviceCount === 1 ? "" : "s"} will
+                  also be removed and stop receiving alerts.
+                {/if}
               {/snippet}
             </ConfirmDialog>
           </div>

@@ -6,16 +6,14 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Separator } from "$lib/components/ui/separator";
-  import {
-    Smartphone,
-    Trash2,
-    Check,
-    X,
-    AlertTriangle,
-    Clock,
-    LoaderCircle,
-    Pencil,
-  } from "lucide-svelte";
+  import Smartphone from "@lucide/svelte/icons/smartphone";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Check from "@lucide/svelte/icons/check";
+  import X from "@lucide/svelte/icons/x";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Clock from "@lucide/svelte/icons/clock";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Pencil from "@lucide/svelte/icons/pencil";
   import { timeAgo } from "$lib/utils";
   import { Now } from "$lib/hooks/now.svelte";
 
@@ -270,6 +268,20 @@
               </span>
             {/if}
           </div>
+
+          {#if device.appName}
+            <p class="text-xs text-muted-foreground">
+              Paired through {device.appName}
+            </p>
+          {:else if device.linkedToApp}
+            <p class="text-xs text-muted-foreground">
+              Paired through an app that reports no name.
+            </p>
+          {:else}
+            <p class="text-xs text-muted-foreground">
+              Not linked to an app. Revoking an app will not remove this device.
+            </p>
+          {/if}
         </Card.Content>
       </Card.Root>
     {/each}

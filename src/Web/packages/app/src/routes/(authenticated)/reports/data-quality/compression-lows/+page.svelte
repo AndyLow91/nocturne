@@ -34,14 +34,14 @@
 	import IobCobTrack from '$lib/components/dashboard/glucose-chart/tracks/IobCobTrack.svelte';
 	import ThresholdRules from '$lib/components/dashboard/glucose-chart/tracks/ThresholdRules.svelte';
 	import ChartTooltip from '$lib/components/dashboard/glucose-chart/ChartTooltip.svelte';
-	import Check from 'lucide-svelte/icons/check';
-	import X from 'lucide-svelte/icons/x';
-	import Clock from 'lucide-svelte/icons/clock';
-	import Trash2 from 'lucide-svelte/icons/trash-2';
-	import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-	import AlertTriangle from 'lucide-svelte/icons/triangle-alert';
-	import History from 'lucide-svelte/icons/history';
-	import ArrowLeft from 'lucide-svelte/icons/arrow-left';
+	import Check from '@lucide/svelte/icons/check';
+	import X from '@lucide/svelte/icons/x';
+	import Clock from '@lucide/svelte/icons/clock';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import AlertTriangle from '@lucide/svelte/icons/triangle-alert';
+	import History from '@lucide/svelte/icons/history';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import { bg, bgLabel, formatShortDate, time } from "$lib/utils/formatting";
 	import type { CompressionLowSuggestion } from '$lib/api';
 
@@ -362,7 +362,7 @@
 						{#if pendingCount > 0}
 							{pendingCount} pending review
 						{:else}
-							<span class="print:hidden">Review history and manage exclusions</span>
+							<span class="print:hidden">Suspected false lows from pressure on the sensor</span>
 						{/if}
 					</p>
 					{#if statusFilter !== 'all'}
@@ -623,7 +623,7 @@
 								{#if brushDomain}
 									<div class="mb-6 border-b border-border pb-4">
 										<p class="text-sm text-muted-foreground">
-											{isPending ? 'Selected Range' : 'Exclusion Range'}
+											{isPending ? 'Selected Range' : 'Marked Range'}
 										</p>
 										<p class="font-medium tabular-nums">
 											{time(brushDomain[0])} - {time(brushDomain[1])}

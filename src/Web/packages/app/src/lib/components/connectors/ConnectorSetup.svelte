@@ -34,7 +34,8 @@
   import CareLinkConnectPanel from "$lib/components/connectors/CareLinkConnectPanel.svelte";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
 
-  import { AlertCircle, ExternalLink } from "lucide-svelte";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
   import ConnectorSelectionGrid from "$lib/components/connectors/ConnectorSelectionGrid.svelte";
   import ConnectorDangerZone from "$lib/components/connectors/ConnectorDangerZone.svelte";
   import { retainQuery } from "$lib/api/retain-query.svelte";

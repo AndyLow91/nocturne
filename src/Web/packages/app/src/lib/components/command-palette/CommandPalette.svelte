@@ -1,9 +1,10 @@
 <script lang="ts">
   import * as Command from "$lib/components/ui/command";
   import { getRealtimeStore } from "$lib/stores/realtime-store.svelte";
-  import { getAuthStore } from "$lib/stores/auth-store.svelte";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { page } from "$app/state";
+  import { satisfiesScope } from "$lib/authorization/scopes";
   import {
     glucoseChartLookback,
     setColorScheme,
@@ -26,7 +27,7 @@
     recordRecent,
   } from "./command-palette-store.svelte";
   import CommandPaletteVitals from "./CommandPaletteVitals.svelte";
-  import { Star } from "lucide-svelte";
+  import Star from "@lucide/svelte/icons/star";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
@@ -42,14 +43,14 @@
 
   let searchValue = $state("");
 
-  const authStore = getAuthStore();
   const realtimeStore = getRealtimeStore();
 
   const visibleItems = $derived(
     paletteItemsFor(tenantless).filter(
       (item) =>
-        (!item.permission || authStore.hasPermission(item.permission)) &&
-        (!item.role || authStore.hasRole(item.role))
+        (!item.scope ||
+          satisfiesScope(page.data.effectivePermissions ?? [], item.scope)) &&
+        (!item.platformAdmin || page.data.isPlatformAdmin)
     )
   );
 

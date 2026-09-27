@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { describeSubmitError } from "$lib/forms/submit-error";
   import { distinct, groupBy, toggled } from "$lib/utils/collections";
   import { startOfDay, toDayString } from "$lib/utils/date-range";
   import { formatLongDate } from "$lib/utils/formatting";
-  import { Calendar } from "lucide-svelte";
+  import Calendar from "@lucide/svelte/icons/calendar";
   import type {
     MealEvent,
     TreatmentFood,
@@ -312,7 +313,7 @@
       await Promise.all([mealsQuery.refresh(), suggestionsQuery.refresh()]);
     } catch (err) {
       console.error("Failed to accept match:", err);
-      toast.error("Failed to accept match");
+      toast.error(describeSubmitError(err, "Failed to accept match"));
     }
   }
 
@@ -323,7 +324,7 @@
       await suggestionsQuery.refresh();
     } catch (err) {
       console.error("Failed to dismiss match:", err);
-      toast.error("Failed to dismiss match");
+      toast.error(describeSubmitError(err, "Failed to dismiss match"));
     }
   }
 

@@ -24,17 +24,15 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
 
-  import {
-    RefreshCw,
-    AlertCircle,
-    Wifi,
-    WifiOff,
-    Sparkles,
-    Database,
-    Copy,
-    Check,
-    KeyRound,
-  } from "lucide-svelte";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import Wifi from "@lucide/svelte/icons/wifi";
+  import WifiOff from "@lucide/svelte/icons/wifi-off";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import Database from "@lucide/svelte/icons/database";
+  import Copy from "@lucide/svelte/icons/copy";
+  import Check from "@lucide/svelte/icons/check";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
   import DataSourceRow from "$lib/components/settings/DataSourceRow.svelte";
   import type { DataSourceStatus } from "$lib/components/settings/DataSourceRow.svelte";
@@ -440,6 +438,7 @@
                 icon={source.icon}
                 status={mapDataSourceStatus(source)}
                 totalEntries={source.totalEntries}
+                totalCoversLast30Days
                 entriesLast24h={source.entriesLast24h}
                 lastSeen={source.lastSeen}
                 subtitle={source.name !== source.deviceId ? source.deviceId : undefined}

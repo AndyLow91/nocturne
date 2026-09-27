@@ -27,10 +27,6 @@ public class NoteRepository : SyncKeyedRepositoryBase<Note, NoteEntity>, INoteRe
     /// <summary>
     /// Initializes a new instance of the <see cref="NoteRepository"/> class.
     /// </summary>
-    /// <param name="contextFactory">The tenant database context factory.</param>
-    /// <param name="deduplicationService">The deduplication service.</param>
-    /// <param name="auditContext">The audit context for tracking mutations (used by the base soft-delete path).</param>
-    /// <param name="logger">The logger instance.</param>
     public NoteRepository(
         ITenantDbContextFactory contextFactory,
         IDeduplicationService deduplicationService,
@@ -144,7 +140,7 @@ public class NoteRepository : SyncKeyedRepositoryBase<Note, NoteEntity>, INoteRe
                 RecordId: e.Id,
                 Mills: new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                 DataSource: e.DataSource ?? DeduplicationInput.UnknownDataSource,
-                Criteria: MatchCriteriaMapper.ForNote()
+                Criteria: MatchCriteriaMapper.From(e)
             )).ToList();
 
             await _deduplicationService.DeduplicateBatchAsync(RecordType.Note, dedupInputs, ct);

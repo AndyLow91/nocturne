@@ -1,11 +1,13 @@
 <script lang="ts">
+  import { remoteErrorMessage } from "$lib/api/remote-error";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { browser } from "$app/environment";
   import { page } from "$app/state";
   import { toast } from "svelte-sonner";
   import { useToastSubmission } from "$lib/forms";
-  import { X, Loader2 } from "lucide-svelte";
+  import X from "@lucide/svelte/icons/x";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
   import { Button } from "$lib/components/ui/button";
   import { StateHistory } from "runed";
   import {
@@ -351,7 +353,7 @@
       history.clear();
     } catch (err) {
       console.error("Failed to load clock face:", err);
-      toast.error("Failed to load clock face");
+      toast.error(remoteErrorMessage(err, "Failed to load clock face"));
       goto(resolve("/clock"));
     } finally {
       loading = false;

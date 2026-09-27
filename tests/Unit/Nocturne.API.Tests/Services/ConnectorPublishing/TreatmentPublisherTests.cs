@@ -24,6 +24,8 @@ namespace Nocturne.API.Tests.Services.ConnectorPublishing;
 public class TreatmentPublisherTests
 {
     private readonly Mock<ITreatmentService> _mockTreatmentService;
+    private readonly Mock<ITreatmentDecomposer> _mockDecomposer = new();
+    private readonly Mock<ITreatmentCache> _mockCache = new();
     private readonly Mock<IBolusRepository> _mockBolusRepository;
     private readonly Mock<ICarbIntakeRepository> _mockCarbIntakeRepository;
     private readonly Mock<IBGCheckRepository> _mockBGCheckRepository;
@@ -85,6 +87,8 @@ public class TreatmentPublisherTests
         return new TreatmentPublisher(
             _mockContextFactory.Object,
             _mockTreatmentService.Object,
+            _mockDecomposer.Object,
+            _mockCache.Object,
             _mockBolusRepository.Object,
             _mockCarbIntakeRepository.Object,
             _mockBGCheckRepository.Object,
@@ -326,6 +330,52 @@ public class TreatmentPublisherTests
         _mockBasalRateResolver.Verify(
             r => r.BuildResolverAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteTreatmentsAsync_DeletesUnderSystemAttribution()
+    {
+        // A user-attributed delete would permanently block the source from publishing the
+        // treatment again should it reappear upstream.
+        var auditContext = new AuditContext { AuthType = "bearer", SubjectId = Guid.NewGuid() };
+        var publisher = CreatePublisher(auditContext);
+
+        bool? systemDuringDelete = null;
+        _mockDecomposer
+            .Setup(d => d.DeleteFromSourceAsync(
+                It.IsAny<string>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<CancellationToken>()))
+            .Callback(() => systemDuringDelete = auditContext.IsSystem)
+            .ReturnsAsync(1);
+
+        await publisher.DeleteTreatmentsAsync("nightscout-connector", new HashSet<string> { "t-1" });
+
+        systemDuringDelete.Should().BeTrue();
+        auditContext.IsSystem.Should().BeFalse("the scope is restored once the delete returns");
+        _mockDecomposer.Verify(d => d.DeleteFromSourceAsync(
+            "nightscout-connector", It.Is<IReadOnlySet<string>>(ids => ids.SetEquals(new[] { "t-1" })),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _mockCache.Verify(c => c.InvalidateAsync(It.IsAny<CancellationToken>()), Times.Once,
+            "reads served from the treatment cache would still show what was deleted");
+    }
+
+    [Fact]
+    public async Task PublishRecentTreatmentsAsync_WritesWhatTheDecomposerSelects()
+    {
+        var changed = new Treatment { Id = "changed" };
+        _mockDecomposer
+            .Setup(d => d.SelectForRepublishAsync(
+                "nightscout-connector", It.IsAny<IReadOnlyList<Treatment>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([changed]);
+        _mockTreatmentService
+            .Setup(s => s.CreateTreatmentsAsync(It.IsAny<IEnumerable<Treatment>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BulkWrite<Treatment>([], 0));
+
+        var written = await _publisher.PublishRecentTreatmentsAsync(
+            [changed, new Treatment { Id = "unchanged" }], "nightscout-connector", WriteOrigin.Live);
+
+        written.Should().Be(1);
+        _mockTreatmentService.Verify(s => s.CreateTreatmentsAsync(
+            It.Is<IEnumerable<Treatment>>(ts => ts.Single().Id == "changed"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

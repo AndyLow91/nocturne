@@ -3,13 +3,11 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Item, type ItemVariant } from "$lib/components/ui/item";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import {
-    CheckCircle,
-    Clock,
-    AlertCircle,
-    Loader2,
-    WifiOff,
-  } from "lucide-svelte";
+  import CheckCircle from "@lucide/svelte/icons/circle-check-big";
+  import Clock from "@lucide/svelte/icons/clock";
+  import AlertCircle from "@lucide/svelte/icons/circle-alert";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import WifiOff from "@lucide/svelte/icons/wifi-off";
   import AppLogo from "$lib/components/ui/AppLogo.svelte";
   import { getDataTypeLabel } from "$lib/utils/data-type-labels";
   import { formatSyncMessage } from "$lib/utils/sync-messages";
@@ -38,6 +36,7 @@
     status: DataSourceStatus;
     statusMessage?: string;
     totalEntries?: number;
+    totalCoversLast30Days?: boolean;
     entriesLast24h?: number;
     lastSeen?: string;
     lastSyncAttempt?: string;
@@ -60,6 +59,7 @@
     status,
     statusMessage,
     totalEntries,
+    totalCoversLast30Days = false,
     entriesLast24h,
     lastSeen,
     lastSyncAttempt,
@@ -151,6 +151,11 @@
 
   const iconColors = $derived(getIconColors(status));
   const itemVariant = $derived(getItemVariant(status));
+  const totalRecordsLabel = $derived(
+    totalCoversLast30Days
+      ? `${formatNumber(totalEntries)} records in the last 30 days`
+      : `${formatNumber(totalEntries)} records`
+  );
 </script>
 
 <!-- The row is the button, so the breakdown triggers are hover-only spans; the details dialog it opens lists the same breakdown. -->
@@ -278,12 +283,12 @@
           <p class="text-sm text-muted-foreground">
             {#if totalBreakdown && Object.keys(totalBreakdown).length > 0}
               {@render breakdownTerm(
-                `${formatNumber(totalEntries)} records`,
+                totalRecordsLabel,
                 "Breakdown by type:",
                 totalBreakdown
               )}
             {:else}
-              {formatNumber(totalEntries)} records
+              {totalRecordsLabel}
             {/if}
 
             {#if (entriesLast24h ?? 0) > 0}

@@ -1,6 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app
 // for information about these interfaces
-import { ApiClient, UserDisplayPreferences } from "$lib/api";
+import { ApiClient, RustValidationIssue, UserDisplayPreferences } from "$lib/api";
 import type { LastSignIn } from "$lib/components/auth/last-sign-in";
 
 
@@ -41,6 +41,8 @@ declare global {
 			message: string;
 			details?: string;
 			errorId?: string;
+			/** The server's structured validation issues, when the rejection carried them. */
+			issues?: RustValidationIssue[];
 		}
 		type TenantStatus = TenantStatusResponse;
 		interface Locals {
@@ -73,6 +75,10 @@ declare global {
 			 * Effective permissions (granted scopes) for the current user on the current tenant
 			 */
 			effectivePermissions?: string[];
+			/**
+			 * Whether the current user may read only the last 24 hours of time-series data
+			 */
+			limitTo24Hours?: boolean;
 			/**
 			 * Whether the current user is a platform administrator
 			 */
@@ -110,6 +116,8 @@ declare global {
 			lastSignIn?: LastSignIn | null;
 			/** The viewer's granted scopes, resolved by the root layout. */
 			effectivePermissions?: string[];
+			/** Whether the viewer may read only the last 24 hours, resolved by the root layout. */
+			limitTo24Hours?: boolean;
 		}
 		// Shallow-routing state. Dialogs key their browser-history entries here
 		// (see useDialogHistory) so the back button can dismiss them.
