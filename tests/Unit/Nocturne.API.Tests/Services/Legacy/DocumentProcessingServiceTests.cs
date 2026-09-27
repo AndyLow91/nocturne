@@ -217,6 +217,35 @@ public class DocumentProcessingServiceTests
     }
 
     [Fact]
+    public void ProcessTimestamp_ZonelessCreatedAt_IsStoredAsUtcWithZeroOffset()
+    {
+        var activity = new Activity { CreatedAt = "2026-09-26T08:00:00" };
+
+        _service.ProcessTimestamp(activity);
+
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 26, 8, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            activity.Mills
+        );
+        Assert.Equal("2026-09-26T08:00:00.000Z", activity.CreatedAt);
+        Assert.Equal(0, activity.UtcOffset);
+    }
+
+    [Fact]
+    public void ProcessTimestamp_ZonelessCreatedAt_HonorsClientSuppliedUtcOffset()
+    {
+        var activity = new Activity { CreatedAt = "2026-09-26T08:00:00", UtcOffset = -240 };
+
+        _service.ProcessTimestamp(activity);
+
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 26, 8, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            activity.Mills
+        );
+        Assert.Equal(-240, activity.UtcOffset);
+    }
+
+    [Fact]
     public void SanitizeHtml_WithMaliciousContent_RemovesDangerousElements()
     {
         // Arrange

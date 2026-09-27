@@ -603,7 +603,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     private static DateTimeOffset? ParseCreatedAt(string? createdAt) =>
-        DateTimeOffset.TryParse(createdAt, out var parsed) ? parsed : null;
+        UploaderTimestamp.TryParse(createdAt, out var parsed) ? parsed : null;
 
     /// <summary>
     ///     Oldest created_at on a page. Uses DateTimeOffset for consistent UTC comparison

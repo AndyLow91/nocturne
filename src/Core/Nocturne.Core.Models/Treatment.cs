@@ -397,9 +397,9 @@ public class Treatment : ProcessableDocumentBase
 
             if (
                 !string.IsNullOrEmpty(Created_at)
-                && DateTime.TryParse(Created_at, out var createdAtDate)
+                && UploaderTimestamp.TryParse(Created_at, out var createdAtDate)
             )
-                return ((DateTimeOffset)createdAtDate).ToUnixTimeMilliseconds();
+                return createdAtDate.ToUnixTimeMilliseconds();
 
             return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
