@@ -69,14 +69,16 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
     /// <inheritdoc />
     public async Task<V4Models.DecompositionResult> DecomposeAsync(DeviceStatus ds, string? source, WriteOrigin origin, CancellationToken ct = default)
     {
-        var result = new V4Models.DecompositionResult
-        {
-            CorrelationId = Guid.CreateVersion7()
-        };
-
         NormalizeMills(ds);
 
         var legacyId = ds.Id;
+        var storedCorrelationIds = await GetStoredCorrelationIdsAsync([ds], ct);
+        var result = new V4Models.DecompositionResult
+        {
+            CorrelationId = legacyId is not null && storedCorrelationIds.TryGetValue(legacyId, out var stored)
+                ? stored
+                : Guid.CreateVersion7()
+        };
         var statusMills = ResolveStatusMills(ds);
 
         Guid? pumpDeviceId = null;

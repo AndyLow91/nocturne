@@ -169,8 +169,10 @@ public class BatchResendMatchesSingleTests : IDisposable
         _context.UploaderSnapshots.Select(e => e.Battery).Should().Equal(40);
     }
 
-    [Fact]
-    public async Task DeviceStatus_BatchResendWithExtras_KeepsOneExtrasRowThatADeleteRemoves()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeviceStatus_ResendWithExtras_KeepsOneExtrasRowThatADeleteRemoves(bool batch)
     {
         var decomposer = new DeviceStatusDecomposer(
             new ApsSnapshotRepository(_factory, _audit, NullLogger<ApsSnapshotRepository>.Instance),
@@ -192,10 +194,14 @@ public class BatchResendMatchesSingleTests : IDisposable
             },
         };
 
-        await decomposer.DecomposeBatchAsync([Status(80)], source: null, WriteOrigin.Live);
+        Task Send(DeviceStatus ds) => batch
+            ? decomposer.DecomposeBatchAsync([ds], source: null, WriteOrigin.Live)
+            : decomposer.DecomposeAsync(ds, source: null, WriteOrigin.Live);
+
+        await Send(Status(80));
         var storedCorrelationId = _context.UploaderSnapshots.Single().CorrelationId;
 
-        await decomposer.DecomposeBatchAsync([Status(40)], source: null, WriteOrigin.Live);
+        await Send(Status(40));
 
         _context.UploaderSnapshots.Select(e => e.CorrelationId).Should().Equal(storedCorrelationId);
         _context.DeviceStatusExtras.IgnoreQueryFilters().Where(e => e.DeletedAt == null)
