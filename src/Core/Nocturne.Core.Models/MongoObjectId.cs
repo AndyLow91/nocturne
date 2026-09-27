@@ -61,6 +61,16 @@ public static class MongoObjectId
     }
 
     /// <summary>
+    /// Whether an ObjectId has the shape <see cref="FromGuid"/> produces: a UUID's version nibble at
+    /// index 12 and its RFC 4122 variant at index 16. A cheap filter ahead of a uuid range lookup;
+    /// most real ObjectIds fail it, since those positions are a per-process random value.
+    /// </summary>
+    public static bool IsGuidPrefixShaped(string? objectId)
+        => IsObjectId(objectId)
+           && objectId![12] is >= '1' and <= '8'
+           && objectId[16] is '8' or '9' or 'a' or 'b';
+
+    /// <summary>
     /// Turns a 24-hex ObjectId derived from a UUID back into the uuid range that contains the
     /// source record: <c>[objectId + "00000000", objectId + "ffffffff"]</c>. Postgres orders
     /// <c>uuid</c> byte-wise (= hex-prefix order), so a range query selects the source UUID.
