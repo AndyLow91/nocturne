@@ -88,14 +88,16 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
     public async Task ImportScopedSnapshot_ReimportIntoSameTenant_RepointsPendingInviteRoleIds()
     {
         (await ImportInto(_tenantA)).Should().BeOfType<OkObjectResult>();
-        var inviteId = await SeedInvite(_tenantA, [OwnerRoleId, ViewerRoleId]);
+        var firstImport = await ReadRoleIdsBySlug(_tenantA);
+        var inviteId = await SeedInvite(_tenantA, [firstImport["owner"], firstImport["viewer"]]);
 
         (await ImportInto(_tenantA)).Should().BeOfType<OkObjectResult>();
 
-        var a = await ReadTenant(_tenantA);
+        var secondImport = await ReadRoleIdsBySlug(_tenantA);
+        secondImport.Values.Should().NotIntersectWith(firstImport.Values);
         await using var db = _database.CreateContext(_tenantA);
         var invite = await db.MemberInvites.SingleAsync(i => i.Id == inviteId);
-        invite.RoleIds.Should().BeEquivalentTo(a.RoleIds);
+        invite.RoleIds.Should().Equal(secondImport["owner"], secondImport["viewer"]);
     }
 
     [Fact]
@@ -147,6 +149,12 @@ public class DevAdminScopedSnapshotImportTests : IDisposable
         });
         await db.SaveChangesAsync();
         return inviteId;
+    }
+
+    private async Task<Dictionary<string, Guid>> ReadRoleIdsBySlug(Guid tenantId)
+    {
+        await using var db = _database.CreateContext(tenantId);
+        return await db.TenantRoles.Where(r => r.TenantId == tenantId).ToDictionaryAsync(r => r.Slug, r => r.Id);
     }
 
     private async Task<TenantRows> ReadTenant(Guid tenantId)

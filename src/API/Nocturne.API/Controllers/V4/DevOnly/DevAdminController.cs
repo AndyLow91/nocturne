@@ -875,10 +875,12 @@ public class DevAdminController : ControllerBase
                 // tables are global while the rows are per-tenant, so every row gets a fresh id
                 // and the member-role links are re-pointed through the maps.
                 var roleIds = new Dictionary<Guid, Guid>();
+                var newRoleIdsBySlug = new Dictionary<string, Guid>();
                 foreach (var r in snapshot.Roles)
                 {
                     var newId = Guid.CreateVersion7();
                     roleIds[r.Id] = newId;
+                    newRoleIdsBySlug[r.Slug] = newId;
                     _db.TenantRoles.Add(new()
                     {
                         Id = newId, TenantId = id, Name = r.Name, Slug = r.Slug,
@@ -887,12 +889,18 @@ public class DevAdminController : ControllerBase
                     });
                 }
 
-                // Invites are not in the snapshot and survive Phase 1; their RoleIds carry no FK,
-                // so a same-tenant re-import would leave them naming the deleted roles.
+                // Invites are not in the snapshot and survive Phase 1, but their RoleIds carry no FK
+                // and name the roles Phase 1 deleted, which the snapshot's role ids need not match.
+                // They are re-pointed by slug, unique per tenant; a role absent from the snapshot
+                // no longer exists and is dropped from the invite.
+                var deletedToNewRoleIds = existingRoles
+                    .Where(r => newRoleIdsBySlug.ContainsKey(r.Slug))
+                    .ToDictionary(r => r.Id, r => newRoleIdsBySlug[r.Slug]);
                 var targetInvites = await _db.MemberInvites.Where(i => i.TenantId == id).ToListAsync(token);
                 foreach (var invite in targetInvites)
                     invite.RoleIds = invite.RoleIds
-                        .Select(r => roleIds.TryGetValue(r, out var n) ? n : r)
+                        .Where(deletedToNewRoleIds.ContainsKey)
+                        .Select(r => deletedToNewRoleIds[r])
                         .ToList();
 
                 var inviteIds = snapshot.Members
