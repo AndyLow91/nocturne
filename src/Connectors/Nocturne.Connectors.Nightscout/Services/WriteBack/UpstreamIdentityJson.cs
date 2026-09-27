@@ -41,12 +41,8 @@ internal static class UpstreamIdentityJson
         public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
             => reader.TokenType == JsonTokenType.Null ? null : reader.GetString();
 
+        // HandleNull is false, so the serializer writes a null id itself and never calls this with one.
         public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
-        {
-            if (value is null)
-                writer.WriteNullValue();
-            else
-                writer.WriteStringValue(Guid.TryParse(value, out var uuid) ? MongoObjectId.FromGuid(uuid) : value);
-        }
+            => writer.WriteStringValue(Guid.TryParse(value, out var uuid) ? MongoObjectId.FromGuid(uuid) : value);
     }
 }
