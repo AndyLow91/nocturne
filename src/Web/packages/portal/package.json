@@ -16,7 +16,7 @@
 		"lint:ci": "eslint . --max-warnings 0 --report-unused-disable-directives-severity error"
 	},
 	"devDependencies": {
-		"@lucide/svelte": "^0.555.0",
+		"@lucide/svelte": "^1.14.0",
 		"@nocturne/cms": "workspace:*",
 		"@nocturne/eslint-config": "workspace:*",
 		"@nocturne/screenshots": "workspace:*",
@@ -26,6 +26,7 @@
 		"@tailwindcss/vite": "^4.1.17",
 		"@types/eslint": "^9.6.1",
 		"@typescript/native-preview": "7.0.0-dev.20260504.1",
+		"@vitest/coverage-v8": "4.1.6",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
 		"eslint": "^10.3.0",

@@ -4,7 +4,7 @@
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
-  import type { Bolus, CarbIntake } from "$lib/api";
+  import { BolusKind, type Bolus, type CarbIntake } from "$lib/api";
   import type { EntryRecord } from "$lib/constants/entry-categories";
   import { cn } from "$lib/utils";
   import * as Card from "$lib/components/ui/card";
@@ -12,19 +12,17 @@
   import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
-  import {
-    ChevronLeft,
-    ChevronRight,
-    Calendar,
-    ArrowLeft,
-    Apple,
-    ArrowUpDown,
-    ArrowUp,
-    ArrowDown,
-    Edit,
-    Filter,
-    X,
-  } from "lucide-svelte";
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Calendar from "@lucide/svelte/icons/calendar";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import Apple from "@lucide/svelte/icons/apple";
+  import ArrowUpDown from "@lucide/svelte/icons/arrow-up-down";
+  import ArrowUp from "@lucide/svelte/icons/arrow-up";
+  import ArrowDown from "@lucide/svelte/icons/arrow-down";
+  import Edit from "@lucide/svelte/icons/square-pen";
+  import Filter from "@lucide/svelte/icons/funnel";
+  import X from "@lucide/svelte/icons/x";
   import { getDayInReviewData } from "./data.remote";
   import { glucoseUnits } from "$lib/stores/appearance-store.svelte";
   import { formatGlucoseValue, formatLongDate, getUnitLabel, time } from "$lib/utils/formatting";
@@ -154,12 +152,14 @@
     return result;
   });
 
-  // Insulin delivery values for the donut chart (fallback chain is meaningful)
-  const scheduledBasal = $derived(
-    delivery?.scheduledBasal ?? summary?.totals?.insulin?.scheduledBasal ?? 0
-  );
-  const additionalBasal = $derived(
-    delivery?.additionalBasal ?? summary?.totals?.insulin?.additionalBasal ?? 0
+  // Insulin delivery values for the donut chart. All come from the delivery stats, which
+  // already folds algorithm micro-boluses into additional basal, so the donut draws only
+  // manual boluses to keep its arcs equal to the total it prints.
+  const scheduledBasal = $derived(delivery?.scheduledBasal ?? 0);
+  const additionalBasal = $derived(delivery?.additionalBasal ?? 0);
+  const totalInsulin = $derived(delivery?.totalInsulin ?? 0);
+  const manualBoluses = $derived(
+    (dayData?.boluses ?? []).filter((b) => b.kind !== BolusKind.Algorithm)
   );
 
   // === Treatment Edit Dialog ===
@@ -374,9 +374,10 @@
       <Card.Root>
       <Card.Content class="p-4 flex flex-col items-center gap-4">
         <InsulinDonutChart
-          boluses={dayData?.boluses ?? []}
+          boluses={manualBoluses}
           {scheduledBasal}
           {additionalBasal}
+          {totalInsulin}
           carbIntakes={dayData?.carbIntakes ?? []}
           onBolusClick={openBolusDialog}
         />
@@ -388,9 +389,15 @@
             </div>
           </div>
           <div>
-            <div class="text-muted-foreground">Boluses</div>
+            <div class="text-muted-foreground">Manual boluses</div>
             <div class="font-medium tabular-nums">
-              {delivery?.bolusCount ?? dayData?.boluses?.filter((b: Bolus) => (b.insulin ?? 0) > 0).length ?? 0}
+              {delivery?.bolusCount ?? 0}
+            </div>
+          </div>
+          <div>
+            <div class="text-muted-foreground">Automatic boluses</div>
+            <div class="font-medium tabular-nums">
+              {delivery?.microBolusCount ?? 0}
             </div>
           </div>
         </div>
@@ -486,7 +493,6 @@
               {@render sortableHeader("type", "Type")}
               {@render sortableHeader("carbs", "Carbs", true)}
               {@render sortableHeader("insulin", "Insulin", true)}
-              <Table.Head>Notes</Table.Head>
               <Table.Head class="w-[50px] print:hidden"></Table.Head>
             </Table.Row>
           </Table.Header>
@@ -523,14 +529,8 @@
                     —
                   {/if}
                 </Table.Cell>
-                <Table.Cell
-                  variant="muted"
-                  class="truncate max-w-[200px]"
-                >
-                  —
-                </Table.Cell>
                 <Table.Cell class="print:hidden">
-                  <Button variant="ghost" size="icon-sm">
+                  <Button variant="ghost" size="icon-sm" aria-label="Edit treatment">
                     <Edit class="h-4 w-4" />
                   </Button>
                 </Table.Cell>

@@ -24,16 +24,14 @@
   import * as Card from "$lib/components/ui/card";
   import * as Alert from "$lib/components/ui/alert";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import {
-    Calendar,
-    X,
-    Plus,
-    Syringe,
-    Utensils,
-    Droplet,
-    FileText,
-    Smartphone,
-  } from "lucide-svelte";
+  import Calendar from "@lucide/svelte/icons/calendar";
+  import X from "@lucide/svelte/icons/x";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Syringe from "@lucide/svelte/icons/syringe";
+  import Utensils from "@lucide/svelte/icons/utensils";
+  import Droplet from "@lucide/svelte/icons/droplet";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import Smartphone from "@lucide/svelte/icons/smartphone";
   import { bg, bgLabel, formatCarbDisplay, formatDateTimeCompact, formatInsulinDisplay, formatNumber, formatNumericDate } from "$lib/utils/formatting";
   import { toast } from "svelte-sonner";
   import { requireDateParamsContext } from "$lib/hooks/date-params.svelte";
@@ -397,7 +395,7 @@
     </p>
   {/if}
 
-  <TreatmentStatsCard {treatmentSummary} counts={filteredCounts} dayCount={dateInfo.dayCount} />
+  <TreatmentStatsCard {treatmentSummary} counts={filteredCounts} />
 
   <!-- Category Tabs — view toggle, print chaff -->
   <div class="print:hidden">

@@ -1,16 +1,15 @@
 <script lang="ts">
+  import { describeSubmitError } from "$lib/forms/submit-error";
   import { formatNumericDate } from "$lib/utils/formatting";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import * as Card from "$lib/components/ui/card";
   import { ConfirmDialog } from "$lib/components/ui/confirm-dialog";
   import { Button } from "$lib/components/ui/button";
-  import {
-    Clock as ClockIcon,
-    Plus,
-    Trash2,
-    Loader2,
-  } from "lucide-svelte";
+  import ClockIcon from "@lucide/svelte/icons/clock";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
   import { toast } from "svelte-sonner";
   import { useToastSubmission } from "$lib/forms";
   import { remoteErrorMessage } from "$lib/api/remote-error";
@@ -43,7 +42,7 @@
       }
     } catch (err) {
       console.error("Failed to create clock face:", err);
-      toast.error("Failed to create clock face");
+      toast.error(describeSubmitError(err, "Failed to create clock face"));
     } finally {
       creating = false;
     }

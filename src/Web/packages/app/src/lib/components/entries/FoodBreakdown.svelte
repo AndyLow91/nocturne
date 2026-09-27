@@ -1,7 +1,12 @@
 <script lang="ts">
+  import { remoteErrorMessage } from "$lib/api/remote-error";
+  import { describeSubmitError } from "$lib/forms/submit-error";
+  import { toast } from "svelte-sonner";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
-  import { Pencil, Trash2, Plus } from "lucide-svelte";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Plus from "@lucide/svelte/icons/plus";
   import {
     type TreatmentFood,
     type TreatmentFoodBreakdown,
@@ -52,7 +57,7 @@
       breakdown = await getCarbIntakeFoodBreakdown(id).run();
     } catch (err) {
       console.error("Failed to load food breakdown:", err);
-      loadError = "Unable to load food breakdown.";
+      loadError = remoteErrorMessage(err, "Unable to load food breakdown.");
     } finally {
       isLoading = false;
     }
@@ -66,6 +71,7 @@
       showAddFood = false;
     } catch (err) {
       console.error("Failed to add food entry:", err);
+      toast.error(describeSubmitError(err, "Failed to add food"));
     }
   }
 
@@ -84,6 +90,7 @@
       await loadBreakdown(carbIntakeId);
     } catch (err) {
       console.error("Failed to delete food entry:", err);
+      toast.error(describeSubmitError(err, "Failed to delete food"));
     }
   }
 

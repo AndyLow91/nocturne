@@ -9,17 +9,15 @@
   import { Button } from "$lib/components/ui/button";
   import FigureStrip from "$lib/components/reports/FigureStrip.svelte";
   import { Progress } from "$lib/components/ui/progress";
-  import {
-    Gauge,
-    Target,
-    TrendingUp,
-    Shield,
-    AlertTriangle,
-    Activity,
-    BarChart3,
-    Calendar,
-    BookOpen,
-  } from "lucide-svelte";
+  import Gauge from "@lucide/svelte/icons/gauge";
+  import Target from "@lucide/svelte/icons/target";
+  import TrendingUp from "@lucide/svelte/icons/trending-up";
+  import Shield from "@lucide/svelte/icons/shield";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Activity from "@lucide/svelte/icons/activity";
+  import BarChart3 from "@lucide/svelte/icons/chart-column";
+  import Calendar from "@lucide/svelte/icons/calendar";
+  import BookOpen from "@lucide/svelte/icons/book-open";
   import TIRStackedChart from "$lib/components/reports/TIRStackedChart.svelte";
   import ClinicalInsights from "$lib/components/reports/ClinicalInsights.svelte";
   import ReliabilityBadge from "$lib/components/reports/ReliabilityBadge.svelte";
@@ -63,7 +61,7 @@
   <div class="@container container mx-auto space-y-8 p-3 @md:p-6 max-w-6xl">
     {#if analysis}
       {@const tir = analysis?.timeInRange?.percentages}
-      {@const durations = analysis?.timeInRange?.durations}
+      {@const dailyMinutes = analysis?.timeInRange?.averageDailyMinutes}
       {@const variability = analysis?.glycemicVariability}
       {@const stats = analysis?.basicStats}
       {@const quality = analysis?.dataQuality}
@@ -107,27 +105,19 @@
                 <div class="flex flex-col">
                   <span class="text-glucose-in-range font-medium print:text-foreground">In Range</span>
                   <span>
-                    {formatMinutesDuration(
-                      (durations?.target ?? 0) / dayCount
-                    )}
+                    {formatMinutesDuration(dailyMinutes?.target ?? 0)}
                   </span>
                 </div>
                 <div class="flex flex-col">
                   <span class="text-glucose-very-low font-medium print:text-foreground">Low</span>
                   <span>
-                    {formatMinutesDuration(
-                      ((durations?.low ?? 0) + (durations?.veryLow ?? 0)) /
-                        dayCount
-                    )}
+                    {formatMinutesDuration(dailyMinutes?.low ?? 0)}
                   </span>
                 </div>
                 <div class="flex flex-col">
                   <span class="text-glucose-high font-medium print:text-foreground">High</span>
                   <span>
-                    {formatMinutesDuration(
-                      ((durations?.high ?? 0) + (durations?.veryHigh ?? 0)) /
-                        dayCount
-                    )}
+                    {formatMinutesDuration(dailyMinutes?.high ?? 0)}
                   </span>
                 </div>
               </div>
@@ -248,8 +238,7 @@
                 <div class="flex justify-between">
                   <span class="text-muted-foreground">Low episodes</span>
                   <span class="font-medium tabular-nums">
-                    {(analysis.timeInRange.episodes.low ?? 0) +
-                      (analysis.timeInRange.episodes.veryLow ?? 0)}
+                    {analysis.timeInRange.episodes.belowRange ?? 0}
                   </span>
                 </div>
               </div>

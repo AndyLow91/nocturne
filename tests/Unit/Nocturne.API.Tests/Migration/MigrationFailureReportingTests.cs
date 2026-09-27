@@ -4,7 +4,9 @@ using System.Text.RegularExpressions;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Nocturne.API.Services;
 using Nocturne.API.Services.Migration;
+using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data.Entities;
 
 namespace Nocturne.API.Tests.Migration;
@@ -45,11 +47,53 @@ public class MigrationFailureReportingTests
     private static HttpMessageHandler UnreachableHost() =>
         new ThrowingHost(() => new HttpRequestException("No such host is known."));
 
+    private sealed class DroppedBody : Stream
+    {
+        private bool _prefixSent;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_prefixSent)
+                throw new IOException("Connection reset by peer.");
+            _prefixSent = true;
+            return Encoding.UTF8.GetBytes("[{\"date\":1", buffer.AsSpan(offset, count));
+        }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class StalledBody : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private static HttpResponseMessage Json(HttpStatusCode status, string body = "[]") =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     private static MigrationJobService BuildService(IServiceProvider provider) =>
-        new(NullLogger<MigrationJobService>.Instance, provider, new ConfigurationBuilder().Build());
+        new(NullLogger<MigrationJobService>.Instance, provider, new ConfigurationBuilder().Build(), new TenantRunGuard());
 
     private static TestMigrationConnectionRequest TestRequest() => new()
     {
@@ -325,6 +369,46 @@ public class MigrationFailureReportingTests
         // The connection failed once; saying so once is the point of abandoning the rest.
         Regex.Matches(status.ErrorMessage!, Regex.Escape(UnreachableMessage)).Should().ContainSingle();
         status.CollectionProgress["profile"].FailureReason.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_connection_dropping_mid_page_is_reported_as_unreachable()
+    {
+        var handler = new RoutedNightscout(path => path switch
+        {
+            "/api/v1/entries.json" => Json(HttpStatusCode.OK, """[{"date":1770000000000}]"""),
+            "/api/v1/treatments.json" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new DroppedBody()),
+            },
+            _ => Json(HttpStatusCode.NotFound),
+        });
+
+        await using var provider = MigrationJobHarness.BuildProvider(handler);
+        var status = await MigrationJobHarness.RunAsync(provider, "entries", "treatments");
+
+        status.CollectionProgress["treatments"].FailureReason.Should().StartWith(UnreachableMessage);
+    }
+
+    [Fact]
+    public async Task A_page_whose_body_stalls_times_out_as_unreachable()
+    {
+        var handler = new RoutedNightscout(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(new StalledBody()),
+        });
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example-nightscout.invalid"),
+            Timeout = TimeSpan.FromMilliseconds(200),
+        };
+
+        using var job = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var read = () => MigrationJob.ReadPageFromSourceAsync<Treatment>(
+            client, "/api/v1/treatments.json", "treatments", job.Token);
+
+        (await read.Should().ThrowAsync<MigrationSourceException>())
+            .Which.Cause.Should().Be(MigrationFailureCause.Unreachable);
     }
 
     [Fact]

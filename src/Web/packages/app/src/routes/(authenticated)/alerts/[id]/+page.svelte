@@ -13,9 +13,10 @@
     testFire,
   } from "$api/generated/alertRules.generated.remote";
   import { describeSubmitError } from "$lib/forms/submit-error";
+  import { conditionIssuesMessage } from "$lib/components/alerts/conditionIssues.svelte";
   import { getAlertHistory } from "$api/generated/alerts.generated.remote";
   import { z } from "zod";
-  import { AlertRuleSeverity, AlertConditionType } from "$api-clients";
+  import { AlertRuleSeverity } from "$api-clients";
   import type { HistoryExcursionResponse } from "$api-clients";
 
   import { Button } from "$lib/components/ui/button";
@@ -34,16 +35,14 @@
   import * as Select from "$lib/components/ui/select";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import {
-    ArrowLeft,
-    Save,
-    Trash2,
-    Zap,
-    Loader2,
-    History as HistoryIcon,
-    PlayCircle,
-    CalendarDays,
-  } from "lucide-svelte";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import Save from "@lucide/svelte/icons/save";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Zap from "@lucide/svelte/icons/zap";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import HistoryIcon from "@lucide/svelte/icons/history";
+  import PlayCircle from "@lucide/svelte/icons/circle-play";
+  import CalendarDays from "@lucide/svelte/icons/calendar-days";
 
   import { EditorActionBar } from "$lib/components/layout";
   import RuleBuilder from "$lib/components/alerts/RuleBuilder.svelte";
@@ -53,9 +52,6 @@
   import { severity, severityLabel } from "$lib/components/alerts/severity";
   import {
     parseRule,
-    flattenSingleChildRoot,
-    nodeToApi,
-    stripEditorFields,
     ensureCompositeRoot,
     defaultPayload,
     buildBody,
@@ -159,7 +155,8 @@
         savedBody = buildBody(editor);
       }
     } catch (e) {
-      error = describeSubmitError(e, "Failed to save the alert rule. Please try again.");
+      const described = describeSubmitError(e, "Failed to save the alert rule. Please try again.");
+      error = conditionIssuesMessage(e) ?? described;
     } finally {
       saving = false;
     }
@@ -236,28 +233,23 @@
   // ---- Smart snooze -----------------------------------------------------
 
   /**
-   * Snapshot the editor state into the dry-run rule shape. Re-evaluated each
-   * time Run is pressed so unsaved edits between presses are picked up.
+   * Snapshot the editor state into the dry-run rule shape, from the same body a
+   * save sends. Re-evaluated each time Run is pressed so unsaved edits between
+   * presses are picked up.
    */
-  const conditionTypeSchema = z.enum(AlertConditionType);
   const severitySchema = z.enum(AlertRuleSeverity);
 
   function buildReplayRule() {
-    const flat = flattenSingleChildRoot(editor.condition!);
-    const api = nodeToApi(flat);
-    const params = api?.conditionParams;
-    const autoResolve = editor.autoResolveCondition
-      ? stripEditorFields(flattenSingleChildRoot(editor.autoResolveCondition))
-      : undefined;
+    const body = buildBody(editor);
     return {
       id: isNew ? undefined : ruleId,
-      name: editor.name,
-      conditionType: conditionTypeSchema.safeParse(api?.conditionType).data,
-      conditionParams: params == null ? undefined : JSON.stringify(params),
-      severity: editor.severity,
-      allowThroughDnd: editor.allowThroughDnd,
-      autoResolveEnabled: editor.autoResolveEnabled,
-      autoResolveParams: autoResolve ? JSON.stringify(autoResolve) : undefined,
+      name: body.name,
+      conditionType: body.conditionType,
+      conditionParams: body.conditionParams == null ? undefined : JSON.stringify(body.conditionParams),
+      severity: body.severity,
+      allowThroughDnd: body.allowThroughDnd,
+      autoResolveEnabled: body.autoResolveEnabled,
+      autoResolveParams: body.autoResolveParams ? JSON.stringify(body.autoResolveParams) : undefined,
     };
   }
 

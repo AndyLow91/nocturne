@@ -163,6 +163,87 @@ public class ClientDeviceServiceTests
     }
 
     [Fact]
+    public async Task GetForSubjectAsync_names_the_app_a_granted_device_came_through_and_nulls_an_unlinked_one()
+    {
+        using var ctx = CreateContext();
+        var subject = Guid.NewGuid();
+        var svc = CreateService(ctx);
+        var appGrant = SeedAppGrant(ctx, "Prelude");
+
+        await svc.RegisterAsync(subject, Req("linked", DeviceKinds.Prelude), FullDeviceScopes, appGrant);
+        await svc.RegisterAsync(subject, Req("unlinked", DeviceKinds.Companion), FullDeviceScopes, null);
+
+        var mine = await svc.GetForSubjectAsync(subject);
+
+        mine.Single(d => d.InstallId == "linked").AppName.Should().Be("Prelude");
+        mine.Single(d => d.InstallId == "linked").LinkedToApp.Should().BeTrue();
+        mine.Single(d => d.InstallId == "unlinked").AppName.Should().BeNull();
+        mine.Single(d => d.InstallId == "unlinked").LinkedToApp.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetForSubjectAsync_marks_a_device_linked_when_its_grant_client_has_no_name()
+    {
+        using var ctx = CreateContext();
+        var subject = Guid.NewGuid();
+        var svc = CreateService(ctx);
+        var appGrant = SeedAppGrant(ctx, "Prelude");
+        ctx.OAuthClients.Single(c => c.DisplayName == "Prelude").DisplayName = null;
+        await ctx.SaveChangesAsync();
+
+        await svc.RegisterAsync(subject, Req("unnamed", DeviceKinds.Prelude), FullDeviceScopes, appGrant);
+
+        var device = (await svc.GetForSubjectAsync(subject)).Single();
+
+        device.AppName.Should().BeNull();
+        device.LinkedToApp.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetDeviceCountsByGrantAsync_counts_only_devices_under_each_grant()
+    {
+        using var ctx = CreateContext();
+        var subject = Guid.NewGuid();
+        var svc = CreateService(ctx);
+        var grantA = Guid.NewGuid();
+        var grantB = Guid.NewGuid();
+
+        await svc.RegisterAsync(subject, Req("a1", DeviceKinds.Prelude), FullDeviceScopes, grantA);
+        await svc.RegisterAsync(subject, Req("a2", DeviceKinds.Companion), FullDeviceScopes, grantA);
+        await svc.RegisterAsync(subject, Req("b1", DeviceKinds.Prelude), FullDeviceScopes, grantB);
+        await svc.RegisterAsync(subject, Req("none", DeviceKinds.Prelude), FullDeviceScopes, null);
+
+        var counts = await svc.GetDeviceCountsByGrantAsync([grantA, grantB, Guid.NewGuid()]);
+
+        counts[grantA].Should().Be(2);
+        counts[grantB].Should().Be(1);
+        counts.Should().HaveCount(2);
+    }
+
+    private static Guid SeedAppGrant(NocturneDbContext ctx, string displayName)
+    {
+        var client = new OAuthClientEntity
+        {
+            Id = Guid.CreateVersion7(),
+            ClientId = $"client-{displayName.ToLowerInvariant()}",
+            DisplayName = displayName,
+        };
+        var grant = new OAuthGrantEntity
+        {
+            Id = Guid.CreateVersion7(),
+            SubjectId = Guid.NewGuid(),
+            GrantType = OAuthGrantTypes.App,
+            Scopes = [],
+            ClientEntityId = client.Id,
+            Client = client,
+        };
+        ctx.OAuthClients.Add(client);
+        ctx.OAuthGrants.Add(grant);
+        ctx.SaveChanges();
+        return grant.Id;
+    }
+
+    [Fact]
     public async Task RegisterAsync_rejects_cross_subject_takeover()
     {
         using var ctx = CreateContext();
@@ -203,7 +284,8 @@ public class ClientDeviceServiceTests
         string metadataJson,
         bool open = true,
         bool acknowledged = false,
-        DateTime? endedAt = null)
+        DateTime? endedAt = null,
+        DateTime? snoozedUntil = null)
     {
         var rule = new AlertRuleEntity
         {
@@ -220,14 +302,79 @@ public class ClientDeviceServiceTests
             Metadata = metadataJson,
         });
         ctx.AlertRules.Add(rule);
-        ctx.AlertExcursions.Add(new AlertExcursionEntity
+        var excursion = new AlertExcursionEntity
         {
             Id = Guid.NewGuid(),
             AlertRuleId = rule.Id,
             StartedAt = DateTime.UtcNow,
             EndedAt = endedAt ?? (open ? null : DateTime.UtcNow),
             AcknowledgedAt = acknowledged ? DateTime.UtcNow : null,
+        };
+        ctx.AlertExcursions.Add(excursion);
+        ctx.AlertInstances.Add(new AlertInstanceEntity
+        {
+            Id = Guid.NewGuid(),
+            AlertExcursionId = excursion.Id,
+            TriggeredAt = DateTime.UtcNow,
+            SnoozedUntil = snoozedUntil,
+            SnoozeCount = snoozedUntil is null ? 0 : 1,
         });
+    }
+
+    private async Task<(ClientDeviceService svc, Guid deviceId, Guid subject)> CompanionWithExcursionAsync(
+        NocturneDbContext ctx, bool acknowledged = false, DateTime? snoozedUntil = null)
+    {
+        var subject = Guid.NewGuid();
+        var svc = CreateService(ctx);
+        var device = await svc.RegisterAsync(subject, new RegisterDeviceRequest
+        {
+            InstallId = "c1",
+            Kind = DeviceKinds.Companion,
+            Capabilities = [DeviceCapabilities.Notify],
+        }, FullDeviceScopes, null);
+        SeedDeviceActionExcursion(ctx, DeviceKinds.Companion, "{\"capabilities\":[\"notify\"]}",
+            acknowledged: acknowledged, snoozedUntil: snoozedUntil);
+        await ctx.SaveChangesAsync();
+        return (svc, device.Id, subject);
+    }
+
+    [Fact]
+    public async Task GetActiveIntentsAsync_reports_a_snoozed_excursion_as_snoozed_so_devices_withdraw()
+    {
+        using var ctx = CreateContext();
+        var (svc, deviceId, subject) = await CompanionWithExcursionAsync(ctx, snoozedUntil: DateTime.UtcNow.AddMinutes(15));
+
+        var intents = await svc.GetActiveIntentsAsync(deviceId, subject);
+
+        intents.Should().ContainSingle();
+        intents[0].Intent.Should().Be("snoozed");
+        intents[0].Acknowledged.Should().BeFalse("a snooze is not an acknowledgement");
+    }
+
+    [Fact]
+    public async Task GetActiveIntentsAsync_reopens_the_intent_once_the_snooze_lapses()
+    {
+        using var ctx = CreateContext();
+        var (svc, deviceId, subject) = await CompanionWithExcursionAsync(ctx, snoozedUntil: DateTime.UtcNow.AddSeconds(-1));
+
+        var intents = await svc.GetActiveIntentsAsync(deviceId, subject);
+
+        intents.Should().ContainSingle();
+        intents[0].Intent.Should().Be("opened");
+    }
+
+    [Fact]
+    public async Task GetActiveIntentsAsync_acknowledgement_wins_over_snooze()
+    {
+        using var ctx = CreateContext();
+        var (svc, deviceId, subject) = await CompanionWithExcursionAsync(
+            ctx, acknowledged: true, snoozedUntil: DateTime.UtcNow.AddMinutes(15));
+
+        var intents = await svc.GetActiveIntentsAsync(deviceId, subject);
+
+        intents.Should().ContainSingle();
+        intents[0].Intent.Should().Be("acknowledged");
+        intents[0].Acknowledged.Should().BeTrue();
     }
 
     [Fact]
@@ -252,6 +399,34 @@ public class ClientDeviceServiceTests
         intents[0].Severity.Should().Be(AlertRuleSeverity.Critical);
         // torch dropped — the device only has notify + tray_flash
         intents[0].Capabilities.Should().BeEquivalentTo(["notify", "tray_flash"]);
+    }
+
+    [Fact]
+    public async Task GetActiveIntentsAsync_reports_a_muted_excursion_as_acknowledged_only_to_the_muting_members_devices()
+    {
+        using var ctx = CreateContext();
+        var muter = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var svc = CreateService(ctx);
+        var mutersDevice = await svc.RegisterAsync(muter, Req("m1", DeviceKinds.Companion), FullDeviceScopes, null);
+        var othersDevice = await svc.RegisterAsync(other, Req("o1", DeviceKinds.Companion), FullDeviceScopes, null);
+        SeedDeviceActionExcursion(ctx, DeviceKinds.Companion, "{\"capabilities\":[\"notify\"]}");
+        await ctx.SaveChangesAsync();
+        ctx.AlertExcursionMutes.Add(new AlertExcursionMuteEntity
+        {
+            Id = Guid.NewGuid(),
+            SubjectId = muter,
+            AlertExcursionId = ctx.AlertExcursions.Single().Id,
+        });
+        await ctx.SaveChangesAsync();
+
+        var mutersIntent = (await svc.GetActiveIntentsAsync(mutersDevice.Id, muter)).Should().ContainSingle().Subject;
+        var othersIntent = (await svc.GetActiveIntentsAsync(othersDevice.Id, other)).Should().ContainSingle().Subject;
+
+        mutersIntent.Acknowledged.Should().BeTrue();
+        mutersIntent.Intent.Should().Be("acknowledged");
+        othersIntent.Acknowledged.Should().BeFalse("one member's mute never silences another member's devices");
+        othersIntent.Intent.Should().Be("opened");
     }
 
     [Fact]

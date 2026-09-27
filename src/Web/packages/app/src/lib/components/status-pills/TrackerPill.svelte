@@ -5,7 +5,9 @@
   import type { TrackerInstanceDto, TrackerDefinitionDto } from "$lib/api";
   import { NotificationUrgency, TrackerCategory } from "$lib/api";
   import { cn } from "$lib/utils";
-  import { Check, Clock, TriangleAlert } from "lucide-svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import Clock from "@lucide/svelte/icons/clock";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import { TrackerCategoryIcon } from "$lib/components/icons";
 
   type AlertLevel = "none" | "info" | "warn" | "hazard" | "urgent";

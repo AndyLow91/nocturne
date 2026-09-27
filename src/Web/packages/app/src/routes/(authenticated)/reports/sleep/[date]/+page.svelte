@@ -4,13 +4,14 @@
   import { getSingleNightByDate } from "$api/generated/sleepReports.generated.remote";
   import { contextResource } from "$lib/hooks/resource-context.svelte";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
-  import { ArrowLeft } from "lucide-svelte";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import FigureStrip, { type Figure } from "$lib/components/reports/FigureStrip.svelte";
   import TIRStackedChart from "$lib/components/reports/TIRStackedChart.svelte";
   import Hypnogram from "$lib/components/reports/sleep/single-night/Hypnogram.svelte";
   import StageCompositionCard from "$lib/components/reports/sleep/single-night/StageCompositionCard.svelte";
   import DawnPhenomenonCard from "$lib/components/reports/sleep/single-night/DawnPhenomenonCard.svelte";
   import BiometricsCard from "$lib/components/reports/sleep/single-night/BiometricsCard.svelte";
+  import OvernightLowsCard from "$lib/components/reports/sleep/single-night/OvernightLowsCard.svelte";
   import { formatMinutesDuration } from "$lib/utils/duration";
   import { bg, bgLabel, formatLocale, time, toDate } from "$lib/utils/formatting";
   import { setReportPrintMeta } from "$lib/components/reports/print/report-print.svelte";
@@ -150,6 +151,10 @@
           {/if}
         </CardContent>
       </Card>
+
+      {#if tirPercentages}
+        <OvernightLowsCard lows={report.hypoEvents ?? []} />
+      {/if}
 
       <StageCompositionCard breakdown={report.stageBreakdown} />
 

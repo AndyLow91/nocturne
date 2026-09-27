@@ -5,17 +5,16 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { Checkbox } from "$lib/components/ui/checkbox";
   import TokenScopeSelector from "./TokenScopeSelector.svelte";
-  import {
-    KeyRound,
-    Plus,
-    Trash2,
-    Clock,
-    Copy,
-    Check,
-    AlertTriangle,
-    Loader2,
-  } from "lucide-svelte";
+  import KeyRound from "@lucide/svelte/icons/key-round";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Clock from "@lucide/svelte/icons/clock";
+  import Copy from "@lucide/svelte/icons/copy";
+  import Check from "@lucide/svelte/icons/check";
+  import AlertTriangle from "@lucide/svelte/icons/triangle-alert";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
   import { formatMediumDateTime } from "$lib/utils/formatting";
   import {
     list as listGrants,
@@ -69,6 +68,7 @@
   let showCreateDialog = $state(false);
   let newTokenLabel = $state("");
   let newTokenScopes = $state<string[]>([]);
+  let newTokenLimitTo24Hours = $state(false);
   let isCreating = $state(false);
   let createdToken = $state<string | null>(null);
   const copy = createCopyFeedback();
@@ -83,6 +83,7 @@
     if (createOpen) {
       newTokenLabel = prefillLabel;
       newTokenScopes = [...prefillScopes];
+      newTokenLimitTo24Hours = false;
       createdToken = null;
       showCreateDialog = true;
       createOpen = false;
@@ -96,6 +97,7 @@
   function openCreateDialog() {
     newTokenLabel = "";
     newTokenScopes = [];
+    newTokenLimitTo24Hours = false;
     createdToken = null;
     showCreateDialog = true;
   }
@@ -108,6 +110,7 @@
       const data = await createGrant({
         label: newTokenLabel,
         scopes: newTokenScopes,
+        limitTo24Hours: newTokenLimitTo24Hours,
       });
       createdToken = data.token ?? null;
       await grantsQuery.refresh();
@@ -133,6 +136,7 @@
     createdToken = null;
     newTokenLabel = "";
     newTokenScopes = [];
+    newTokenLimitTo24Hours = false;
     onCreateClose?.();
   }
 
@@ -292,6 +296,12 @@
                   Last used {formatMediumDateTime(grant.lastUsedAt)}
                 </span>
               {/if}
+              {#if grant.limitTo24Hours}
+                <span class="flex items-center gap-1 text-warning">
+                  <Clock class="h-3 w-3" />
+                  24-hour limit
+                </span>
+              {/if}
             </div>
           </div>
         {/each}
@@ -366,6 +376,27 @@
         <div class="space-y-3">
           <Label>Permissions</Label>
           <TokenScopeSelector bind:selected={newTokenScopes} />
+        </div>
+
+        <div class="flex items-start gap-2 rounded-md border p-3 bg-muted/30">
+          <Checkbox
+            id="token-limit-24h"
+            checked={newTokenLimitTo24Hours}
+            onCheckedChange={(checked: boolean) => {
+              newTokenLimitTo24Hours = checked === true;
+            }}
+          />
+          <div class="flex-1">
+            <label
+              for="token-limit-24h"
+              class="text-sm font-medium cursor-pointer select-none"
+            >
+              Only last 24 hours
+            </label>
+            <p class="text-xs text-muted-foreground mt-0.5">
+              Restrict this token to only the most recent 24 hours of data.
+            </p>
+          </div>
         </div>
       </div>
       <Dialog.Footer>

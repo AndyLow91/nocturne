@@ -7,14 +7,12 @@
     CardTitle,
   } from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
-  import {
-    Link2,
-    Loader2,
-    RefreshCw,
-    Sparkles,
-    Wrench,
-    ChevronRight,
-  } from "lucide-svelte";
+  import Link2 from "@lucide/svelte/icons/link-2";
+  import Loader2 from "@lucide/svelte/icons/loader-circle";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Sparkles from "@lucide/svelte/icons/sparkles";
+  import Wrench from "@lucide/svelte/icons/wrench";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import DeduplicationDialog from "$lib/components/connectors/DeduplicationDialog.svelte";
   import DemoDataSection from "$lib/components/connectors/DemoDataSection.svelte";
   import { resolve } from "$app/paths";
