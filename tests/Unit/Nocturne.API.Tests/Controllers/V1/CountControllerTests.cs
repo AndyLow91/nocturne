@@ -1,8 +1,10 @@
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Nocturne.API.Configuration;
 using Nocturne.API.Controllers.V1;
 using Nocturne.Core.Contracts.Entries;
 using Nocturne.Core.Contracts.Health;
@@ -94,9 +96,7 @@ public class CountControllerTests
         var result = await _controller.CountEntries(find, type);
 
         // Assert
-        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-        var response = okResult.Value.Should().BeOfType<CountResponse>().Subject;
-        response.Count.Should().Be(42L);
+        Rows(result).Should().ContainSingle().Which.Count.Should().Be(42L);
 
         _mockEntryStore.Verify(
             s => s.CountAsync(find, type, It.IsAny<CancellationToken>()),
@@ -118,13 +118,118 @@ public class CountControllerTests
         var result = await _controller.CountGeneric("entries", find, type);
 
         // Assert
-        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-        var response = okResult.Value.Should().BeOfType<CountResponse>().Subject;
-        response.Count.Should().Be(7L);
+        Rows(result).Should().ContainSingle().Which.Count.Should().Be(7L);
 
         _mockEntryStore.Verify(
             s => s.CountAsync(find, type, It.IsAny<CancellationToken>()),
             Times.Once
         );
     }
+
+    [Theory]
+    [InlineData("entries")]
+    [InlineData("treatments")]
+    [InlineData("devicestatus")]
+    [InlineData("profile")]
+    [InlineData("food")]
+    [InlineData("activity")]
+    public async Task CountGeneric_NoMatch_AnswersNoRow(string storage)
+    {
+        var result = await _controller.CountGeneric(storage);
+
+        Rows(result).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CountEvery_NoMatch_AnswersNoRow()
+    {
+        Rows(await _controller.CountEntries()).Should().BeEmpty();
+        Rows(await _controller.CountTreatments()).Should().BeEmpty();
+        Rows(await _controller.CountDeviceStatus()).Should().BeEmpty();
+        Rows(await _controller.CountActivity()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CountEvery_Match_AnswersOneGroupRow()
+    {
+        _mockTreatmentStore
+            .Setup(s => s.CountAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3L);
+        _mockApsSnapshotRepository
+            .Setup(s => s.CountAsync(null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(4);
+        _mockActivityService
+            .Setup(s => s.CountActivitiesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(5L);
+        _mockProfileProjectionService
+            .Setup(s => s.CountProfilesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(6L);
+        _mockFoodRepository
+            .Setup(s => s.CountFoodAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(8L);
+
+        Rows(await _controller.CountTreatments()).Should().ContainSingle().Which.Count.Should().Be(3L);
+        Rows(await _controller.CountDeviceStatus()).Should().ContainSingle().Which.Count.Should().Be(4L);
+        Rows(await _controller.CountActivity()).Should().ContainSingle().Which.Count.Should().Be(5L);
+        Rows(await _controller.CountGeneric("treatments")).Should().ContainSingle().Which.Count.Should().Be(3L);
+        Rows(await _controller.CountGeneric("devicestatus")).Should().ContainSingle().Which.Count.Should().Be(4L);
+        Rows(await _controller.CountGeneric("activity")).Should().ContainSingle().Which.Count.Should().Be(5L);
+        Rows(await _controller.CountGeneric("profile")).Should().ContainSingle().Which.Count.Should().Be(6L);
+        Rows(await _controller.CountGeneric("food")).Should().ContainSingle().Which.Count.Should().Be(8L);
+    }
+
+    [Fact]
+    public async Task CountEntries_BracketedFind_ReachesTheStore()
+    {
+        const string queryString = "find[type]=sgv&find[sgv][$gte]=100";
+        _controller.ControllerContext.HttpContext.Request.QueryString = new QueryString("?" + queryString);
+        _mockEntryStore
+            .Setup(s => s.CountAsync(queryString, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2L);
+
+        var result = await _controller.CountEntries(find: null);
+
+        Rows(result).Should().ContainSingle().Which.Count.Should().Be(2L);
+    }
+
+    [Fact]
+    public async Task CountGeneric_Entries_BracketedFind_ReachesTheStore()
+    {
+        const string queryString = "find%5Btype%5D=mbg";
+        _controller.ControllerContext.HttpContext.Request.QueryString = new QueryString("?" + queryString);
+        _mockEntryStore
+            .Setup(s => s.CountAsync(queryString, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1L);
+
+        var result = await _controller.CountGeneric("entries", find: null);
+
+        Rows(result).Should().ContainSingle().Which.Count.Should().Be(1L);
+    }
+
+    [Fact]
+    public void LegacyCountResult_SerializesAsTheAggregateRow()
+    {
+        var options = NightscoutJsonOptions.Create();
+
+        JsonSerializer.Serialize(new[] { new LegacyCountResult { Count = 1 } }, options)
+            .Should().Be("""[{"_id":null,"count":1}]""");
+        JsonSerializer.Serialize(Array.Empty<LegacyCountResult>(), options).Should().Be("[]");
+    }
+
+    [Fact]
+    public async Task CountEntries_StoreFailure_Answers500()
+    {
+        _mockEntryStore
+            .Setup(s => s.CountAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("synthetic"));
+
+        (await _controller.CountEntries()).Result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        (await _controller.CountGeneric("entries")).Result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    private static LegacyCountResult[] Rows(ActionResult<LegacyCountResult[]> result) =>
+        result.Result.Should().BeOfType<OkObjectResult>().Subject
+            .Value.Should().BeAssignableTo<LegacyCountResult[]>().Subject;
 }
