@@ -1,4 +1,6 @@
+using System.Text.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Nocturne.API.Services.V4;
@@ -165,6 +167,44 @@ public class BatchResendMatchesSingleTests : IDisposable
         result.CreatedRecords.Should().BeEmpty();
         result.UpdatedRecords.Should().ContainSingle();
         _context.UploaderSnapshots.Select(e => e.Battery).Should().Equal(40);
+    }
+
+    [Fact]
+    public async Task DeviceStatus_BatchResendWithExtras_KeepsOneExtrasRowThatADeleteRemoves()
+    {
+        var decomposer = new DeviceStatusDecomposer(
+            new ApsSnapshotRepository(_factory, _audit, NullLogger<ApsSnapshotRepository>.Instance),
+            new PumpSnapshotRepository(_factory, _audit, NullLogger<PumpSnapshotRepository>.Instance),
+            new UploaderSnapshotRepository(_factory, _audit, NullLogger<UploaderSnapshotRepository>.Instance),
+            new DeviceStatusExtrasRepository(_factory, _audit, NullLogger<DeviceStatusExtrasRepository>.Instance),
+            Mock.Of<IStateSpanService>(),
+            Mock.Of<IDeviceService>(),
+            _audit,
+            NullLogger<DeviceStatusDecomposer>.Instance);
+
+        const string legacyId = "6500000000000000000000d2";
+        DeviceStatus Status(int battery) => new()
+        {
+            Id = legacyId, Mills = At, Device = "phone", UploaderBattery = battery,
+            ExtensionData = new Dictionary<string, JsonElement>
+            {
+                ["configuration"] = JsonDocument.Parse("""{"version":1}""").RootElement,
+            },
+        };
+
+        await decomposer.DecomposeBatchAsync([Status(80)], source: null, WriteOrigin.Live);
+        var storedCorrelationId = _context.UploaderSnapshots.Single().CorrelationId;
+
+        await decomposer.DecomposeBatchAsync([Status(40)], source: null, WriteOrigin.Live);
+
+        _context.UploaderSnapshots.Select(e => e.CorrelationId).Should().Equal(storedCorrelationId);
+        _context.DeviceStatusExtras.IgnoreQueryFilters().Where(e => e.DeletedAt == null)
+            .Select(e => (Guid?)e.CorrelationId).Should().Equal(storedCorrelationId);
+
+        await decomposer.DeleteByLegacyIdAsync(legacyId, WriteOrigin.Live);
+
+        _context.DeviceStatusExtras.IgnoreQueryFilters().Where(e => e.DeletedAt == null)
+            .Should().BeEmpty("deleting the device status must reach its extras row");
     }
 
     [Fact]

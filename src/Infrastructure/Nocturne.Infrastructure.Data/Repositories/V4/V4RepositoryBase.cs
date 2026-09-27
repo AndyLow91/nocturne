@@ -230,6 +230,23 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         return entity is null ? null : ToDomain(entity);
     }
 
+    /// <inheritdoc cref="ILegacyKeyedRepository{T}.GetCorrelationIdsByLegacyIdAsync" />
+    public async Task<IEnumerable<LegacyCorrelation>> GetCorrelationIdsByLegacyIdAsync(
+        IEnumerable<string> legacyIds, CancellationToken ct = default)
+    {
+        var ids = legacyIds.Distinct(StringComparer.Ordinal).ToList();
+        if (ids.Count == 0) return [];
+
+        await using var ctx = await ContextFactory.CreateAsync(ct);
+        var rows = await ctx.Set<TEntity>()
+            .AsNoTracking()
+            .Where(e => e.LegacyId != null && ids.Contains(e.LegacyId)
+                && e.CorrelationId != null && e.CorrelationId != Guid.Empty)
+            .Select(e => new { e.LegacyId, e.CorrelationId })
+            .ToListAsync(ct);
+        return rows.Select(r => new LegacyCorrelation(r.LegacyId!, r.CorrelationId!.Value)).ToList();
+    }
+
     /// <inheritdoc cref="Core.Contracts.V4.Repositories.IV4Repository{T}.GetByGuidRangeAsync" />
     public async Task<TModel?> GetByGuidRangeAsync(Guid low, Guid high, CancellationToken ct = default)
     {

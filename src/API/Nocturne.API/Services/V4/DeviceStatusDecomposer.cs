@@ -595,6 +595,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         var uploaderList = new List<V4Models.UploaderSnapshot>();
         var extrasList = new List<V4Models.DeviceStatusExtras>();
         var overrideSpans = new List<StateSpan>();
+        var correlationIds = await GetStoredCorrelationIdsAsync(statuses, ct);
 
         await using (_deviceService.DeferLastSeen(ct))
         {
@@ -602,9 +603,13 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             {
                 NormalizeMills(ds);
 
-                var correlationId = Guid.CreateVersion7();
-                result.CorrelationId ??= correlationId;
                 var legacyId = ds.Id;
+                Guid correlationId;
+                if (legacyId is null)
+                    correlationId = Guid.CreateVersion7();
+                else if (!correlationIds.TryGetValue(legacyId, out correlationId))
+                    correlationIds[legacyId] = correlationId = Guid.CreateVersion7();
+                result.CorrelationId ??= correlationId;
                 var statusMills = ResolveStatusMills(ds);
 
                 Guid? pumpDeviceId = null;
@@ -653,9 +658,9 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             await BulkUpsertAsync(_pumpRepo, pumpList, result, origin, ct);
             await BulkUpsertAsync(_uploaderRepo, uploaderList, result, origin, ct);
 
-            // Extras carry no legacy id, so nothing holds them when a re-run's snapshots are skipped or
-            // update stored rows, which keep their correlation id; written under that run's fresh
-            // correlation id they would join nothing.
+            // Extras carry no legacy id, so nothing holds them when a re-run's snapshots are all
+            // withheld; written anyway they would join nothing. A stored group's extras row, already
+            // live under the correlation id the group keeps, holds its own re-send off in BulkCreateAsync.
             var written = result.CreatedRecords.Concat(result.UpdatedRecords).OfType<V4Models.IV4Record>()
                 .Select(r => r.CorrelationId)
                 .ToHashSet();
@@ -689,8 +694,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             for (var i = 0; i < persistedPumps.Count; i++)
             {
                 var pumpSnapshot = persistedPumps[i];
-                // Find the original DeviceStatus that produced this pump snapshot
-                var ds = statuses.FirstOrDefault(s => s.Id == pumpSnapshot.LegacyId);
+                // The last duplicate is the one BulkUpsertAsync kept.
+                var ds = statuses.LastOrDefault(s => s.Id == pumpSnapshot.LegacyId);
                 if (ds != null)
                 {
                     await DecomposePumpSuspensionAsync(ds, pumpSnapshot, result, origin, ct);
@@ -700,6 +705,33 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The correlation id each re-sent status's stored group already carries, preferring the APS,
+    /// then pump, then uploader snapshot as <see cref="DeleteByLegacyIdAsync"/> does.
+    /// </summary>
+    /// <remarks>
+    /// A re-send keeps that id rather than minting a fresh one, because the group's extras row is
+    /// found through it and carries no legacy id of its own: moving the snapshots onto a new id
+    /// would orphan the stored extras row beyond <see cref="DeleteByLegacyIdAsync"/>'s reach.
+    /// Stamping every sibling with the one id also converges a group that has forked.
+    /// </remarks>
+    private async Task<Dictionary<string, Guid>> GetStoredCorrelationIdsAsync(
+        IReadOnlyList<DeviceStatus> statuses, CancellationToken ct)
+    {
+        var correlationIds = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        var legacyIds = statuses.Select(s => s.Id).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        if (legacyIds.Count == 0)
+            return correlationIds;
+
+        foreach (var stored in await _apsRepo.GetCorrelationIdsByLegacyIdAsync(legacyIds, ct))
+            correlationIds.TryAdd(stored.LegacyId, stored.CorrelationId);
+        foreach (var stored in await _pumpRepo.GetCorrelationIdsByLegacyIdAsync(legacyIds, ct))
+            correlationIds.TryAdd(stored.LegacyId, stored.CorrelationId);
+        foreach (var stored in await _uploaderRepo.GetCorrelationIdsByLegacyIdAsync(legacyIds, ct))
+            correlationIds.TryAdd(stored.LegacyId, stored.CorrelationId);
+        return correlationIds;
     }
 
     #endregion

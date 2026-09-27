@@ -52,6 +52,12 @@ public interface IBulkUpsertRepository<TRecord>
 public sealed record LegacyUpsert<TRecord>(TRecord Record, bool Created);
 
 /// <summary>
+/// A stored row's legacy id and the correlation id it carries, from
+/// <see cref="ILegacyKeyedRepository{TRecord}.GetCorrelationIdsByLegacyIdAsync"/>.
+/// </summary>
+public sealed record LegacyCorrelation(string LegacyId, Guid CorrelationId);
+
+/// <summary>
 /// A V4 repository addressable by the legacy MongoDB <c>_id</c> its records were decomposed from.
 /// This is the surface the decomposers upsert through, so their create-or-update body can live in
 /// one generic place (<c>DecomposerBase.UpsertByLegacyIdAsync</c> per record,
@@ -91,6 +97,14 @@ public interface ILegacyKeyedRepository<TRecord>
         CancellationToken ct = default);
 
     Task<TRecord?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default);
+
+    /// <summary>
+    /// The stored, non-empty correlation id of each live row carrying one of
+    /// <paramref name="legacyIds"/>, under the same soft-delete visibility as
+    /// <see cref="GetByLegacyIdAsync"/>. A legacy id with no such row is absent.
+    /// </summary>
+    Task<IEnumerable<LegacyCorrelation>> GetCorrelationIdsByLegacyIdAsync(
+        IEnumerable<string> legacyIds, CancellationToken ct = default);
 
     /// <returns>Number of records deleted.</returns>
     Task<int> DeleteByLegacyIdAsync(string legacyId, WriteOrigin origin, CancellationToken ct = default);
