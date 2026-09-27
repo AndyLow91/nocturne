@@ -1530,7 +1530,7 @@ public class StatisticsService : IStatisticsService
     {
         bins ??= DefaultDistributionBins;
 
-        var readings = glucoseValues.Where(value => value > 0 && value < 1000).ToList();
+        var readings = glucoseValues.Where(IsPlausibleReading).ToList();
 
         if (!readings.Any())
         {
@@ -2037,8 +2037,7 @@ public class StatisticsService : IStatisticsService
         var bolusList = boluses.ToList();
         var carbList = carbIntakes.ToList();
 
-        // Calculate day count (minimum 1 to avoid division by zero)
-        var dayCount = Math.Max(1, (int)Math.Round((endDate - startDate).TotalDays));
+        var dayCount = WindowDays(startDate, endDate);
 
         // All Bolus records are bolus insulin; basal comes from TempBasals.
         // This overload only has bolus data, so basal stats will be 0.
@@ -2127,13 +2126,23 @@ public class StatisticsService : IStatisticsService
             CorrectionBoluses = correctionBoluses,
             IcRatio = Math.Round(icRatio * 10) / 10,
             BolusesPerDay = Math.Round(bolusesPerDay * 10) / 10,
-            DayCount = dayCount,
+            WindowDays = dayCount,
             StartDate = startDate.ToString("yyyy-MM-dd"),
             EndDate = endDate.ToString("yyyy-MM-dd"),
             CarbCount = carbCount,
             CarbBolusCount = carbBolusCount,
         };
     }
+
+    /// <summary>
+    /// Whole days in the requested window, rounded to nearest and at least one: the
+    /// <c>WindowDays</c> every insulin response reports and the denominator of every per-day
+    /// average over the window. Nearest rather than ceiling, so an end bound written as
+    /// 23:59:59.999 or as the next midnight gives one count, and a rolling window whose start was
+    /// taken a few milliseconds before its end does not gain a day.
+    /// </summary>
+    internal static int WindowDays(DateTime startDate, DateTime endDate) =>
+        Math.Max(1, (int)Math.Round((endDate - startDate).TotalDays));
 
     private static string MillsToLocalDateString(long mills, TimeZoneInfo tz)
     {
@@ -2277,7 +2286,7 @@ public class StatisticsService : IStatisticsService
         stats.ScheduledBasal = Math.Round(scheduledBasalInsulin * 100) / 100;
         stats.AdditionalBasal = Math.Round(additionalBasalInsulin * 100) / 100;
         stats.TotalInsulin = Math.Round(totalInsulin * 100) / 100;
-        stats.Tdd = Math.Round(totalInsulin / Math.Max(1, stats.DayCount) * 10) / 10;
+        stats.Tdd = Math.Round(totalInsulin / stats.WindowDays * 10) / 10;
         stats.BasalPercent =
             totalInsulin > 0 ? Math.Round(totalBasal / totalInsulin * 100 * 10) / 10 : 0;
         stats.BolusPercent =
@@ -2359,7 +2368,7 @@ public class StatisticsService : IStatisticsService
         var result = new DailyBasalBolusRatioResponse
         {
             DailyData = new List<DailyBasalBolusRatioData>(),
-            DayCount = sortedDates.Count,
+            DaysWithData = sortedDates.Count,
         };
 
         double totalBasal = 0;
@@ -2399,7 +2408,7 @@ public class StatisticsService : IStatisticsService
         result.AverageBolusPercent =
             grandTotal > 0 ? Math.Round((totalBolus / grandTotal) * 100 * 10) / 10 : 0;
         result.AverageTdd =
-            result.DayCount > 0 ? Math.Round((grandTotal / result.DayCount) * 10) / 10 : 0;
+            result.DaysWithData > 0 ? Math.Round((grandTotal / result.DaysWithData) * 10) / 10 : 0;
 
         return result;
     }
@@ -2421,7 +2430,7 @@ public class StatisticsService : IStatisticsService
     {
         var tz = userTimeZone ?? TimeZoneInfo.Utc;
         var tempBasalList = ClipOverlappingTempBasals(tempBasals);
-        var dayCount = Math.Max(1, (int)Math.Ceiling((endDate - startDate).TotalDays));
+        var dayCount = WindowDays(startDate, endDate);
 
         var allRates = new List<double>();
         double totalDelivered = 0;
@@ -2511,7 +2520,7 @@ public class StatisticsService : IStatisticsService
             Stats = basalStats,
             TempBasalInfo = tempBasalInfo,
             HourlyPercentiles = hourlyPercentiles,
-            DayCount = dayCount,
+            WindowDays = dayCount,
             StartDate = startDate.ToString("yyyy-MM-dd"),
             EndDate = endDate.ToString("yyyy-MM-dd"),
         };
@@ -2577,7 +2586,6 @@ public class StatisticsService : IStatisticsService
         // of insulin action, so spread each dose evenly across that window as scheduled basal —
         // the discrete-dose analogue of a pump's scheduled rate tiling the day. The coverage
         // window is the injection's recorded DIA when present (e.g. ~42h for degludec), else 24h.
-        const long HourMs = 3_600_000L;
         foreach (var bi in (basalInjections ?? Enumerable.Empty<BasalInjection>()).Where(bi => bi.Units > 0))
         {
             // Coverage window is the injection's recorded DIA when valid, else 24h.
@@ -2621,7 +2629,7 @@ public class StatisticsService : IStatisticsService
         return new HourlyInsulinDeliveryResponse
         {
             Hours = hours,
-            DayCount = allDays.Count,
+            DaysWithData = allDays.Count,
             StartDate = startDate.ToString("yyyy-MM-dd"),
             EndDate = endDate.ToString("yyyy-MM-dd"),
         };
@@ -2629,8 +2637,7 @@ public class StatisticsService : IStatisticsService
 
     /// <summary>
     /// Adds a constant-rate delivery interval's insulin into per-local-hour-of-day
-    /// buckets, splitting on the timezone's local hour boundaries so each hour
-    /// receives exactly the insulin delivered during it. Also records the local
+    /// buckets, sliced by <see cref="DistributeAcrossLocalHours"/>. Also records the local
     /// days the interval touches.
     /// </summary>
     private static void DistributeInsulinAcrossHourOfDay(
@@ -2641,8 +2648,29 @@ public class StatisticsService : IStatisticsService
         double[] insulinBuckets,
         HashSet<DateOnly> localDays)
     {
-        if (endMills <= startMills) return;
-        const long HourMs = 3_600_000L;
+        DistributeAcrossLocalHours(startMills, endMills, tz, (localStart, sliceMs) =>
+        {
+            insulinBuckets[localStart.Hour] += rate * sliceMs / HourMs;
+            localDays.Add(DateOnly.FromDateTime(localStart));
+        });
+    }
+
+    private const long HourMs = 3_600_000L;
+
+    /// <summary>
+    /// Walks a [startMills, endMills) interval in slices that end on <paramref name="tz"/>'s
+    /// local hour boundaries, handing each slice's local start and length to
+    /// <paramref name="addSlice"/>. A 30-minute interval at local 13:55 yields 5 min in hour 13
+    /// and 25 min in hour 14. Slicing on local rather than UTC boundaries is what keeps a zone
+    /// with a non-whole-hour offset (Adelaide +9:30, Kathmandu +5:45) from attributing part of
+    /// every slice to the neighbouring hour. Every hour-of-day distribution goes through here.
+    /// </summary>
+    private static void DistributeAcrossLocalHours(
+        long startMills,
+        long endMills,
+        TimeZoneInfo tz,
+        Action<DateTime, long> addSlice)
+    {
         long cursor = startMills;
         while (cursor < endMills)
         {
@@ -2650,9 +2678,7 @@ public class StatisticsService : IStatisticsService
             var offsetMs = (long)tz.GetUtcOffset(utcDt).TotalMilliseconds;
             long nextLocalHourBoundary = ((cursor + offsetMs) / HourMs + 1) * HourMs - offsetMs;
             long sliceEnd = Math.Min(nextLocalHourBoundary, endMills);
-            var localDt = TimeZoneInfo.ConvertTimeFromUtc(utcDt.UtcDateTime, tz);
-            insulinBuckets[localDt.Hour] += rate * (sliceEnd - cursor) / HourMs;
-            localDays.Add(DateOnly.FromDateTime(localDt));
+            addSlice(TimeZoneInfo.ConvertTimeFromUtc(utcDt.UtcDateTime, tz), sliceEnd - cursor);
             cursor = sliceEnd;
         }
     }
@@ -2666,12 +2692,8 @@ public class StatisticsService : IStatisticsService
             DateTimeOffset.FromUnixTimeMilliseconds(mills).UtcDateTime, tz));
 
     /// <summary>
-    /// Walks a [startMills, endMills) interval and adds (rate, overlapMs) entries to each
-    /// <paramref name="tz"/>-local hour-of-day bucket the interval crosses. A 30-minute interval
-    /// at local 13:55 contributes 5 min to bucket 13 and 25 min to bucket 14. Slices on UTC
-    /// hour boundaries; the local hour at the slice start determines the bucket. DST transitions
-    /// that occur on the UTC hour boundary correctly skip (spring-forward) or repeat (fall-back)
-    /// the affected local-hour bucket.
+    /// Adds (rate, overlapMs) entries to each local hour-of-day bucket the interval crosses,
+    /// sliced by <see cref="DistributeAcrossLocalHours"/>.
     /// </summary>
     private static void DistributeAcrossHourOfDay(
         long startMills,
@@ -2680,20 +2702,8 @@ public class StatisticsService : IStatisticsService
         TimeZoneInfo tz,
         List<(double Rate, long WeightMs)>[] buckets)
     {
-        if (endMills <= startMills) return;
-        const long HourMs = 3_600_000L;
-        long cursor = startMills;
-        while (cursor < endMills)
-        {
-            long nextHourBoundary = (cursor / HourMs + 1) * HourMs;
-            long sliceEnd = Math.Min(nextHourBoundary, endMills);
-            long weight = sliceEnd - cursor;
-            var utcDt = DateTimeOffset.FromUnixTimeMilliseconds(cursor).UtcDateTime;
-            var localDt = TimeZoneInfo.ConvertTimeFromUtc(utcDt, tz);
-            int hourOfDay = localDt.Hour;
-            buckets[hourOfDay].Add((rate, weight));
-            cursor = sliceEnd;
-        }
+        DistributeAcrossLocalHours(startMills, endMills, tz,
+            (localStart, sliceMs) => buckets[localStart.Hour].Add((rate, sliceMs)));
     }
 
     /// <summary>

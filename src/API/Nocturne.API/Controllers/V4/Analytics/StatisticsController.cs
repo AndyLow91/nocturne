@@ -897,7 +897,7 @@ public class StatisticsController : ControllerBase
                     insulinDelivery.TotalInsulin = Math.Round(totalWithProfile * 100) / 100;
                     insulinDelivery.Tdd =
                         Math.Round(
-                            totalWithProfile / Math.Max(1, insulinDelivery.DayCount) * 10
+                            totalWithProfile / insulinDelivery.WindowDays * 10
                         ) / 10;
                     insulinDelivery.BasalPercent =
                         totalWithProfile > 0

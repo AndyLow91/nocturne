@@ -154,7 +154,7 @@ public class StatisticsServiceTDDTests
             boluses, Array.Empty<Bolus>(), tempBasals, Array.Empty<CarbIntake>(), StartDate, EndDate);
 
         result.Tdd.Should().Be(10.0, "70U / 7 days = 10 U/day");
-        result.DayCount.Should().Be(7);
+        result.WindowDays.Should().Be(7);
     }
 
     #endregion
@@ -437,7 +437,7 @@ public class StatisticsServiceTDDTests
 
         var result = _sut.CalculateDailyBasalBolusRatios(boluses, Array.Empty<Bolus>(), tempBasals);
 
-        result.DayCount.Should().Be(2);
+        result.DaysWithData.Should().Be(2);
         result.DailyData.Should().HaveCount(2);
 
         // Day 1: 5.0 bolus + 1.0 basal = 6.0 total
@@ -462,8 +462,8 @@ public class StatisticsServiceTDDTests
 
         var result = _sut.CalculateDailyBasalBolusRatios(boluses, Array.Empty<Bolus>(), Array.Empty<TempBasal>());
 
-        // AverageTdd divides by DayCount (days with data), not date range
-        result.DayCount.Should().Be(2);
+        // AverageTdd divides by DaysWithData (days with data), not date range
+        result.DaysWithData.Should().Be(2);
         result.AverageTdd.Should().Be(15.0, "30U / 2 days with data = 15 U/day");
     }
 
@@ -491,11 +491,11 @@ public class StatisticsServiceTDDTests
         var ratios = _sut.CalculateDailyBasalBolusRatios(boluses, Array.Empty<Bolus>(), Array.Empty<TempBasal>());
 
         // InsulinDelivery: 70U / 7 days = 10 U/day
-        delivery.DayCount.Should().Be(7);
+        delivery.WindowDays.Should().Be(7);
         delivery.Tdd.Should().Be(10.0);
 
         // DailyRatios: 70U / 2 days = 35 U/day
-        ratios.DayCount.Should().Be(2);
+        ratios.DaysWithData.Should().Be(2);
         ratios.AverageTdd.Should().Be(35.0);
 
         // These INTENTIONALLY differ -- document this design choice:

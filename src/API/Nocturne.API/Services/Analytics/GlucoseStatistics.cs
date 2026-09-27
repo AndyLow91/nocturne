@@ -1,3 +1,4 @@
+using Nocturne.Core.Constants;
 using Nocturne.Core.Models;
 
 namespace Nocturne.API.Services.Analytics;
@@ -70,9 +71,11 @@ public static class GlucoseStatistics
 
     /// <summary>
     /// Whether a reading is admitted to the glucose statistics: a reading at all, and below
-    /// 600 mg/dL, above anything a CGM reports as a value.
+    /// <see cref="GlucoseConstants.MaxPlausibleMgdl"/>. Every glucose statistic filters with this
+    /// one predicate, so two endpoints never report different denominators for one upload.
     /// </summary>
-    public static bool IsPlausibleReading(double mgdl) => IsReading(mgdl) && mgdl < 600;
+    public static bool IsPlausibleReading(double mgdl) =>
+        IsReading(mgdl) && mgdl < GlucoseConstants.MaxPlausibleMgdl;
 
     /// <summary>
     /// The <see cref="ExcludingZone"/> scale for <paramref name="thresholds"/>.
