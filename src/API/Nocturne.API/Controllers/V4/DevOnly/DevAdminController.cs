@@ -288,9 +288,11 @@ public class DevAdminController : ControllerBase
     /// Wraps the entire operation in a transaction.
     /// </summary>
     /// <remarks>
-    /// Creation timestamps do not round-trip: every restored row is stamped with the restore time,
-    /// because <see cref="Infrastructure.Data.Entities.ISystemCreated"/> and
-    /// <see cref="Infrastructure.Data.Entities.IEntityCreated"/> are server-assigned on insert.
+    /// Creation and update timestamps do not round-trip: every restored row is stamped with the
+    /// restore time, because <see cref="Infrastructure.Data.Entities.ISystemTimestamped"/>,
+    /// <see cref="Infrastructure.Data.Entities.IEntityTimestamped"/> and
+    /// <see cref="Infrastructure.Data.Entities.ConnectorConfigurationEntity.LastModified"/> are
+    /// server-assigned on insert. A tenant updated in place is stamped only if its columns changed.
     /// </remarks>
     [HttpPost("snapshot")]
     public async Task<ActionResult> ImportSnapshot(
@@ -380,7 +382,6 @@ public class DevAdminController : ControllerBase
                         existingTenant.IsActive = td.IsActive;
                         existingTenant.LastReadingAt = td.LastReadingAt;
                         existingTenant.AllowAccessRequests = td.AllowAccessRequests;
-                        existingTenant.SysUpdatedAt = td.SysUpdatedAt;
                     }
                     else
                     {
@@ -392,7 +393,6 @@ public class DevAdminController : ControllerBase
                             IsActive = td.IsActive,
                             LastReadingAt = td.LastReadingAt,
                             AllowAccessRequests = td.AllowAccessRequests,
-                            SysUpdatedAt = td.SysUpdatedAt,
                         });
                     }
 
@@ -414,7 +414,6 @@ public class DevAdminController : ControllerBase
                         Notes = s.Notes,
                         IsActive = s.IsActive,
                         IsSystemSubject = s.IsSystemSubject,
-                        UpdatedAt = s.UpdatedAt,
                         LastLoginAt = s.LastLoginAt,
                         OriginalId = s.OriginalId,
                         PreferredLanguage = s.PreferredLanguage,
@@ -464,7 +463,6 @@ public class DevAdminController : ControllerBase
                             Description = r.Description,
                             Permissions = r.Permissions,
                             IsSystem = r.IsSystem,
-                            SysUpdatedAt = r.SysUpdatedAt,
                         });
                     }
 
@@ -476,7 +474,6 @@ public class DevAdminController : ControllerBase
                             Id = m.Id,
                             TenantId = m.TenantId,
                             SubjectId = m.SubjectId,
-                            SysUpdatedAt = m.SysUpdatedAt,
                             DirectPermissions = m.DirectPermissions,
                             Label = m.Label,
                             LimitTo24Hours = m.LimitTo24Hours,
@@ -514,7 +511,6 @@ public class DevAdminController : ControllerBase
                             DisplayName = c.DisplayName,
                             IsKnown = c.IsKnown,
                             RedirectUris = c.RedirectUris,
-                            UpdatedAt = c.UpdatedAt,
                         });
                     }
 
@@ -545,9 +541,7 @@ public class DevAdminController : ControllerBase
                             ConfigurationJson = c.ConfigurationJson,
                             SecretsJson = secretsJson,
                             SchemaVersion = c.SchemaVersion,
-                            LastModified = c.LastModified,
                             ModifiedBy = c.ModifiedBy,
-                            SysUpdatedAt = c.SysUpdatedAt,
                             LastSyncAttempt = c.LastSyncAttempt,
                             LastSuccessfulSync = c.LastSuccessfulSync,
                             LastErrorMessage = c.LastErrorMessage,
@@ -765,7 +759,7 @@ public class DevAdminController : ControllerBase
     /// Roles, memberships, member-role links, OAuth clients and connector configurations are
     /// re-keyed on insert, so the same snapshot can be imported into several tenants. A
     /// membership's invite link is kept only when that invite exists in the route tenant.
-    /// Creation timestamps do not round-trip; see <see cref="ImportSnapshot"/>.
+    /// Creation and update timestamps do not round-trip; see <see cref="ImportSnapshot"/>.
     /// </remarks>
     [HttpPost("tenants/{id:guid}/import-snapshot")]
     public async Task<ActionResult> ImportScopedSnapshot(
@@ -885,7 +879,7 @@ public class DevAdminController : ControllerBase
                     {
                         Id = newId, TenantId = id, Name = r.Name, Slug = r.Slug,
                         Description = r.Description, Permissions = r.Permissions,
-                        IsSystem = r.IsSystem, SysUpdatedAt = r.SysUpdatedAt,
+                        IsSystem = r.IsSystem,
                     });
                 }
 
@@ -921,7 +915,6 @@ public class DevAdminController : ControllerBase
                     _db.TenantMembers.Add(new()
                     {
                         Id = newId, TenantId = id, SubjectId = m.SubjectId,
-                        SysUpdatedAt = m.SysUpdatedAt,
                         DirectPermissions = m.DirectPermissions, Label = m.Label,
                         LimitTo24Hours = m.LimitTo24Hours,
                         CreatedFromInviteId = m.CreatedFromInviteId is { } inviteId
@@ -950,7 +943,6 @@ public class DevAdminController : ControllerBase
                         ClientUri = c.ClientUri, LogoUri = c.LogoUri,
                         CreatedFromIp = c.CreatedFromIp, DisplayName = c.DisplayName,
                         IsKnown = c.IsKnown, RedirectUris = c.RedirectUris,
-                        UpdatedAt = c.UpdatedAt,
                     });
                 }
 
@@ -976,8 +968,7 @@ public class DevAdminController : ControllerBase
                     {
                         Id = Guid.CreateVersion7(), TenantId = id, ConnectorName = c.ConnectorName,
                         ConfigurationJson = c.ConfigurationJson, SecretsJson = secretsJson,
-                        SchemaVersion = c.SchemaVersion, LastModified = c.LastModified,
-                        ModifiedBy = c.ModifiedBy, SysUpdatedAt = c.SysUpdatedAt,
+                        SchemaVersion = c.SchemaVersion, ModifiedBy = c.ModifiedBy,
                         LastSyncAttempt = c.LastSyncAttempt, LastSuccessfulSync = c.LastSuccessfulSync,
                         LastErrorMessage = c.LastErrorMessage, LastErrorAt = c.LastErrorAt, IsHealthy = c.IsHealthy,
                     });

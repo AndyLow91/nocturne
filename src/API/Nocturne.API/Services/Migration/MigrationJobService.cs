@@ -2108,7 +2108,6 @@ internal class MigrationJob
                     Description = "Migrated from Nightscout",
                     Permissions = sourcePermissions.GetValueOrDefault(roleName, []),
                     IsSystemRole = false,
-                    UpdatedAt = DateTime.UtcNow,
                 };
                 dbContext.Roles.Add(role);
                 await dbContext.SaveChangesAsync(ct);
