@@ -63,6 +63,33 @@ public class NightscoutBaseUriTests
         string configured, string pathAndQuery, string expected)
     {
         NightscoutBaseUri.Resolve(configured, pathAndQuery).AbsoluteUri.Should().Be(expected);
+        NightscoutBaseUri.TryResolve(configured, pathAndQuery, out var resolved).Should().BeTrue();
+        resolved!.AbsoluteUri.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("https://ns.example/nightscout", "/http://other.example/x")]
+    [InlineData("https://ns.example/nightscout", "https://other.example/x")]
+    [InlineData("https://ns.example/nightscout", "http:other.example/x")]
+    [InlineData("https://ns.example/nightscout", "/../x")]
+    [InlineData("https://ns.example/nightscout", "api/../../x")]
+    [InlineData("https://ns.example", "https://ns.example.other.example/x")]
+    public void A_path_that_resolves_outside_the_base_is_refused(string configured, string pathAndQuery)
+    {
+        NightscoutBaseUri.TryResolve(configured, pathAndQuery, out var resolved).Should().BeFalse();
+        resolved.Should().BeNull();
+
+        var resolve = () => NightscoutBaseUri.Resolve(configured, pathAndQuery);
+        resolve.Should().Throw<ArgumentException>().WithMessage(NightscoutBaseUri.OutsideBaseMessage + "*");
+    }
+
+    [Fact]
+    public void Resolving_under_an_address_that_is_not_http_is_refused()
+    {
+        NightscoutBaseUri.TryResolve("ftp://ns.example", "/api/v1/status", out _).Should().BeFalse();
+
+        var resolve = () => NightscoutBaseUri.Resolve("ftp://ns.example", "/api/v1/status");
+        resolve.Should().Throw<ArgumentException>().WithMessage(NightscoutBaseUri.InvalidUrlMessage + "*");
     }
 
     [Theory]

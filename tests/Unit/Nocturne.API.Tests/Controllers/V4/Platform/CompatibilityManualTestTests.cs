@@ -106,4 +106,23 @@ public class CompatibilityManualTestTests
             .Which.Value.Should().BeOfType<ProxyConfigurationDto>()
             .Which.NightscoutUrl.Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData("/http://other.example/api/v1/status")]
+    [InlineData("/../api/v1/status")]
+    public async Task A_query_path_that_leaves_the_nightscout_url_is_refused(string queryPath)
+    {
+        var logger = new RecordingLogger();
+
+        var response = await Controller(logger).TestApiComparison(new ManualTestRequest
+        {
+            NightscoutUrl = $"http://{Unanswered}/nightscout",
+            QueryPath = queryPath,
+        });
+
+        var problem = response.Result.Should().BeOfType<ObjectResult>().Subject;
+        problem.StatusCode.Should().Be(400);
+        problem.Value.Should().BeOfType<ProblemDetails>().Which.Detail.Should().Be(NightscoutBaseUri.OutsideBaseMessage);
+        logger.States.Should().BeEmpty("nothing is fetched");
+    }
 }

@@ -24,7 +24,9 @@ public class MigrationSourceIdentityTests
     private const string TokenUrl = "https://example-nightscout.invalid/nightscout/?token=synthetic-token";
     private const string CleanUrl = "https://example-nightscout.invalid/nightscout";
 
-    private static (MigrationJobService Service, ServiceProvider Provider) CreateService(
+    private readonly TenantRunGuard _runGuard = new();
+
+    private (MigrationJobService Service, ServiceProvider Provider) CreateService(
         INotificationV1Service? notifications = null)
     {
         var dbName = $"migration-sources-{Guid.NewGuid():N}";
@@ -37,9 +39,25 @@ public class MigrationSourceIdentityTests
             NullLogger<MigrationJobService>.Instance,
             provider,
             new ConfigurationBuilder().Build(),
-            new TenantRunGuard());
+            _runGuard);
 
         return (service, provider);
+    }
+
+    /// <summary>
+    /// Starts a job and waits for its background run to release the tenant's lease, which it does
+    /// only after writing its final record, so nothing rewrites the rows under the assertions.
+    /// </summary>
+    private async Task<MigrationJobInfo> StartAndSettleAsync(
+        MigrationJobService service, TenantContext tenant, string url)
+    {
+        var job = await service.StartMigrationAsync(Request(url), tenant);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (_runGuard.TryGetHolder(tenant.TenantId, MigrationJobService.MigrationRunName, out _))
+            await Task.Delay(10, timeout.Token);
+
+        return job;
     }
 
     private static MigrationStartupService Startup(IServiceProvider provider) => new(
@@ -67,7 +85,7 @@ public class MigrationSourceIdentityTests
         await using var owned = provider;
         var tenant = Tenant();
 
-        var job = await service.StartMigrationAsync(Request(TokenUrl), tenant);
+        var job = await StartAndSettleAsync(service, tenant, TokenUrl);
 
         job.SourceDescription.Should().Be(CleanUrl);
         (await service.GetSourcesAsync(tenant.TenantId)).Should().ContainSingle()
@@ -109,7 +127,7 @@ public class MigrationSourceIdentityTests
         (await service.GetSourcesAsync(tenant.TenantId)).Should().ContainSingle()
             .Which.NightscoutUrl.Should().Be(CleanUrl, "a row stored before the change is scrubbed on the way out");
 
-        await service.StartMigrationAsync(Request(TokenUrl), tenant);
+        await StartAndSettleAsync(service, tenant, TokenUrl);
 
         await using var scope = provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NocturneDbContext>();

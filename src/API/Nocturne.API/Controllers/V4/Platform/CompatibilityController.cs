@@ -290,6 +290,12 @@ public class CompatibilityController : ControllerBase
             return Problem(detail: NightscoutBaseUri.InvalidUrlMessage, statusCode: 400, title: "Bad Request");
         }
 
+        var queryPath = request.QueryPath.StartsWith("/") ? request.QueryPath : "/" + request.QueryPath;
+        if (!NightscoutBaseUri.TryResolve(request.NightscoutUrl, queryPath, out var nightscoutUrl))
+        {
+            return Problem(detail: NightscoutBaseUri.OutsideBaseMessage, statusCode: 400, title: "Bad Request");
+        }
+
         var result = new ManualTestResult
         {
             QueryPath = request.QueryPath,
@@ -298,10 +304,6 @@ public class CompatibilityController : ControllerBase
         };
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-
-        // Build URLs
-        var queryPath = request.QueryPath.StartsWith("/") ? request.QueryPath : "/" + request.QueryPath;
-        var nightscoutUrl = NightscoutBaseUri.Resolve(request.NightscoutUrl, queryPath);
 
         // Get Nocturne base URL from current request
         var nocturneBaseUrl = $"{Request.PublicScheme()}://{Request.Host}";

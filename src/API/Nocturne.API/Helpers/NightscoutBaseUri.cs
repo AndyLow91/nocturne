@@ -18,6 +18,8 @@ public static class NightscoutBaseUri
 {
     public const string InvalidUrlMessage = "The Nightscout URL must be an http or https address.";
 
+    public const string OutsideBaseMessage = "The path must stay under the Nightscout URL.";
+
     /// <summary>
     /// The scheme, host, port and path of <paramref name="nightscoutUrl"/>, the path ending in
     /// exactly one slash.
@@ -45,11 +47,36 @@ public static class NightscoutBaseUri
 
     /// <summary>
     /// <paramref name="pathAndQuery"/> under the base of <paramref name="nightscoutUrl"/>, whether
-    /// or not it starts with a slash.
+    /// or not it starts with a slash. A path that resolves anywhere else, such as an absolute URL
+    /// or one climbing out with <c>..</c>, is refused.
     /// </summary>
-    /// <inheritdoc cref="For" path="/exception"/>
+    public static bool TryResolve(string? nightscoutUrl, string pathAndQuery, [NotNullWhen(true)] out Uri? resolved)
+    {
+        resolved = null;
+        return TryFor(nightscoutUrl, out var baseUri) && TryResolveUnder(baseUri, pathAndQuery, out resolved);
+    }
+
+    /// <inheritdoc cref="TryResolve" path="/summary"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="nightscoutUrl"/> is not an http or https address, or <paramref name="pathAndQuery"/>
+    /// does not resolve under it.
+    /// </exception>
     public static Uri Resolve(string nightscoutUrl, string pathAndQuery) =>
-        new(For(nightscoutUrl), pathAndQuery.TrimStart('/'));
+        TryResolveUnder(For(nightscoutUrl), pathAndQuery, out var resolved)
+            ? resolved
+            : throw new ArgumentException(OutsideBaseMessage, nameof(pathAndQuery));
+
+    private static bool TryResolveUnder(Uri baseUri, string pathAndQuery, [NotNullWhen(true)] out Uri? resolved)
+    {
+        if (Uri.TryCreate(baseUri, pathAndQuery.TrimStart('/'), out var candidate) && baseUri.IsBaseOf(candidate))
+        {
+            resolved = candidate;
+            return true;
+        }
+
+        resolved = null;
+        return false;
+    }
 
     /// <summary>
     /// <paramref name="nightscoutUrl"/> as it may be stored or shown: the base with no trailing

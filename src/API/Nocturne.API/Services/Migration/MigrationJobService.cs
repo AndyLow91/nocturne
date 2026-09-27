@@ -71,7 +71,7 @@ public class MigrationJobService : IMigrationJobService
     private readonly ConcurrentDictionary<Guid, MigrationJob> _jobs = new();
     private readonly TenantRunGuard _runGuard;
 
-    private const string MigrationRunName = "migration";
+    internal const string MigrationRunName = "migration";
 
     public MigrationJobService(
         ILogger<MigrationJobService> logger,

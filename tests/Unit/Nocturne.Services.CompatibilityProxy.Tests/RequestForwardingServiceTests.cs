@@ -137,4 +137,21 @@ public class RequestForwardingServiceTests
         Assert.Equal(200, result.StatusCode);
         Assert.Equal(expected, handler.RequestUri?.AbsoluteUri);
     }
+
+    [Fact]
+    public async Task ForwardToNightscoutAsync_DoesNotLeaveTheConfiguredBase()
+    {
+        var handler = new RecordingHandler();
+        _httpClientFactoryMock
+            .Setup(f => f.CreateClient("NightscoutClient"))
+            .Returns(() => new HttpClient(handler, disposeHandler: false));
+        var service = CreateService(nightscoutConfig: new NightscoutConnectorConfiguration { Url = "https://ns.example/nightscout" });
+
+        var result = await service.ForwardToNightscoutAsync(
+            new ClonedRequest { Method = "GET", Path = "/http://other.example/api/v1/status" });
+
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Null(handler.RequestUri);
+    }
 }
