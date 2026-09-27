@@ -829,8 +829,12 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         var read = new Dictionary<string, DateTime>();
         foreach (var treatment in identified)
         {
-            if (ParseCreatedAt(treatment.CreatedAt) is { } at)
-                read.TryAdd(treatment.Id!, at.UtcDateTime);
+            if (ParseCreatedAt(treatment.CreatedAt) is not { } at)
+                continue;
+
+            read.TryAdd(treatment.Id!, at.UtcDateTime);
+            if (TreatmentClientId.Of(treatment) is { Length: > 0 } clientId)
+                read.TryAdd(clientId, at.UtcDateTime);
         }
 
         await DeleteTreatmentsGoneUpstreamAsync(publisher.Treatments, recent.WindowStart, read, cancellationToken);
@@ -847,7 +851,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     ///     deletes nothing and leaves the sync's result alone, as does more missing than
     ///     <see cref="MaxLookupsPerSync"/> or <see cref="FewMissing"/> allow.
     /// </summary>
-    /// <param name="read">The ids the read returned, each with its created_at.</param>
+    /// <param name="read">The ids and client ids the read returned, each with its created_at.</param>
     private async Task DeleteTreatmentsGoneUpstreamAsync(
         ITreatmentPublisher treatments,
         DateTime windowStart,
@@ -926,8 +930,9 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <summary>
-    ///     Looks a treatment up by the field its id was read from. A document carrying both an
-    ///     <c>_id</c> and an uploader's own <c>id</c> (Trio) is read under the latter. An id that is not
+    ///     Looks a treatment up by the field its id came from. A treatment is read under its <c>_id</c>,
+    ///     but a row can still be stored under an uploader's own <c>id</c> (Trio's UUID) if no read has
+    ///     moved it since (<see cref="ITreatmentPublisher.PublishTreatmentsAsync"/>). An id that is not
     ///     an ObjectId is therefore looked up by <c>id</c>. Asking for it by <c>_id</c> is an error on
     ///     Nightscout releases that cast the value to an ObjectId. An ObjectId-shaped id is looked up by
     ///     <c>_id</c> and then by <c>id</c>. Neither field is indexed, so the lookup is bounded to the

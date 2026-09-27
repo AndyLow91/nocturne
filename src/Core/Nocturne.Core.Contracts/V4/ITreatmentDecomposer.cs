@@ -63,6 +63,15 @@ public interface ITreatmentDecomposer
     Task<IReadOnlyDictionary<string, DateTime>> GetLegacyIdsFromSourceAsync(
         string source, DateTime from, DateTime to, CancellationToken ct = default);
 
+    /// <summary>
+    /// Moves <paramref name="source"/>'s records stored under a treatment's client id
+    /// (<see cref="TreatmentClientId"/>) onto the treatment's own id, when nothing is stored under that
+    /// id yet. Of treatments sharing a client id, the first takes the records.
+    /// </summary>
+    /// <returns>Total number of v4 records moved.</returns>
+    Task<int> RekeyClientIdRecordsAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default);
+
     /// <summary>Of treatments <paramref name="source"/> delivered again, the ones to decompose again.</summary>
     Task<IReadOnlyList<Treatment>> SelectForRepublishAsync(
         string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default);

@@ -11,6 +11,7 @@ using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Contracts.Profiles.Resolvers;
 using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.Serializers;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Infrastructure.Data;
 using Nocturne.Infrastructure.Data.Entities;
@@ -1469,6 +1470,63 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
 
     /// <inheritdoc />
     /// <remarks>
+    /// A connector's rows can sit under an uploader's <c>id</c> where its <c>_id</c> belongs (see
+    /// <see cref="UploaderIdJsonModifier"/>); read by <c>_id</c>, the same treatments would otherwise be
+    /// stored a second time beside them. A row the user deleted moves too, so the delete keeps holding.
+    /// An id something already holds is left alone rather than merged into.
+    /// </remarks>
+    public async Task<int> RekeyClientIdRecordsAsync(
+        string source, IReadOnlyList<Treatment> treatments, CancellationToken ct = default)
+    {
+        var targets = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var treatment in treatments)
+        {
+            if (treatment.Id is { Length: > 0 } id && TreatmentClientId.Of(treatment) is { Length: > 0 } clientId
+                && clientId != id)
+                targets.TryAdd(clientId, id);
+        }
+
+        if (targets.Count == 0)
+            return 0;
+
+        var stored = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var table in DecomposedTables)
+            stored.UnionWith(await table.FromSourceAsync(source, [.. targets.Keys], ct));
+        stored.UnionWith(await StateSpansFromSource(source, [.. targets.Keys]).Select(s => s.OriginalId!).ToListAsync(ct));
+        if (stored.Count == 0)
+            return 0;
+
+        var (held, _) = await GetHeldLegacyIdsAsync([.. targets.Values], ct);
+        var moves = targets.Where(t => stored.Contains(t.Key) && !held.Contains(t.Value)).ToList();
+        if (moves.Count == 0)
+            return 0;
+
+        return await _dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+            var moved = 0;
+            foreach (var (from, to) in moves)
+            {
+                foreach (var table in DecomposedTables)
+                    moved += await table.RekeyAsync(source, from, to, ct);
+                moved += await StateSpansFromSource(source, [from])
+                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.OriginalId, to), ct);
+            }
+
+            await transaction.CommitAsync(ct);
+            return moved;
+        });
+    }
+
+    private IQueryable<StateSpanEntity> StateSpansFromSource(string source, string[] originalIds) =>
+        _dbContext.StateSpans.IgnoreQueryFilters()
+            .Where(s => s.TenantId == _dbContext.TenantId && s.Source == source
+                     && s.OriginalId != null && originalIds.Contains(s.OriginalId))
+            .WhereBlocksRecreation();
+
+    /// <inheritdoc />
+    /// <remarks>
     /// A connector's rows carry the <see cref="UpstreamFingerprint"/> of the document they were last
     /// written from (<see cref="UpstreamFingerprintScope"/>). A stored treatment is decomposed again
     /// unless every row this source holds under its id carries the current fingerprint. An edit made
@@ -1696,6 +1754,12 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
         /// <summary>Stamps this source's rows that carry no fingerprint yet.</summary>
         Task StampUnfingerprintedAsync(
             string source, IReadOnlyDictionary<string, string> fingerprints, CancellationToken ct);
+
+        /// <summary>The ids of <paramref name="legacyIds"/> this source holds a live row or a user tombstone under.</summary>
+        Task<List<string>> FromSourceAsync(string source, string[] legacyIds, CancellationToken ct);
+
+        /// <summary>Moves this source's live rows and user tombstones from one legacy id to another.</summary>
+        Task<int> RekeyAsync(string source, string from, string to, CancellationToken ct);
     }
 
     private sealed class DecomposedTable<T>(
@@ -1750,6 +1814,15 @@ public class TreatmentDecomposer : DecomposerBase, ITreatmentDecomposer, IDecomp
                     .ExecuteUpdateAsync(u => u.SetProperty(e => e.UpstreamFingerprint, fingerprint), ct);
             }
         }
+
+        public Task<List<string>> FromSourceAsync(string source, string[] legacyIds, CancellationToken ct)
+            => FromSource(BlockingRows(), source, legacyIds).Select(e => e.LegacyId!).Distinct().ToListAsync(ct);
+
+        public Task<int> RekeyAsync(string source, string from, string to, CancellationToken ct)
+            => FromSource(BlockingRows(), source, [from]).ExecuteUpdateAsync(u => u.SetProperty(e => e.LegacyId, to), ct);
+
+        private IQueryable<T> BlockingRows() =>
+            rows.IgnoreQueryFilters().Where(e => e.TenantId == context.TenantId).WhereBlocksRecreation();
 
         private static IQueryable<T> FromSource(IQueryable<T> query, string source, string[] legacyIds)
             => query.Where(e => e.DataSource == source && e.LegacyId != null && legacyIds.Contains(e.LegacyId));
