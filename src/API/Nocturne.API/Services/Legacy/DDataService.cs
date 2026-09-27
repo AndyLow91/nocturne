@@ -470,9 +470,9 @@ public class DDataService : IDDataService
                     }
                     else if (createdAtValue is string dateString)
                     {
-                        if (DateTime.TryParse(dateString, out var parsedDate))
+                        if (UploaderTimestamp.TryParse(dateString, out var parsedDate))
                         {
-                            millsToSet = ((DateTimeOffset)parsedDate).ToUnixTimeMilliseconds();
+                            millsToSet = parsedDate.ToUnixTimeMilliseconds();
                         }
                     }
 
@@ -514,9 +514,9 @@ public class DDataService : IDDataService
                     }
                     else if (sysTimeValue is string dateString)
                     {
-                        if (DateTime.TryParse(dateString, out var parsedDate))
+                        if (UploaderTimestamp.TryParse(dateString, out var parsedDate))
                         {
-                            millsToSet = ((DateTimeOffset)parsedDate).ToUnixTimeMilliseconds();
+                            millsToSet = parsedDate.ToUnixTimeMilliseconds();
                         }
                     }
 

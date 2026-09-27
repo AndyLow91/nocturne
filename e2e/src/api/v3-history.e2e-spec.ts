@@ -11,8 +11,14 @@ interface V3Entry {
   identifier?: string;
   date: number;
   sgv: number;
+  srvModified: number;
 }
 
+function cursorOf(etag: string | null): number {
+  return Number(etag!.match(/"(\d+)"/)![1]);
+}
+
+/** Nightscout v3 history pages on srvModified (write time), not on the reading's clinical date. */
 describe("v3 history paging", () => {
   let tenant: Tenant;
   const series = sgvSeries({ count: 25, device: "e2e-v3" });
@@ -22,29 +28,37 @@ describe("v3 history paging", () => {
     await postEntries(tenant.api, series);
   });
 
-  it("pages oldest first and advances by the ETag cursor until the backlog is drained", async () => {
-    let cursor = series.at(-1)!.date - 1;
+  it("pages by modification time and advances by the ETag cursor until the backlog is drained", async () => {
+    let cursor = 0;
     const seen: number[] = [];
     for (let page = 0; page < 10; page++) {
       const res = await tenant.api.get<V3Envelope<V3Entry>>(`/api/v3/entries/history/${cursor}?limit=10`);
       expect(res.status).toBe(200);
-      const dates = res.body.result.map((e) => e.date);
-      if (dates.length === 0) break;
+      const modified = res.body.result.map((e) => e.srvModified);
+      if (modified.length === 0) break;
 
-      expect(dates).toEqual([...dates].sort((a, b) => a - b));
+      expect(modified).toEqual([...modified].sort((a, b) => a - b));
+      expect(Math.min(...modified)).toBeGreaterThan(cursor);
+      const newest = Math.max(...modified);
       const etag = res.headers.get("etag");
-      expect(etag).toBe(`W/"${Math.max(...dates)}"`);
-      expect(res.headers.get("last-modified")).toBe(new Date(Math.max(...dates)).toUTCString());
+      expect(etag).toBe(`W/"${newest}"`);
+      expect(res.headers.get("last-modified")).toBe(new Date(newest).toUTCString());
 
-      seen.push(...dates);
-      cursor = Number(etag!.match(/"(\d+)"/)![1]);
+      seen.push(...res.body.result.map((e) => e.date));
+      cursor = cursorOf(etag);
     }
 
-    expect(seen).toEqual(series.map((e) => e.date).sort((a, b) => a - b));
+    expect(seen.sort((a, b) => a - b)).toEqual(series.map((e) => e.date).sort((a, b) => a - b));
   });
 
-  it("returns nothing past the newest record", async () => {
-    const res = await tenant.api.get<V3Envelope<V3Entry>>(`/api/v3/entries/history/${series[0]!.date}?limit=10`);
+  it("returns nothing past the newest modification", async () => {
+    const all = await tenant.api.get<V3Envelope<V3Entry>>(`/api/v3/entries/history/0?limit=1000`);
+    expect(all.status).toBe(200);
+    expect(all.body.result).toHaveLength(series.length);
+
+    const res = await tenant.api.get<V3Envelope<V3Entry>>(
+      `/api/v3/entries/history/${cursorOf(all.headers.get("etag"))}?limit=10`,
+    );
     expect(res.status).toBe(200);
     expect(res.body.result).toEqual([]);
   });

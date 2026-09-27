@@ -31,7 +31,7 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import DataSourceRow from "$lib/components/settings/DataSourceRow.svelte";
   import AppLogo from "$lib/components/ui/AppLogo.svelte";
-  import { satisfiesScope } from "$lib/authorization/scopes";
+  import { canManageConnectors } from "$lib/authorization/connector-management";
   import { mapConnectorStatus } from "$lib/utils/connector-display";
   import { page } from "$app/state";
   import type { SyncProgressEvent } from "$lib/websocket/types";
@@ -70,7 +70,10 @@
   }: Props = $props();
 
   const canManage = $derived(
-    satisfiesScope(page.data.effectivePermissions ?? [], "tenant.settings")
+    canManageConnectors(
+      page.data.effectivePermissions,
+      page.data.refusedAsDemoSubject
+    )
   );
 
   function getConnectorDataSource(

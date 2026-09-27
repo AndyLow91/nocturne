@@ -82,7 +82,8 @@ chart sets it.
 
 **Specs.** `src/helpers/tenant.ts` seeds an isolated tenant with a random slug, so spec files and
 Playwright tests run in parallel; it returns an owner-authenticated client, an anonymous one, and
-the browser login link. `src/helpers/http.ts` is a thin typed fetch client (the generated NSwag
+the browser login link. `src/helpers/signalr.ts` speaks the SignalR JSON protocol over the
+runtime's WebSocket for realtime specs. `src/helpers/http.ts` is a thin typed fetch client (the generated NSwag
 client lives inside the SvelteKit app and is gitignored). `src/helpers/data.ts` builds CGM series
 and treatments.
 
@@ -91,6 +92,13 @@ pointed at `http://mocks:8080/<vendor>`. Every vendor also answers `GET /<vendor
 with the requests it served (and `DELETE` to clear them), for asserting what a connector called.
 Nightscout (`vendors/nightscout.ts`) serves 48 hours of generated five-minute readings and a few
 treatments anchored to the request time, and honours the connector's `count` and date queries.
+`vendors/nightscout-migration.ts` is a Nightscout with a fixed history for the migration job: more
+entries and treatments than one migration page, `created_at` strings with and without an offset,
+and Nightscout's newest-first `created_at` ordering and filters. Until bug #1806 (the job drops the
+path of the URL it is given) is fixed, it is served at the root of `http://nightscout-migration:8080`,
+a network alias of the mocks container; any vendor answers at the root of a host of its own name. A
+spec expected to fail migrates from the sub-path `http://mocks:8080/nightscout-migration` and pins
+the bug.
 To add a vendor, write a module exporting a `Vendor` and list it in `server.ts`.
 
 **Migration upgrade.** `pnpm e2e:upgrade` starts the latest release

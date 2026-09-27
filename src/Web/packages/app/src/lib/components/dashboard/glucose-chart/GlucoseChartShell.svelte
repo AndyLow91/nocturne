@@ -145,6 +145,14 @@
         {@render overlays?.(ctx)}
       {/if}
 
+      {#if engine.chartDataError}
+        <div class="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+          <p role="alert" class="text-center text-sm text-destructive">
+            {engine.chartDataError}
+          </p>
+        </div>
+      {/if}
+
       {#if onSelectionChange}
         <BrushContext
           axis="x"

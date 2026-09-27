@@ -1698,7 +1698,7 @@ public class DeduplicationService : IDeduplicationService
             static c => c.BolusCalculations, static bc => bc.Timestamp,
             static bc => bc.Id, static bc => bc.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.TempBasal, "TempBasals",
-            static c => c.TempBasals, static t => t.StartTimestamp,
+            static c => c.TempBasals, static t => t.Timestamp,
             static t => t.Id, static t => t.DataSource, MatchCriteriaMapper.From),
         Phase(RecordType.StateSpan, "StateSpans",
             static c => c.StateSpans, static s => s.StartTimestamp,

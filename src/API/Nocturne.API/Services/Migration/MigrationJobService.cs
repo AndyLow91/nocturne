@@ -6,6 +6,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Nocturne.API.Helpers;
 using Nocturne.API.Services.Audit;
+using Nocturne.Connectors.Core.Services;
 using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Constants;
 using Nocturne.Core.Models;
@@ -1199,13 +1200,19 @@ internal class MigrationJob
 
     /// <summary>
     ///     How a paged pull bounds and advances its time cursor: <paramref name="Filter"/> is the
-    ///     query-string fragment restricting a page to records at or before the cursor, and
+    ///     query-string fragment restricting a page to records at or before the cursor,
     ///     <paramref name="Oldest"/> reads the page's oldest record, answering <c>null</c> when the
-    ///     page carries no usable timestamp to page back from.
+    ///     page carries no usable timestamp to page back from, <paramref name="AdmittedThrough"/>
+    ///     is the latest record time the filter for a cursor admits, <paramref name="Envelope"/> is
+    ///     how far above the anchor the first page reaches, and <paramref name="AtOrBefore"/> is
+    ///     whether a record's instant is at or before the anchor.
     /// </summary>
     private sealed record PageCursor(
         Func<DateTime, string> Filter,
-        Func<IReadOnlyList<ProcessableDocumentBase>, DateTime?> Oldest
+        Func<IReadOnlyList<ProcessableDocumentBase>, DateTime?> Oldest,
+        Func<DateTime, DateTime> AdmittedThrough,
+        TimeSpan Envelope,
+        Func<ProcessableDocumentBase, DateTime, bool> AtOrBefore
     );
 
     /// <summary>Entries page on the numeric <c>date</c> field, which mirrors mills exactly.</summary>
@@ -1217,15 +1224,21 @@ internal class MigrationJob
             return dated.Count == 0
                 ? null
                 : DateTimeOffset.FromUnixTimeMilliseconds(dated.Min(d => d.Mills)).UtcDateTime;
-        });
+        },
+        to => to,
+        TimeSpan.Zero,
+        (_, _) => true);
 
-    /// <summary>Every other collection pages on the ISO-8601 <c>created_at</c> string.</summary>
+    /// <summary>
+    ///     Every other collection pages on the ISO-8601 <c>created_at</c> string, inside the
+    ///     <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/>.
+    /// </summary>
     private static readonly PageCursor s_createdAtCursor = new(
-        to => $"&find[created_at][$lte]={to.ToUniversalTime():o}",
-        page => page
-            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
-            .Where(dt => dt.HasValue)
-            .Min());
+        to => $"&find[created_at][$lte]={BackwardTimePager.CreatedAtUpperBound(to)}",
+        page => BackwardTimePager.OldestWrittenCreatedAt(page, d => d.CreatedAt),
+        BackwardTimePager.CreatedAtAdmittedThrough,
+        BackwardTimePager.CreatedAtOffsetEnvelope,
+        (d, anchor) => BackwardTimePager.CreatedAtWithin(d.CreatedAt, null, anchor));
 
     /// <summary>
     ///     A legacy collection pulled page by page over a time cursor. <paramref name="Name"/> is
@@ -1287,7 +1300,7 @@ internal class MigrationJob
     /// </remarks>
     private (T[] Parsed, int NewlyFailed) ParseDocuments<T>(
         System.Text.Json.JsonElement[] documents, string label, int pageNumber, HashSet<string> failedIds)
-        where T : ProcessableDocumentBase
+        where T : class
     {
         var parsed = new List<T>(documents.Length);
         var newlyFailed = 0;
@@ -1333,28 +1346,47 @@ internal class MigrationJob
         var totalMigrated = 0L;
         var totalFailed = 0L;
         var tally = new DecompositionTally();
-        DateTime? currentTo = FirstPageAnchor;
         var failedIds = new HashSet<string>(StringComparer.Ordinal);
+        var pageNumber = 0;
 
         using var scope = CreateTenantScope();
         var decompose = collection.Decompose(scope.ServiceProvider);
 
-        for (var pageNumber = 1; ; pageNumber++)
+        var anchor = FirstPageAnchor;
+        var pages = BackwardTimePager.PageAsync<T>(
+            from: null,
+            to: anchor + collection.Cursor.Envelope,
+            ApiPageSize,
+            BackwardTimePager.WidestPageSize(ApiPageSize),
+            async (bound, count) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                pageNumber++;
+
+                var url = $"/api/v1/{collection.Name}.json?count={count}";
+                if (bound.HasValue)
+                    url += collection.Cursor.Filter(bound.Value);
+
+                var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+                    httpClient, url, collection.Label, ct);
+
+                var (parsed, newlyFailed) = ParseDocuments<T>(documents, collection.Label, pageNumber, failedIds);
+                totalFailed += newlyFailed;
+                return new TimePage<T>(parsed, documents.Length);
+            },
+            // With no date on a full page to page back from, the cursor cannot move, and ending
+            // here would drop every older document without saying so.
+            page => collection.Cursor.Oldest(page) ?? throw new MigrationSourceException(
+                $"Nightscout sent a page of {collection.Label} that Nocturne could not read, so the rest were not fetched.",
+                MigrationFailureCause.Internal),
+            collection.Cursor.AdmittedThrough,
+            _logger,
+            "Migration",
+            collection.Name);
+
+        await foreach (var served in pages)
         {
-            ct.ThrowIfCancellationRequested();
-
-            var url = $"/api/v1/{collection.Name}.json?count={ApiPageSize}";
-            if (currentTo.HasValue)
-                url += collection.Cursor.Filter(currentTo.Value);
-
-            var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
-                httpClient, url, collection.Label, ct);
-
-            if (documents.Length == 0) break;
-
-            var (page, newlyFailed) = ParseDocuments<T>(documents, collection.Label, pageNumber, failedIds);
-            totalFailed += newlyFailed;
-
+            var page = served.Where(d => collection.Cursor.AtOrBefore(d, anchor)).ToArray();
             if (page.Length > 0)
             {
                 try
@@ -1363,7 +1395,7 @@ internal class MigrationJob
                     tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
                     totalMigrated += page.Length - (tally.DocumentsSkipped - before);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     _logger.LogError(ex, "Failed to decompose {Collection} page", collection.Label);
                     totalFailed += page.Length;
@@ -1374,21 +1406,6 @@ internal class MigrationJob
                 Math.Max(knownTotal, totalMigrated + totalFailed + tally.DocumentsSkipped),
                 totalMigrated, totalFailed, false, tally);
             UpdateOverallProgress();
-
-            if (documents.Length < ApiPageSize) break;
-
-            // With no date on a full page to page back from, the cursor cannot move, and ending
-            // here would drop every older document without saying so.
-            var oldestDate = page.Length == 0 ? null : collection.Cursor.Oldest(page);
-            if (!oldestDate.HasValue)
-            {
-                throw new MigrationSourceException(
-                    $"Nightscout sent a page of {collection.Label} that Nocturne could not read, so the rest were not fetched.",
-                    MigrationFailureCause.Internal);
-            }
-
-            if (currentTo.HasValue && oldestDate.Value >= currentTo.Value) break;
-            currentTo = oldestDate.Value.AddMilliseconds(-1);
         }
 
         UpdateCollectionProgress(collection.Name,
@@ -1412,9 +1429,12 @@ internal class MigrationJob
         var totalFailed = 0L;
         var tally = new DecompositionTally();
 
-        var profiles = await ReadPageFromSourceAsync<Profile>(httpClient, "/api/v1/profile.json", collectionName, ct);
+        var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+            httpClient, "/api/v1/profile.json", collectionName, ct);
+        var (profiles, newlyFailed) = ParseDocuments<Profile>(documents, collectionName, 1, []);
+        totalFailed += newlyFailed;
 
-        UpdateCollectionProgress(collectionName, profiles.Length, 0, 0, false);
+        UpdateCollectionProgress(collectionName, documents.Length, 0, totalFailed, false);
         UpdateOverallProgress();
 
         using var scope = CreateTenantScope();
@@ -1434,16 +1454,16 @@ internal class MigrationJob
                 tally = tally.Add(
                     await decomposer.DecomposeAsync(profile, WriteOrigin.Backfill, ct), oneRecordPerDocument: false);
                 totalMigrated++;
-                UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, false, tally);
+                UpdateCollectionProgress(collectionName, documents.Length, totalMigrated, totalFailed, false, tally);
                 UpdateOverallProgress();
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 totalFailed++;
             }
         }
 
-        UpdateCollectionProgress(collectionName, profiles.Length, totalMigrated, totalFailed, true, tally);
+        UpdateCollectionProgress(collectionName, documents.Length, totalMigrated, totalFailed, true, tally);
         UpdateOverallProgress();
 
         _logger.LogInformation(
@@ -1464,15 +1484,20 @@ internal class MigrationJob
         var totalMigrated = 0L;
         var totalFailed = 0L;
         var totalSkipped = 0;
+        var failedIds = new HashSet<string>(StringComparer.Ordinal);
 
-        while (true)
+        for (var pageNumber = 1; ; pageNumber++)
         {
             ct.ThrowIfCancellationRequested();
 
             var url = $"/api/v1/food.json?count={ApiPageSize}&skip={totalSkipped}";
-            var foods = await ReadPageFromSourceAsync<Food>(httpClient, url, collectionName, ct);
+            var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+                httpClient, url, collectionName, ct);
 
-            if (foods.Length == 0) break;
+            if (documents.Length == 0) break;
+
+            var (foods, newlyFailed) = ParseDocuments<Food>(documents, collectionName, pageNumber, failedIds);
+            totalFailed += newlyFailed;
 
             foreach (var food in foods)
             {
@@ -1509,21 +1534,21 @@ internal class MigrationJob
                     }
                     totalMigrated++;
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     totalFailed++;
                 }
             }
 
             await dbContext.SaveChangesAsync(ct);
-            totalSkipped += foods.Length;
+            totalSkipped += documents.Length;
 
             UpdateCollectionProgress(collectionName,
                 Math.Max(knownTotal, totalSkipped),
                 totalMigrated, totalFailed, false);
             UpdateOverallProgress();
 
-            if (foods.Length < ApiPageSize) break;
+            if (documents.Length < ApiPageSize) break;
         }
 
         UpdateCollectionProgress(collectionName, Math.Max(knownTotal, totalMigrated + totalFailed),
@@ -1564,12 +1589,139 @@ internal class MigrationJob
 
             _currentOperation = $"Migrating {collectionName}";
 
-            await MigrateMongoCollectionAsync(database, collectionName, dbContext, ct);
+            switch (collectionName)
+            {
+                case "entries":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_entriesCollection, ct);
+                    break;
+                case "treatments":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_treatmentsCollection, ct);
+                    break;
+                case "activity":
+                    await MigrateMongoDecomposedCollectionAsync(database, s_activityCollection, ct);
+                    break;
+                case "devicestatus" or "profile" or "food":
+                    await MigrateMongoCollectionAsync(database, collectionName, dbContext, ct);
+                    break;
+                default:
+                    _logger.LogWarning("MongoDB migration cannot import the {Collection} collection; skipping it", collectionName);
+                    RecordCollectionSkipped(collectionName, $"{collectionName} cannot be imported in MongoDB mode.");
+                    break;
+            }
 
             processedCollections++;
             _progressPercentage = (double)processedCollections / totalCollections * 100;
         }
     }
+
+    /// <summary>
+    /// Streams a MongoDB collection through the parsing and decomposer of the API path's
+    /// <see cref="MigratePagedCollectionAsync{T}"/>, so a document counts as migrated only when
+    /// its decomposition stored it.
+    /// </summary>
+    private async Task MigrateMongoDecomposedCollectionAsync<T>(
+        IMongoDatabase database,
+        PagedCollection<T> collection,
+        CancellationToken ct
+    ) where T : ProcessableDocumentBase
+    {
+        var source = database.GetCollection<BsonDocument>(collection.Name);
+        var totalDocs = await source.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: ct);
+
+        UpdateCollectionProgress(collection.Name, totalDocs, 0, 0, false);
+
+        var totalMigrated = 0L;
+        var totalFailed = 0L;
+        var tally = new DecompositionTally();
+        var failedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        using var scope = CreateTenantScope();
+        var decompose = collection.Decompose(scope.ServiceProvider);
+
+        using var cursor = await source.FindAsync(
+            FilterDefinition<BsonDocument>.Empty,
+            new FindOptions<BsonDocument> { BatchSize = ApiPageSize },
+            ct);
+
+        for (var batchNumber = 1; await cursor.MoveNextAsync(ct); batchNumber++)
+        {
+            var documents = new List<System.Text.Json.JsonElement>(cursor.Current.Count());
+            var index = 0;
+            foreach (var bson in cursor.Current)
+            {
+                try
+                {
+                    documents.Add(ToNightscoutJson(bson));
+                }
+                catch (Exception ex) when (ex is OverflowException or ArgumentOutOfRangeException)
+                {
+                    _logger.LogWarning(
+                        "Skipped {Collection} document {Index} in batch {Batch}: a decimal or date is out of range",
+                        collection.Label, index, batchNumber);
+                    totalFailed++;
+                }
+                index++;
+            }
+            if (documents.Count == 0) continue;
+
+            var (page, newlyFailed) = ParseDocuments<T>([.. documents], collection.Label, batchNumber, failedIds);
+            totalFailed += newlyFailed;
+
+            if (page.Length > 0)
+            {
+                try
+                {
+                    var before = tally.DocumentsSkipped;
+                    tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
+                    totalMigrated += page.Length - (tally.DocumentsSkipped - before);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Failed to decompose {Collection} batch", collection.Label);
+                    totalFailed += page.Length;
+                }
+            }
+
+            UpdateCollectionProgress(collection.Name,
+                Math.Max(totalDocs, totalMigrated + totalFailed + tally.DocumentsSkipped),
+                totalMigrated, totalFailed, false, tally);
+        }
+
+        UpdateCollectionProgress(collection.Name,
+            Math.Max(totalDocs, totalMigrated + totalFailed + tally.DocumentsSkipped),
+            totalMigrated, totalFailed, true, tally);
+        _logger.LogInformation(
+            "Migrated {Count} {Collection} from MongoDB as {Stored} records, skipped {Unsupported} of an unsupported kind and {Deleted} deleted records",
+            totalMigrated, collection.Label, tally.RecordsStored, tally.DocumentsSkippedUnsupported, tally.RecordsSkippedDeleted);
+    }
+
+    /// <summary>
+    /// Renders a stored document the way Nightscout's API serves it: an ObjectId as its hex string
+    /// and a BSON date as an ISO-8601 string, which is what the domain models read.
+    /// </summary>
+    /// <exception cref="OverflowException">A Decimal128 lies outside the range of <see cref="decimal"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A BSON date lies outside the range of <see cref="DateTime"/>.</exception>
+    internal static System.Text.Json.JsonElement ToNightscoutJson(BsonDocument document) =>
+        System.Text.Json.JsonSerializer.SerializeToElement(ToJsonNode(document));
+
+    internal static System.Text.Json.Nodes.JsonNode? ToJsonNode(BsonValue value) => value.BsonType switch
+    {
+        BsonType.Document => new System.Text.Json.Nodes.JsonObject(
+            value.AsBsonDocument.Select(e => KeyValuePair.Create(e.Name, ToJsonNode(e.Value)))),
+        BsonType.Array => new System.Text.Json.Nodes.JsonArray([.. value.AsBsonArray.Select(ToJsonNode)]),
+        BsonType.ObjectId => value.AsObjectId.ToString(),
+        BsonType.DateTime => value.ToUniversalTime().ToString(
+            "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", System.Globalization.CultureInfo.InvariantCulture),
+        BsonType.String => value.AsString,
+        BsonType.Boolean => value.AsBoolean,
+        BsonType.Int32 => value.AsInt32,
+        BsonType.Int64 => value.AsInt64,
+        // JSON has no NaN or Infinity; JSON.stringify writes them as null.
+        BsonType.Double => double.IsFinite(value.AsDouble) ? value.AsDouble : null,
+        BsonType.Decimal128 => (decimal)value.AsDecimal128,
+        BsonType.Null or BsonType.Undefined => null,
+        _ => value.ToString(),
+    };
 
     private async Task MigrateMongoCollectionAsync(
         IMongoDatabase database,
@@ -1658,9 +1810,6 @@ internal class MigrationJob
     {
         switch (collectionName)
         {
-            case "treatments":
-                await TransformTreatmentAsync(doc, dbContext, ct);
-                break;
             case "devicestatus":
                 await TransformDeviceStatusAsync(doc, dbContext, ct);
                 break;
@@ -1671,20 +1820,8 @@ internal class MigrationJob
                 await TransformFoodAsync(doc, dbContext, ct);
                 break;
             default:
-                _logger.LogDebug("Skipping unsupported collection: {Collection}", collectionName);
-                break;
+                throw new ArgumentOutOfRangeException(nameof(collectionName), collectionName, null);
         }
-    }
-
-    private Task TransformTreatmentAsync(
-        BsonDocument doc,
-        NocturneDbContext dbContext,
-        CancellationToken ct
-    )
-    {
-        // MongoDB BSON treatment decomposition is not yet implemented (MongoDB mode is out of scope).
-        // The API migration path handles treatments via ITreatmentDecomposer.DecomposeBatchAsync.
-        return Task.CompletedTask;
     }
 
     private async Task TransformDeviceStatusAsync(
@@ -1725,8 +1862,8 @@ internal class MigrationJob
         var mills =
             doc.Contains("mills") ? doc["mills"].ToInt64()
             : doc.Contains("created_at")
-              && DateTime.TryParse(doc["created_at"].AsString, out var createdAt)
-                ? new DateTimeOffset(createdAt).ToUnixTimeMilliseconds()
+              && UploaderTimestamp.TryParse(doc["created_at"].AsString, out var createdAt)
+                ? createdAt.ToUnixTimeMilliseconds()
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var defaultProfile = doc.Contains("defaultProfile") ? doc["defaultProfile"].AsString : "Default";
@@ -1996,7 +2133,6 @@ internal class MigrationJob
                     Description = "Migrated from Nightscout",
                     Permissions = sourcePermissions.GetValueOrDefault(roleName, []),
                     IsSystemRole = false,
-                    UpdatedAt = DateTime.UtcNow,
                 };
                 dbContext.Roles.Add(role);
                 await dbContext.SaveChangesAsync(ct);

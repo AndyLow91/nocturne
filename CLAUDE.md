@@ -195,6 +195,10 @@ Know what it actually checks before trusting it:
   green. That migration's exact spacing is load-bearing for a regex nothing tests.
   `AddUniqueConstraint`/`AddPrimaryKey` and `ALTER TABLE … ADD CONSTRAINT … UNIQUE`
   have no live example at all. Treat all three as unexercised.
+- **A concurrent unique index goes through `ConcurrentIndexBuilder.BuildUnique`**
+  (`ConcurrentIndexBuildGuardTests` forbids writing `CREATE UNIQUE INDEX CONCURRENTLY` in a
+  migration). The guard reads its table off the `ON <table>` in the definition, and
+  `TheGuardSeesAConcurrentUniqueBuild` keeps that pattern from silently stopping to match.
 
 An index whose table it cannot read off the call — an interpolated `{table}` hole,
 or a loop variable — is reported rather than skipped, so the multi-table loop the
