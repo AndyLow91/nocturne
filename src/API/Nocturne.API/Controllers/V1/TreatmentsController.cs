@@ -25,6 +25,7 @@ public class TreatmentsController : ControllerBase
 {
     private readonly ITreatmentService _treatmentService;
     private readonly IDocumentProcessingService _documentProcessingService;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<TreatmentsController> _logger;
 
     /// <summary>
@@ -32,15 +33,18 @@ public class TreatmentsController : ControllerBase
     /// </summary>
     /// <param name="treatmentService">Service handling treatment CRUD operations.</param>
     /// <param name="treatmentProcessingService">Service for async document ingestion and processing.</param>
+    /// <param name="timeProvider">Clock for the legacy default find window.</param>
     /// <param name="logger">Logger instance.</param>
     public TreatmentsController(
         ITreatmentService treatmentService,
         IDocumentProcessingService treatmentProcessingService,
+        TimeProvider timeProvider,
         ILogger<TreatmentsController> logger
     )
     {
         _treatmentService = treatmentService;
         _documentProcessingService = treatmentProcessingService;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -115,7 +119,7 @@ public class TreatmentsController : ControllerBase
             }
 
             var treatments = await _treatmentService.GetTreatmentsAsync(
-                find: findQuery,
+                find: LegacyTreatmentDateWindow.Apply(findQuery, _timeProvider.GetUtcNow()),
                 count: LegacyReadLimits.ClampCount(count),
                 skip: skip,
                 cancellationToken: cancellationToken
@@ -472,7 +476,7 @@ public class TreatmentsController : ControllerBase
             }
 
             var deletedCount = await _treatmentService.DeleteTreatmentsAsync(
-                queryString,
+                LegacyTreatmentDateWindow.Apply(queryString, _timeProvider.GetUtcNow()),
                 cancellationToken
             );
 
