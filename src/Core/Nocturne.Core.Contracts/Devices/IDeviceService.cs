@@ -29,4 +29,12 @@ public interface IDeviceService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The matching patient device <see cref="Guid"/>, or <c>null</c> if no match.</returns>
     Task<Guid?> ResolvePatientDeviceAsync(Guid? deviceId, long mills, CancellationToken ct = default);
+
+    /// <summary>
+    /// Holds the last-seen advances <see cref="ResolveAsync"/> makes until the returned scope is
+    /// disposed, then writes each device's latest once. For a batch of time-ordered records, each of
+    /// which would otherwise write its device's last seen again.
+    /// </summary>
+    /// <param name="ct">Cancellation token for the writes made on dispose.</param>
+    IAsyncDisposable DeferLastSeen(CancellationToken ct = default);
 }

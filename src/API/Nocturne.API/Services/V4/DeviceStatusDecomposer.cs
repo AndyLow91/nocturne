@@ -596,51 +596,54 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         var extrasList = new List<V4Models.DeviceStatusExtras>();
         var overrideSpans = new List<StateSpan>();
 
-        foreach (var ds in statuses)
+        await using (_deviceService.DeferLastSeen(ct))
         {
-            NormalizeMills(ds);
-
-            var correlationId = Guid.CreateVersion7();
-            result.CorrelationId ??= correlationId;
-            var legacyId = ds.Id;
-            var statusMills = ResolveStatusMills(ds);
-
-            Guid? pumpDeviceId = null;
-
-            if (ds.Pump != null)
+            foreach (var ds in statuses)
             {
-                var pumpModel = await BuildPumpSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct);
-                pumpModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpModel.DeviceId, statusMills, ct);
+                NormalizeMills(ds);
 
-                pumpDeviceId = pumpModel.DeviceId;
-                pumpList.Add(pumpModel);
-            }
+                var correlationId = Guid.CreateVersion7();
+                result.CorrelationId ??= correlationId;
+                var legacyId = ds.Id;
+                var statusMills = ResolveStatusMills(ds);
 
-            if (ds.Cgm != null)
-            {
-                await RegisterCgmDeviceAsync(ds, statusMills, ct);
-            }
+                Guid? pumpDeviceId = null;
 
-            if (MapToApsSnapshot(ds, legacyId, source, correlationId) is { } apsModel)
-            {
-                apsModel.DeviceId = pumpDeviceId;
-                apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, statusMills, ct);
-                apsList.Add(apsModel);
-            }
+                if (ds.Pump != null)
+                {
+                    var pumpModel = await BuildPumpSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct);
+                    pumpModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpModel.DeviceId, statusMills, ct);
 
-            if (ds.Uploader != null || ds.UploaderBattery.HasValue)
-            {
-                uploaderList.Add(await BuildUploaderSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct));
-            }
+                    pumpDeviceId = pumpModel.DeviceId;
+                    pumpList.Add(pumpModel);
+                }
 
-            if (ds.Override is { Active: true })
-            {
-                overrideSpans.Add(BuildOverrideSpan(ds, legacyId));
-            }
+                if (ds.Cgm != null)
+                {
+                    await RegisterCgmDeviceAsync(ds, statusMills, ct);
+                }
 
-            if (BuildExtras(ds, correlationId) is { } extrasModel)
-            {
-                extrasList.Add(extrasModel);
+                if (MapToApsSnapshot(ds, legacyId, source, correlationId) is { } apsModel)
+                {
+                    apsModel.DeviceId = pumpDeviceId;
+                    apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, statusMills, ct);
+                    apsList.Add(apsModel);
+                }
+
+                if (ds.Uploader != null || ds.UploaderBattery.HasValue)
+                {
+                    uploaderList.Add(await BuildUploaderSnapshotAsync(ds, legacyId, source, statusMills, correlationId, ct));
+                }
+
+                if (ds.Override is { Active: true })
+                {
+                    overrideSpans.Add(BuildOverrideSpan(ds, legacyId));
+                }
+
+                if (BuildExtras(ds, correlationId) is { } extrasModel)
+                {
+                    extrasList.Add(extrasModel);
+                }
             }
         }
 
