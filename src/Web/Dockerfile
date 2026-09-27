@@ -44,11 +44,14 @@ COPY --from=build /app/pnpm-lock.yaml ./
 COPY --from=build /app/patches patches/
 COPY --from=build /app/packages/app/build packages/app/build
 COPY --from=build /app/packages/app/server.js packages/app/
+COPY --from=build /app/packages/app/server-origin-warning.js packages/app/
 COPY --from=build /app/packages/app/package.json packages/app/
 COPY --from=build /app/packages/bridge packages/bridge
 COPY --from=build /app/packages/bot/package.json packages/bot/
 COPY --from=build /app/packages/portal/package.json packages/portal/
 RUN pnpm install --frozen-lockfile --prod
+# Fail the build, not the container start, when server.js imports a module that was not copied.
+RUN cd packages/app && node -e "import('./server-origin-warning.js')"
 
 EXPOSE 3000
 ENV PORT=3000
