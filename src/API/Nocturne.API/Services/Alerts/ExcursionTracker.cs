@@ -51,19 +51,19 @@ public class ExcursionTracker : IExcursionTracker
 
     internal IExcursionDecider Decider { get; }
 
-    /// <inheritdoc/>
-    public Task<ExcursionTransition> ProcessEvaluationAsync(
+    /// <summary>
+    /// <see cref="IExcursionTracker.ProcessEvaluationAsync"/> with no rule to check the decision
+    /// against: a seam for tests and the parity corpus, which drive the tracker without a snapshot.
+    /// </summary>
+    internal Task<ExcursionTransition> ProcessEvaluationAsync(
         Guid alertRuleId,
         bool conditionMet,
         Func<CancellationToken, Task<bool>>? autoResolveMet,
         CancellationToken ct) =>
         ProcessEvaluationAsync(alertRuleId, null, conditionMet, autoResolveMet, ct);
 
-    /// <summary>
-    /// <see cref="IExcursionTracker.ProcessEvaluationAsync"/> for an evaluation of
-    /// <paramref name="rule"/>: its decision is dropped if the rule no longer reads as
-    /// <paramref name="rule"/> when it is written (<see cref="ExcursionTransitionWriter"/>).
-    /// </summary>
+    /// <inheritdoc/>
+    /// <remarks>The check is made under the rule's transition lock (<see cref="ExcursionTransitionWriter"/>).</remarks>
     public Task<ExcursionTransition> ProcessEvaluationAsync(
         AlertRuleSnapshot rule,
         bool conditionMet,
