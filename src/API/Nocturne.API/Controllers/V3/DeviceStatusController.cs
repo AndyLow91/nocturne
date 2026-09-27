@@ -370,23 +370,22 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
             return CreateV3ErrorResponse(400, "ID mismatch");
         }
 
-        deviceStatus.Id = id;
-        ProcessDeviceStatusForCreation(deviceStatus);
-
-        // Verify the record exists in V4 before updating
         var existing = await _projection.GetByIdAsync(id, cancellationToken);
         if (existing == null)
         {
             return CreateV3ErrorResponse(404, "Device status not found");
         }
 
-        // Delete old V4 records by legacy ID, then decompose the updated DeviceStatus
-        await _decomposer.DeleteByLegacyIdAsync(id, WriteOrigin.Live, cancellationToken);
+        // Keyed on the stored id, which the path's wire form may only resolve to, so the decomposer
+        // updates the stored snapshots in place. Deleting them first would leave tombstones that
+        // refuse the re-insert under the same legacy id.
+        deviceStatus.Id = existing.Id;
+        ProcessDeviceStatusForCreation(deviceStatus);
+
         // Direct v3 update has no connector data source; a live update broadcasts.
         await _decomposer.DecomposeAsync(deviceStatus, source: null, WriteOrigin.Live, cancellationToken);
 
-        // Project the V4 snapshots back to DeviceStatus shape for the response
-        var updated = await _projection.GetByIdAsync(id, cancellationToken) ?? deviceStatus;
+        var updated = await _projection.GetByIdAsync(existing.Id!, cancellationToken) ?? deviceStatus;
 
         // Broadcast via WriteSideEffectsService (cache invalidation + SignalR)
         await _sideEffects.OnUpdatedAsync(
