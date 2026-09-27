@@ -26,9 +26,6 @@ Nocturne.API.Tests.Integration.EntriesIntegrationTests.PutEntry_ShouldUpdateExis
 Nocturne.API.Tests.Integration.Migration.ApiMigrationTests.MigrateEntries_FromApi_AllFieldsPreserved | v3 filter {dataSource: mongodb-import} matches none of the imported entries
 Nocturne.API.Tests.Integration.Migration.ApiMigrationTests.MigrateTreatments_DuplicateRun_NoDuplicatesCreated | a second import of the same source reports every document as migrated again
 Nocturne.API.Tests.Integration.Migration.MongoMigrationTests.JobStatus_DuringMigration_ShowsProgressAndCompletion | test is racy, not a product bug: the fixture import completes before the first poll, so Running is never observed
-Nocturne.API.Tests.Integration.Migration.MongoMigrationTests.MigrateEntries_DuplicateRun_NoDuplicatesCreated | a second import of the same source reports every document as migrated again
-Nocturne.API.Tests.Integration.Migration.MongoMigrationTests.MigrateEntries_FromMongo_AllFieldsPreserved | v3 filter {dataSource: mongodb-import} matches none of the imported entries
-Nocturne.API.Tests.Integration.Migration.MongoMigrationTests.MigrateEntries_WithVariedDirections_DirectionsPreserved | v3 filter {dataSource: mongodb-import} matches none of the imported entries
 Nocturne.API.Tests.Integration.NotificationsIntegrationTests.GetNotifications_SortsByUrgencyThenTime | active notifications sort by urgency as text (Warn before Urgent), not by severity
 Nocturne.API.Tests.Integration.Parity.V1.ActivityParityTests.GetActivity_WithFindFilter_ReturnsSameShape | activity find filter is not applied
 Nocturne.API.Tests.Integration.Parity.V1.CountParityTests.CountActivity_Empty_ReturnsSameShape | count/activity runs its per-category counts concurrently and intermittently answers 500

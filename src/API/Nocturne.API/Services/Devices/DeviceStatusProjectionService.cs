@@ -326,7 +326,9 @@ public class DeviceStatusProjectionService
             Date = anchor.Mills,
             SrvModified = new DateTimeOffset(anchor.ModifiedAt, TimeSpan.Zero).ToUnixTimeMilliseconds(),
             SrvCreated = new DateTimeOffset(anchor.CreatedAt, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-            CreatedAt = anchor.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+            // Nightscout clients place a status on the timeline by created_at, so it is the event
+            // time; the server clock is srvCreated.
+            CreatedAt = anchor.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
             UtcOffset = anchor.UtcOffset,
             Device = anchor.Device ?? string.Empty,
         };

@@ -267,6 +267,27 @@ internal sealed class TreatmentPublisher : ConnectorPublisherBase, ITreatmentPub
             () => _deviceEventRepository.GetLatestTimestampAsync(source, cancellationToken));
 
     /// <inheritdoc />
+    public Task<DateTime?> GetLatestTreatmentTimestampAsync(
+        SyncDataType type,
+        string source,
+        CancellationToken cancellationToken = default)
+        => type switch
+        {
+            SyncDataType.Boluses => _bolusRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.CarbIntake => _carbIntakeRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.ManualBG or SyncDataType.BGChecks =>
+                _bgCheckRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.BolusCalculations =>
+                _bolusCalculationRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.TempBasals => _tempBasalRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.BasalInjections =>
+                _basalInjectionRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.Notes => _noteRepository.GetLatestTimestampAsync(source, cancellationToken),
+            SyncDataType.DeviceEvents => _deviceEventRepository.GetLatestTimestampAsync(source, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not a treatment type."),
+        };
+
+    /// <inheritdoc />
     /// <remarks>The conflict rule is <see cref="TreatmentDecomposer.SelectForRepublishAsync"/>'s.</remarks>
     public async Task<int?> PublishRecentTreatmentsAsync(
         IEnumerable<Treatment> treatments,

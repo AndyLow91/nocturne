@@ -5,7 +5,6 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Nocturne.API.Services.Migration;
 using Nocturne.API.Tests.Integration.Infrastructure;
-using Nocturne.Core.Constants;
 using Nocturne.Infrastructure.Data;
 
 using Xunit;
@@ -74,16 +73,7 @@ public class MongoMigrationTests : ApiIntegrationTestBase, IClassFixture<Migrati
         status.CollectionProgress["entries"].IsComplete.Should().BeTrue();
         status.CollectionProgress["entries"].DocumentsMigrated.Should().Be(_migration.EntryCount);
 
-        // Verify data via V3 API with dataSource filtering
-        var filter = JsonSerializer.Serialize(new { dataSource = DataSources.MongoDbImport });
-        var entriesResponse = await AuthenticatedClient.GetAsync(
-            $"/api/v3/entries?filter={Uri.EscapeDataString(filter)}&limit={_migration.EntryCount + 10}");
-
-        entriesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var responseBody = await entriesResponse.Content.ReadAsStringAsync();
-        var v3Response = JsonSerializer.Deserialize<JsonElement>(responseBody, JsonOptions);
-
-        var entries = v3Response.GetProperty("result").EnumerateArray().ToList();
+        var entries = await GetV3EntriesAsync();
         entries.Count.Should().Be(_migration.EntryCount);
 
         var minSgv = entries.Min(e => e.GetProperty("sgv").GetDouble());
@@ -121,16 +111,8 @@ public class MongoMigrationTests : ApiIntegrationTestBase, IClassFixture<Migrati
             MigrationMode.MongoDb,
             collections: ["entries"]);
 
-        // Assert — query migrated entries via V3 API and check directions
-        var filter = JsonSerializer.Serialize(new { dataSource = DataSources.MongoDbImport });
-        var entriesResponse = await AuthenticatedClient.GetAsync(
-            $"/api/v3/entries?filter={Uri.EscapeDataString(filter)}&limit={_migration.EntryCount + 10}");
-
-        entriesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var responseBody = await entriesResponse.Content.ReadAsStringAsync();
-        var v3Response = JsonSerializer.Deserialize<JsonElement>(responseBody, JsonOptions);
-
-        var entries = v3Response.GetProperty("result").EnumerateArray().ToList();
+        var entries = await GetV3EntriesAsync();
+        entries.Count.Should().Be(_migration.EntryCount);
         var directions = entries
             .Where(e => e.TryGetProperty("direction", out var dir) && dir.ValueKind == JsonValueKind.String)
             .Select(e => e.GetProperty("direction").GetString()!)
@@ -155,19 +137,23 @@ public class MongoMigrationTests : ApiIntegrationTestBase, IClassFixture<Migrati
             MigrationMode.MongoDb,
             collections: ["entries"]);
 
-        var firstCount = firstStatus.CollectionProgress["entries"].DocumentsMigrated;
+        firstStatus.State.Should().Be(MigrationJobState.Completed);
+        firstStatus.CollectionProgress["entries"].DocumentsMigrated.Should().Be(_migration.EntryCount);
 
         // Act — run migration second time with same data
         var secondStatus = await RunMigrationToCompletionAsync(
             MigrationMode.MongoDb,
             collections: ["entries"]);
 
-        // Assert — second run should find all duplicates and skip them
+        // Assert — a re-run updates each stored document in place, which counts as migrated
+        // exactly as in API mode, and creates no second row for any of them.
         secondStatus.State.Should().Be(MigrationJobState.Completed);
-        secondStatus.CollectionProgress["entries"].DocumentsMigrated.Should().Be(0,
-            "all entries already exist and should be detected as duplicates");
+        secondStatus.CollectionProgress["entries"].DocumentsMigrated.Should().Be(_migration.EntryCount);
+        secondStatus.CollectionProgress["entries"].DocumentsFailed.Should().Be(0);
 
-        Log($"First run migrated {firstCount}, second run migrated 0 (duplicates correctly skipped)");
+        await using var db = Fixture.CreateDbContext(Fixture.TenantId);
+        (await db.SensorGlucose.CountAsync()).Should().Be(_migration.EntryCount);
+        (await GetV3EntriesAsync()).Count.Should().Be(_migration.EntryCount);
     }
 
     [Fact]
@@ -243,6 +229,14 @@ public class MongoMigrationTests : ApiIntegrationTestBase, IClassFixture<Migrati
     }
 
     #region Helpers
+
+    private async Task<List<JsonElement>> GetV3EntriesAsync()
+    {
+        var response = await AuthenticatedClient.GetAsync($"/api/v3/entries?limit={_migration.EntryCount + 10}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync(), JsonOptions);
+        return body.GetProperty("result").EnumerateArray().ToList();
+    }
 
     private async Task<MigrationJobStatus> RunMigrationToCompletionAsync(
         MigrationMode mode,

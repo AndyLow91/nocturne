@@ -316,7 +316,7 @@ msgstr "Alto"
 
 #: src/lib/stores/auth-store.svelte.ts
 msgid "IsAuthenticated="
-msgstr ""
+msgstr "Autenticado="
 
 #: src/lib/components/profile/ProfileIconPicker.svelte
 #: src/lib/stores/auth-store.svelte.ts
@@ -427,7 +427,7 @@ msgstr "Error de conexión"
 
 #: src/routes/(legal)/+layout.svelte
 msgid "N"
-msgstr ""
+msgstr "N"
 
 #: ../portal/src/lib/components/SiteFooter.svelte
 #: ../portal/src/lib/components/SiteFooter.svelte
@@ -449,7 +449,7 @@ msgstr ""
 #: src/routes/(legal)/+layout.svelte
 #: src/routes/(unauthenticated)/+layout.svelte
 msgid "Nocturne"
-msgstr ""
+msgstr "Nocturne"
 
 #: src/routes/(legal)/+layout.svelte
 msgid "<0/> Back to Login"
@@ -457,7 +457,7 @@ msgstr "<0/> Volver al inicio de sesión"
 
 #: src/routes/(legal)/+layout.svelte
 msgid "Last updated: February 21, 2026"
-msgstr ""
+msgstr "Última actualización: 21 de febrero de 2026"
 
 #. 0: title.toLowerCase()
 #: src/lib/components/account/SecurityCredentialCard.svelte
@@ -689,15 +689,15 @@ msgstr "Glucosa"
 #: src/lib/components/actogram/Actogram.svelte
 #: src/lib/components/actogram/Actogram.svelte
 msgid "ArrowDown"
-msgstr ""
+msgstr "Flecha abajo"
 
 #: src/lib/components/actogram/Actogram.svelte
 msgid "ArrowUp"
-msgstr ""
+msgstr "Flecha arriba"
 
 #: src/lib/components/actogram/Actogram.svelte
 msgid "Actogram with keyboard navigation"
-msgstr ""
+msgstr "Actograma con navegación mediante teclado"
 
 #: src/lib/components/actogram/Actogram.svelte
 msgid "Previous week"
@@ -714,7 +714,7 @@ msgstr "Semana anterior"
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/trackers/TrackerStartDialog.svelte
 msgid "{0}h"
-msgstr ""
+msgstr "{0} h"
 
 #: src/lib/components/actogram/Actogram.svelte
 msgid "Next week"
@@ -723,22 +723,22 @@ msgstr "Semana siguiente"
 #: src/lib/components/admin/IdentityProvidersTabContent.svelte
 #: src/lib/components/admin/OidcProvidersTabContent.svelte
 msgid "Identity Providers"
-msgstr ""
+msgstr "Proveedores de identidad"
 
 #: src/lib/components/admin/IdentityProvidersTabContent.svelte
 #: src/lib/components/admin/OidcProvidersTabContent.svelte
 msgid "Configure OpenID Connect providers for single sign-on."
-msgstr ""
+msgstr "Configura proveedores OpenID Connect para el inicio de sesión único."
 
 #: src/lib/components/admin/IdentityProvidersTabContent.svelte
 #: src/lib/components/admin/OidcProvidersTabContent.svelte
 msgid "<0/> Add Provider"
-msgstr ""
+msgstr "<0/> Añadir proveedor"
 
 #: src/lib/components/admin/IdentityProvidersTabContent.svelte
 #: src/lib/components/admin/OidcProvidersTabContent.svelte
 msgid "No identity providers configured."
-msgstr ""
+msgstr "No hay proveedores de identidad configurados."
 
 #: src/lib/components/admin/IdentityProvidersTabContent.svelte
 #: src/lib/components/admin/IntegrationsTabContent.svelte
@@ -803,23 +803,23 @@ msgstr "Eliminar"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Entries"
-msgstr ""
+msgstr "API - Entradas"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Treatments"
-msgstr ""
+msgstr "API - Tratamientos"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Device Status"
-msgstr ""
+msgstr "API - Estado del dispositivo"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Profile"
-msgstr ""
+msgstr "API - Perfil"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "API - Food"
-msgstr ""
+msgstr "API - Alimentos"
 
 #: src/lib/components/admin/RoleDialog.svelte
 msgid "Care Portal"
@@ -939,65 +939,65 @@ msgstr "La prueba ha fallado"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Edit Identity Provider"
-msgstr ""
+msgstr "Editar proveedor de identidad"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Add Identity Provider"
-msgstr ""
+msgstr "Añadir proveedor de identidad"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "My Provider"
-msgstr ""
+msgstr "Mi proveedor"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Issuer URL"
-msgstr ""
+msgstr "URL del emisor"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Client ID"
-msgstr ""
+msgstr "ID de cliente"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Client Secret"
-msgstr ""
+msgstr "Secreto de cliente"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Leave blank to keep existing"
-msgstr ""
+msgstr "Déjalo en blanco para conservar el existente"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Scopes"
-msgstr ""
+msgstr "Ámbitos"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Comma or space separated"
-msgstr ""
+msgstr "Separados por comas o espacios"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Default Roles"
-msgstr ""
+msgstr "Roles predeterminados"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Comma-separated roles assigned to new users from this provider"
-msgstr ""
+msgstr "Roles separados por comas asignados a los nuevos usuarios de este proveedor"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 #: src/lib/components/profile/ProfileEditDialog.svelte
 msgid "Icon"
-msgstr ""
+msgstr "Icono"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Button Color"
-msgstr ""
+msgstr "Color del botón"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 msgid "Display Order"
-msgstr ""
+msgstr "Orden de visualización"
 
 #: src/lib/components/admin/OidcProviderDialog.svelte
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 msgid "<0/> Test Connection"
-msgstr ""
+msgstr "<0/> Probar conexión"
 
 #. 0: testResult.responseTime ? ` (${testResult.responseTime})` \\: ""
 #: src/lib/components/admin/OidcProviderDialog.svelte
@@ -1063,12 +1063,12 @@ msgstr "Crear proveedor"
 #. 0: member.name
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Revoke platform admin from {0}"
-msgstr ""
+msgstr "Retirar a {0} el rol de administrador de la plataforma"
 
 #. 0: member.name
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Grant platform admin to {0}"
-msgstr ""
+msgstr "Conceder a {0} el rol de administrador de la plataforma"
 
 #: src/lib/components/admin/SubjectEditDialog.svelte
 msgid "New User"
@@ -1112,7 +1112,7 @@ msgstr "Roles personalizados"
 
 #: src/lib/components/admin/SubjectEditDialog.svelte
 msgid "Use predefined roles for standard access levels. OAuth scopes provide fine-grained device permissions."
-msgstr ""
+msgstr "Usa roles predefinidos para niveles de acceso estándar. Los ámbitos OAuth permiten permisos detallados para los dispositivos."
 
 #: src/lib/components/admin/SubjectEditDialog.svelte
 msgid "Full Admin Access"
@@ -1191,7 +1191,7 @@ msgstr "por {0}"
 #. 0: history.page ?? 1; 1: history.totalPages ?? 1; 2: history.totalCount ?? 0
 #: src/lib/components/alerts/AlertHistoryCard.svelte
 msgid "Page {0} of {1} ({2} total)"
-msgstr ""
+msgstr "Página {0} de {1} ({2} en total)"
 
 #: src/lib/components/alerts/AlertHistoryCard.svelte
 #: src/routes/(authenticated)/alerts/history/+page.svelte
@@ -1239,19 +1239,19 @@ msgstr "<0/> Confirmar"
 
 #: src/lib/components/alerts/AlertRuleRow.svelte
 msgid "No condition configured"
-msgstr ""
+msgstr "No hay ninguna condición configurada"
 
 #. 0: mins
 #. 0: toleranceMinutes
 #: src/lib/components/alerts/DndPanel.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
 msgid "{0} minutes"
-msgstr ""
+msgstr "{0} minutos"
 
 #. 0: source.readingCount; 1: source.readingCount === 1 ? "" \\: "s"
 #: src/lib/components/patient/PatientDeviceManager.svelte
 msgid "{0} reading{1}"
-msgstr ""
+msgstr "{0} lectura{1}"
 
 #: src/lib/components/dashboard/glucose-chart/dialogs/DeliveryInspectionDialog.svelte
 #: src/lib/components/dashboard/glucose-chart/dialogs/DeliveryInspectionDialog.svelte
@@ -1265,37 +1265,37 @@ msgstr "Predeterminado"
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Sun"
-msgstr ""
+msgstr "Dom"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Mon"
-msgstr ""
+msgstr "Lun"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Tue"
-msgstr ""
+msgstr "Mar"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Wed"
-msgstr ""
+msgstr "Mié"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Thu"
-msgstr ""
+msgstr "Jue"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Fri"
-msgstr ""
+msgstr "Vie"
 
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/settings/alarm-profile/DayOfWeekPicker.svelte
 msgid "Sat"
-msgstr ""
+msgstr "Sáb"
 
 #: src/lib/components/alerts/AlertRuleRow.svelte
 #: src/lib/components/entries/EntryEditDialog.svelte
@@ -1306,20 +1306,20 @@ msgstr ""
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "<0/> Delete"
-msgstr ""
+msgstr "<0/> Eliminar"
 
 #: src/lib/components/settings/CustomSoundUpload.svelte
 msgid "Failed to upload sound"
-msgstr ""
+msgstr "No se pudo subir el sonido"
 
 #: src/lib/components/settings/alarm-profile/AlarmAudioTab.svelte
 msgid "Built-in Sounds"
-msgstr ""
+msgstr "Sonidos integrados"
 
 #: src/lib/components/settings/CustomSoundUpload.svelte
 #: src/lib/components/settings/alarm-profile/AlarmAudioTab.svelte
 msgid "Custom Sounds"
-msgstr ""
+msgstr "Sonidos personalizados"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 #: src/lib/components/patient/InsulinFormFields.svelte
@@ -1334,23 +1334,23 @@ msgstr ""
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 msgid "Custom"
-msgstr ""
+msgstr "Personalizado"
 
 #: src/lib/components/settings/CustomSoundUpload.svelte
 msgid "Upload Custom Sound"
-msgstr ""
+msgstr "Subir sonido personalizado"
 
 #: src/lib/components/settings/alarm-profile/AlarmAudioTab.svelte
 msgid "Ascending Volume"
-msgstr ""
+msgstr "Volumen ascendente"
 
 #: src/lib/components/admin/IntegrationsTabContent.svelte
 msgid "Telegram"
-msgstr ""
+msgstr "Telegram"
 
 #: src/lib/components/admin/IntegrationsTabContent.svelte
 msgid "WhatsApp"
-msgstr ""
+msgstr "WhatsApp"
 
 #~ msgid "No notification channels are currently available."
 #~ msgstr ""
@@ -1361,7 +1361,7 @@ msgstr ""
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
 msgid "Normal"
-msgstr ""
+msgstr "Normal"
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
@@ -1369,7 +1369,7 @@ msgstr ""
 #: src/routes/(authenticated)/compatibility/+page.svelte
 #: src/routes/(authenticated)/compatibility/[id]/+page.svelte
 msgid "Critical"
-msgstr ""
+msgstr "Crítica"
 
 #: src/lib/components/members/RolesSection.svelte
 #: src/lib/components/members/RolesSection.svelte
@@ -1377,17 +1377,17 @@ msgstr ""
 #: src/lib/components/trackers/tracker-notification-editor.svelte
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "Description (optional)"
-msgstr ""
+msgstr "Descripción (opcional)"
 
 #: src/routes/(authenticated)/alerts/[id]/+page.svelte
 msgid "Severity"
-msgstr ""
+msgstr "Gravedad"
 
 #: src/lib/components/profile/ProfileEditDialog.svelte
 #: src/lib/components/schedule/ScheduleView.svelte
 #: src/lib/components/trackers/TrackerStartDialog.svelte
 msgid "Start Time"
-msgstr ""
+msgstr "Hora de inicio"
 
 #: src/lib/components/members/RolesSection.svelte
 #: src/lib/components/settings/ClientDevices.svelte
@@ -1397,12 +1397,12 @@ msgstr ""
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 #: src/routes/(authenticated)/settings/integrations/discord/+page.svelte
 msgid "<0/> Save"
-msgstr ""
+msgstr "<0/> Guardar"
 
 #: ../portal/src/routes/faq/+page.svelte
 #: src/lib/components/profile/ProfileEditDialog.svelte
 msgid "General"
-msgstr ""
+msgstr "General"
 
 #: src/lib/components/patient/PatientClinicalForm.svelte
 #: src/lib/components/profile/ProfileCreateDialog.svelte
@@ -1410,7 +1410,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "Timezone"
-msgstr ""
+msgstr "Zona horaria"
 
 #~ msgid "{0}m <0/>"
 #~ msgstr ""
@@ -1423,26 +1423,26 @@ msgstr ""
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 msgid "Enter"
-msgstr ""
+msgstr "Introducir"
 
 #~ msgid "Smart Snooze"
 #~ msgstr ""
 
 #: src/lib/components/settings/alarm-profile/AlarmVisualTab.svelte
 msgid "Screen Flash"
-msgstr ""
+msgstr "Destello de pantalla"
 
 #: src/lib/components/settings/alarm-profile/AlarmVisualTab.svelte
 msgid "Flash Color"
-msgstr ""
+msgstr "Color del destello"
 
 #: src/lib/components/settings/alarm-profile/AlarmVisualTab.svelte
 msgid "Persistent Banner"
-msgstr ""
+msgstr "Banner persistente"
 
 #: src/lib/components/settings/alarm-profile/AlarmVisualTab.svelte
 msgid "Wake Screen"
-msgstr ""
+msgstr "Activar pantalla"
 
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
@@ -1453,15 +1453,15 @@ msgstr ""
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Median"
-msgstr ""
+msgstr "Mediana"
 
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 msgid "No pattern data"
-msgstr ""
+msgstr "No hay datos de patrones"
 
 #: src/lib/components/ambulatory-glucose-profile/AmbulatoryGlucoseProfile.svelte
 msgid "Need more readings to show your typical day"
-msgstr ""
+msgstr "Se necesitan más lecturas para mostrar tu día habitual"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditMutationsTable.svelte
@@ -1469,12 +1469,12 @@ msgstr ""
 #: src/lib/components/patient/PatientDeviceManager.svelte
 #: src/lib/components/patient/PatientInsulinManager.svelte
 msgid "Update"
-msgstr ""
+msgstr "Actualizar"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Restore"
-msgstr ""
+msgstr "Restaurar"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
@@ -1492,80 +1492,80 @@ msgstr "Hora"
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Subject"
-msgstr ""
+msgstr "Sujeto"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Entity ID"
-msgstr ""
+msgstr "ID de entidad"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Endpoint"
-msgstr ""
+msgstr "Punto de acceso"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "IP Address"
-msgstr ""
+msgstr "Dirección IP"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Action"
-msgstr ""
+msgstr "Acción"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Entity Type"
-msgstr ""
+msgstr "Tipo de entidad"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Search entity types..."
-msgstr ""
+msgstr "Buscar tipos de entidad..."
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Reason:"
-msgstr ""
+msgstr "Motivo:"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Auth Type:"
-msgstr ""
+msgstr "Tipo de autenticación:"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Full Entity ID:"
-msgstr ""
+msgstr "ID completo de la entidad:"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Changes:"
-msgstr ""
+msgstr "Cambios:"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 msgid "Changes (raw):"
-msgstr ""
+msgstr "Cambios (sin procesar):"
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "No additional details available."
-msgstr ""
+msgstr "No hay detalles adicionales disponibles."
 
 #: src/lib/components/audit/AuditMutationsTable.svelte
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "No audit records found."
-msgstr ""
+msgstr "No se encontraron registros de auditoría."
 
 #: src/lib/components/auth/login-dialog.svelte
 msgid "Sign In Required"
-msgstr ""
+msgstr "Inicio de sesión necesario"
 
 #: src/lib/components/auth/login-dialog.svelte
 msgid "Please sign in to continue"
-msgstr ""
+msgstr "Inicia sesión para continuar"
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Records"
-msgstr ""
+msgstr "Registros"
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Search types..."
-msgstr ""
+msgstr "Buscar tipos..."
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
@@ -1577,38 +1577,38 @@ msgstr ""
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Status"
-msgstr ""
+msgstr "Estado"
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Auth Type"
-msgstr ""
+msgstr "Tipo de autenticación"
 
 #~ msgid "API Secret Prefix"
 #~ msgstr ""
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 msgid "Query Parameters"
-msgstr ""
+msgstr "Parámetros de consulta"
 
 #: src/lib/components/audit/AuditReadsTable.svelte
 #: src/lib/components/treatments/TreatmentsDataTable.svelte
 #: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "Details"
-msgstr ""
+msgstr "Detalles"
 
 #: src/lib/components/auth/OidcProviderButtons.svelte
 msgid "Or create an account with a passkey"
-msgstr ""
+msgstr "O crea una cuenta con una clave de acceso"
 
 #: src/lib/components/auth/LoginForm.svelte
 #: src/lib/components/auth/OidcProviderButtons.svelte
 msgid "<0/> Redirecting..."
-msgstr ""
+msgstr "<0/> Redirigiendo..."
 
 #. 0: provider.name
 #: src/lib/components/auth/OidcProviderButtons.svelte
 msgid "<0/> Continue with {0}"
-msgstr ""
+msgstr "<0/> Continuar con {0}"
 
 #~ msgid "Authentication failed"
 #~ msgstr ""
@@ -1635,7 +1635,7 @@ msgstr ""
 #: src/routes/(unauthenticated)/auth/recovery/passkey/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "<0/> Waiting for passkey..."
-msgstr ""
+msgstr "<0/> Esperando la clave de acceso..."
 
 #~ msgid "<0/> Sign in with passkey"
 #~ msgstr ""
@@ -1645,7 +1645,7 @@ msgstr ""
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "Or continue with"
-msgstr ""
+msgstr "O continuar con"
 
 #~ msgid "<0/> Sign in with {0}"
 #~ msgstr ""
@@ -1663,43 +1663,43 @@ msgstr ""
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "Username"
-msgstr ""
+msgstr "Nombre de usuario"
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "<0/> Continue with passkey"
-msgstr ""
+msgstr "<0/> Continuar con clave de acceso"
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "Back"
-msgstr ""
+msgstr "Atrás"
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "Recovery code"
-msgstr ""
+msgstr "Código de recuperación"
 
 #: src/lib/components/auth/GuestCodeForm.svelte
 #: src/lib/components/auth/LoginForm.svelte
 #: src/lib/components/auth/LoginForm.svelte
 msgid "<0/> Verifying..."
-msgstr ""
+msgstr "<0/> Verificando..."
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "Verify recovery code"
-msgstr ""
+msgstr "Verificar código de recuperación"
 
 #: src/lib/components/auth/LoginForm.svelte
 #: src/lib/components/auth/LoginForm.svelte
 #: src/routes/(unauthenticated)/auth/recovery/passkey/+page.svelte
 msgid "Back to sign in"
-msgstr ""
+msgstr "Volver al inicio de sesión"
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "Authenticator code"
-msgstr ""
+msgstr "Código del autenticador"
 
 #: src/lib/components/auth/LoginForm.svelte
 msgid "<0/> Verify"
-msgstr ""
+msgstr "<0/> Verificar"
 
 #: src/lib/components/auth/PasskeyRegistrationForm.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
@@ -1707,7 +1707,7 @@ msgstr ""
 #: src/routes/(unauthenticated)/auth/recovery/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "Display name"
-msgstr ""
+msgstr "Nombre visible"
 
 #: ../portal/src/routes/studio/+page.svelte
 #: src/lib/components/auth/PasskeyRegistrationForm.svelte
@@ -1715,37 +1715,37 @@ msgstr ""
 #: src/routes/(unauthenticated)/auth/recovery/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "Your name"
-msgstr ""
+msgstr "Tu nombre"
 
 #: src/lib/components/auth/PasskeyRegistrationForm.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "This is how you will appear to others."
-msgstr ""
+msgstr "Así aparecerás ante los demás."
 
 #: src/lib/components/auth/PasskeyRegistrationForm.svelte
 msgid "A unique identifier for your account."
-msgstr ""
+msgstr "Un identificador único para tu cuenta."
 
 #: src/lib/components/auth/PasskeyRegistrationForm.svelte
 #: src/routes/(unauthenticated)/setup/steps/AccountCreation.svelte
 msgid "<0/> Create account with passkey"
-msgstr ""
+msgstr "<0/> Crear cuenta con clave de acceso"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "In Range:"
-msgstr ""
+msgstr "En rango:"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Low:"
-msgstr ""
+msgstr "Bajo:"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "High:"
-msgstr ""
+msgstr "Alto:"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Carbs:"
-msgstr ""
+msgstr "Carbohidratos:"
 
 #. 0: stats.totalCarbs.toFixed(0)
 #. 0: monthSummary.avgDailyCarbs.toFixed(0)
@@ -1796,7 +1796,7 @@ msgstr "{0} g"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Bolus:"
-msgstr ""
+msgstr "Bolo:"
 
 #. 0: stats.totalBolus.toFixed(1)
 #. 0: stats.totalBasal.toFixed(1)
@@ -1835,15 +1835,15 @@ msgstr "{0} U"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Basal:"
-msgstr ""
+msgstr "Basal:"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Avg Glucose:"
-msgstr ""
+msgstr "Glucosa media:"
 
 #: src/lib/components/calendar/CalendarDayCell.svelte
 msgid "Click to view full day report"
-msgstr ""
+msgstr "Pulsa para ver el informe completo del día"
 
 #: src/lib/components/calendar/CalendarHeader.svelte
 msgid "Calendar"
@@ -1900,27 +1900,27 @@ msgstr "Pulsa cualquier día para ver el informe detallado"
 
 #: src/lib/components/auth/ProviderIcon.svelte
 msgid "Provider icon"
-msgstr ""
+msgstr "Icono del proveedor"
 
 #: src/lib/components/calendar/CalendarMonthSummary.svelte
 msgid "Avg TIR"
-msgstr ""
+msgstr "TIR medio"
 
 #: src/lib/components/calendar/CalendarMonthSummary.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Avg Glucose"
-msgstr ""
+msgstr "Glucosa media"
 
 #: src/lib/components/calendar/CalendarMonthSummary.svelte
 msgid "Avg Daily Carbs"
-msgstr ""
+msgstr "Carbohidratos diarios medios"
 
 #: src/lib/components/calendar/CalendarMonthSummary.svelte
 #: src/lib/components/reports/GlycemicRiskIndexChart.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "Avg TDD"
-msgstr ""
+msgstr "TDD media"
 
 #: src/lib/components/calendar/DayGlucoseProfile.svelte
 #: src/lib/components/command-palette/CommandPaletteVitals.svelte
@@ -1933,62 +1933,62 @@ msgstr ""
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 #: src/routes/(authenticated)/reports/comparison/+page.svelte
 msgid "No data"
-msgstr ""
+msgstr "Sin datos"
 
 #. 0: startTime
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Started at {0}"
-msgstr ""
+msgstr "Iniciado a las {0}"
 
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Started on this day"
-msgstr ""
+msgstr "Iniciado este día"
 
 #. 0: event.instance.startNotes
 #. 0: event.instance.completionNotes
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Note: {0}"
-msgstr ""
+msgstr "Nota: {0}"
 
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Completed on this day"
-msgstr ""
+msgstr "Completado este día"
 
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Due on this day"
-msgstr ""
+msgstr "Previsto para este día"
 
 #. 0: formatTrackerAge(event.instance.ageHours)
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 msgid "Age: {0}"
-msgstr ""
+msgstr "Antigüedad: {0}"
 
 #: src/lib/components/calendar/TrackerPopoverContent.svelte
 #: src/lib/components/trackers/ActiveTrackersTab.svelte
 #: src/lib/components/trackers/TrackerCompletionDialog.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "<0/> Complete"
-msgstr ""
+msgstr "<0/> Completar"
 
 #: src/lib/components/auth/RecoveryCodes.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(unauthenticated)/auth/recovery/+page.svelte
 msgid "Continue"
-msgstr ""
+msgstr "Continuar"
 
 #: src/lib/components/auth/RecoveryCodes.svelte
 #: src/routes/(unauthenticated)/auth/help/+page.svelte
 msgid "Recovery Codes"
-msgstr ""
+msgstr "Códigos de recuperación"
 
 #: src/lib/components/auth/RecoveryCodes.svelte
 msgid "<0/> Codes copied"
-msgstr ""
+msgstr "<0/> Códigos copiados"
 
 #: src/lib/components/auth/RecoveryCodes.svelte
 msgid "<0/> Copy recovery codes"
-msgstr ""
+msgstr "<0/> Copiar códigos de recuperación"
 
 #~ msgid "You must copy your recovery codes before continuing."
 #~ msgstr ""
@@ -2001,15 +2001,15 @@ msgstr "Última sincronización de la bomba"
 #: src/lib/components/charts/BasalRateTrack.svelte
 #: src/lib/components/reports/BasalRateChart.svelte
 msgid "BASAL"
-msgstr ""
+msgstr "BASAL"
 
 #: src/lib/components/clock-builder/AddElementMenu.svelte
 msgid "Add Element"
-msgstr ""
+msgstr "Añadir elemento"
 
 #: src/lib/components/clock-builder/ClockElementPreview.svelte
 msgid "Select tracker"
-msgstr ""
+msgstr "Seleccionar seguimiento"
 
 #~ msgid "2d 4h"
 #~ msgstr ""
@@ -2020,24 +2020,24 @@ msgstr ""
 #: src/routes/(unauthenticated)/clock/[id]/+page@.svelte
 #: src/routes/(unauthenticated)/setup/+page@.svelte
 msgid "<0/> Back"
-msgstr ""
+msgstr "<0/> Atrás"
 
 #: src/lib/components/clock-builder/ClockBuilderHeader.svelte
 msgid "Clock name"
-msgstr ""
+msgstr "Nombre del reloj"
 
 #: src/lib/components/clock-builder/ClockBuilderHeader.svelte
 msgid "Undo (Ctrl+Z)"
-msgstr ""
+msgstr "Deshacer (Ctrl+Z)"
 
 #: src/lib/components/clock-builder/ClockBuilderHeader.svelte
 msgid "Redo (Ctrl+Shift+Z)"
-msgstr ""
+msgstr "Rehacer (Ctrl+Shift+Z)"
 
 #: src/lib/components/clock-builder/ClockBuilderHeader.svelte
 #: src/lib/components/settings/CustomSoundUpload.svelte
 msgid "Preview"
-msgstr ""
+msgstr "Vista previa"
 
 #~ msgid "DoubleUp"
 #~ msgstr ""
@@ -2050,52 +2050,52 @@ msgstr ""
 #: src/lib/components/status-pills/TrackerPill.svelte
 #: src/lib/components/trackers/TrackerStartDialog.svelte
 msgid "Tracker"
-msgstr ""
+msgstr "Seguimiento"
 
 #. 0: position
 #: src/lib/components/clock-builder/DropZone.svelte
 msgid "New row at {0}"
-msgstr ""
+msgstr "Nueva fila en {0}"
 
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "Display Settings"
-msgstr ""
+msgstr "Ajustes de visualización"
 
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "BG-colored background"
-msgstr ""
+msgstr "Fondo coloreado según glucosa"
 
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "Background Image URL"
-msgstr ""
+msgstr "URL de la imagen de fondo"
 
 #. 0: settings.backgroundOpacity
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "Image brightness: {0}%"
-msgstr ""
+msgstr "Brillo de la imagen: {0}%"
 
 #. 0: settings.staleMinutes ?? 13
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "Stale threshold: {0} min"
-msgstr ""
+msgstr "Umbral de datos antiguos: {0} min"
 
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "Always show time"
-msgstr ""
+msgstr "Mostrar siempre la hora"
 
 #: src/lib/components/clock-builder/DisplaySettings.svelte
 msgid "<0/> Reset to default"
-msgstr ""
+msgstr "<0/> Restablecer valores predeterminados"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Show units"
-msgstr ""
+msgstr "Mostrar unidades"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/trackers/tracker-notification-editor.svelte
 msgid "Hours"
-msgstr ""
+msgstr "Horas"
 
 #. 0: mins / 60; 1: mins > 60 ? "s" \\: ""
 #. 0: h; 1: h > 1 ? "s" \\: ""
@@ -2106,31 +2106,31 @@ msgstr ""
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/members/GuestLinksSection.svelte
 msgid "{0} hour{1}"
-msgstr ""
+msgstr "{0} hora{1}"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Format"
-msgstr ""
+msgstr "Formato"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "12-hour"
-msgstr ""
+msgstr "12 horas"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "24-hour"
-msgstr ""
+msgstr "24 horas"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Minutes ahead"
-msgstr ""
+msgstr "Minutos por delante"
 
 #. 0: element.minutesAhead || 30
 #. 0: minutes
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
 msgid "{0}m"
-msgstr ""
+msgstr "{0} min"
 
 #. 0: m
 #. 0: bolusCalc.preBolus
@@ -2141,29 +2141,29 @@ msgstr ""
 #: src/lib/components/settings/alarm-profile/AlarmSnoozeTab.svelte
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 msgid "{0} min"
-msgstr ""
+msgstr "{0} min"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/entries/NoteSection.svelte
 msgid "Text"
-msgstr ""
+msgstr "Texto"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Enter text..."
-msgstr ""
+msgstr "Introduce texto..."
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Select tracker..."
-msgstr ""
+msgstr "Seleccionar seguimiento..."
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "No trackers defined"
-msgstr ""
+msgstr "No hay seguimientos definidos"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Visibility threshold"
-msgstr ""
+msgstr "Umbral de visibilidad"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/clock-builder/ElementInspector.svelte
@@ -2171,66 +2171,66 @@ msgstr ""
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
 #: src/lib/components/trackers/TrackerEditorDialog.svelte
 msgid "Always show"
-msgstr ""
+msgstr "Mostrar siempre"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 #: src/lib/components/members/GuestLinksSection.svelte
 #: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Show"
-msgstr ""
+msgstr "Mostrar"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Categories"
-msgstr ""
+msgstr "Categorías"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "All categories"
-msgstr ""
+msgstr "Todas las categorías"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Use as background"
-msgstr ""
+msgstr "Usar como fondo"
 
 #. 0: element.width || 400
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Width: {0}px"
-msgstr ""
+msgstr "Anchura: {0}px"
 
 #. 0: element.height || 200
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Height: {0}px"
-msgstr ""
+msgstr "Altura: {0}px"
 
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "Chart Features"
-msgstr ""
+msgstr "Funciones del gráfico"
 
 #: src/lib/components/alerts/RuleBuilderRow.svelte
 #: src/lib/components/clock-builder/ElementInspector.svelte
 msgid "<0/> Remove"
-msgstr ""
+msgstr "<0/> Eliminar"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Text Style"
-msgstr ""
+msgstr "Estilo del texto"
 
 #. 0: element.size || info?.defaultSize || 20
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Size: {0}"
-msgstr ""
+msgstr "Tamaño: {0}"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Font"
-msgstr ""
+msgstr "Fuente"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "System"
-msgstr ""
+msgstr "Sistema"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Weight"
-msgstr ""
+msgstr "Grosor"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
@@ -2242,7 +2242,7 @@ msgstr "Medio"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Color"
-msgstr ""
+msgstr "Color"
 
 #~ msgid "Dynamic (BG-based)"
 #~ msgstr ""
@@ -2250,22 +2250,22 @@ msgstr ""
 #. 0: Math.round((element.style?.opacity ?? 1.0) * 100)
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Opacity: {0}%"
-msgstr ""
+msgstr "Opacidad: {0}%"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Custom CSS"
-msgstr ""
+msgstr "CSS personalizado"
 
 #: src/lib/components/clock-builder/TextStyleControls.svelte
 msgid "Add custom CSS properties (e.g., text-shadow, letter-spacing)"
-msgstr ""
+msgstr "Añade propiedades CSS personalizadas (p. ej., text-shadow, letter-spacing)"
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
 #: src/lib/components/alerts/DndPanel.svelte
 #: src/lib/components/alerts/RuleSidebar.svelte
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "On"
-msgstr ""
+msgstr "Activado"
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
 #: src/lib/components/alerts/DndPanel.svelte
@@ -2281,132 +2281,132 @@ msgstr "Desactivado"
 #. 0: mode === "dark" ? "On" \\: mode === "light" ? "Off" \\: "System"
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Dark Mode: {0}"
-msgstr ""
+msgstr "Modo oscuro: {0}"
 
 #. 0: getGlucoseUnits() === "mg/dl" ? "mg/dL" \\: "mmol/L"
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Units: {0}"
-msgstr ""
+msgstr "Unidades: {0}"
 
 #. 0: glucoseChartLookback.current
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Chart Lookback: {0}h"
-msgstr ""
+msgstr "Periodo anterior del gráfico: {0} h"
 
 #. 0: item.label
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Unpin {0}"
-msgstr ""
+msgstr "Desanclar {0}"
 
 #. 0: item.label
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Pin {0}"
-msgstr ""
+msgstr "Anclar {0}"
 
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Search commands..."
-msgstr ""
+msgstr "Buscar comandos..."
 
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "No results found."
-msgstr ""
+msgstr "No se encontraron resultados."
 
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Pinned"
-msgstr ""
+msgstr "Anclados"
 
 #: src/lib/components/command-palette/CommandPalette.svelte
 msgid "Recent"
-msgstr ""
+msgstr "Recientes"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "BG checks"
-msgstr ""
+msgstr "Mediciones de glucosa"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Failed to delete configuration"
-msgstr ""
+msgstr "No se pudo eliminar la configuración"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Failed to delete data"
-msgstr ""
+msgstr "No se pudieron eliminar los datos"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Danger Zone"
-msgstr ""
+msgstr "Zona de peligro"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Irreversible actions that affect this connector"
-msgstr ""
+msgstr "Acciones irreversibles que afectan a este conector"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Delete Configuration"
-msgstr ""
+msgstr "Eliminar configuración"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "<0/> Delete Config"
-msgstr ""
+msgstr "<0/> Eliminar configuración"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Delete Synced Data"
-msgstr ""
+msgstr "Eliminar datos sincronizados"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Permanently delete all data synced by this connector."
-msgstr ""
+msgstr "Eliminar permanentemente todos los datos sincronizados por este conector."
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "<0/> Delete Data"
-msgstr ""
+msgstr "<0/> Eliminar datos"
 
 #. 0: displayName
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Delete {0} Configuration"
-msgstr ""
+msgstr "Eliminar configuración de {0}"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "You are about to permanently delete all configuration and credentials for this connector. The connector will stop syncing data."
-msgstr ""
+msgstr "Vas a eliminar permanentemente toda la configuración y las credenciales de este conector. El conector dejará de sincronizar datos."
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Configuration deleted successfully"
-msgstr ""
+msgstr "Configuración eliminada correctamente"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Redirecting..."
-msgstr ""
+msgstr "Redirigiendo..."
 
 #. 0: displayName
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Delete {0} Data"
-msgstr ""
+msgstr "Eliminar datos de {0}"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "You are about to permanently delete all data synchronized by this connector."
-msgstr ""
+msgstr "Vas a eliminar permanentemente todos los datos sincronizados por este conector."
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Delete All Data"
-msgstr ""
+msgstr "Eliminar todos los datos"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Data to be deleted:"
-msgstr ""
+msgstr "Datos que se eliminarán:"
 
 #. 0: formatNumber(dataSummary.total)
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 msgid "Total: {0} records"
-msgstr ""
+msgstr "Total: {0} registros"
 
 #: src/lib/components/connectors/ConnectorDangerZone.svelte
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Data deleted successfully"
-msgstr ""
+msgstr "Datos eliminados correctamente"
 
 #~ msgid "Connected Devices"
 #~ msgstr ""
@@ -2431,7 +2431,7 @@ msgstr ""
 
 #: src/lib/components/patient/PatientDeviceManager.svelte
 msgid "Unknown Device"
-msgstr ""
+msgstr "Dispositivo desconocido"
 
 #~ msgid "Verified"
 #~ msgstr ""
@@ -2466,175 +2466,177 @@ msgstr "Alimento"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Connector health and data metrics"
-msgstr ""
+msgstr "Estado del conector y métricas de datos"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "<0/> Syncing..."
-msgstr ""
+msgstr "<0/> Sincronizando..."
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "BackingOff"
-msgstr ""
+msgstr "En espera"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "<0/> Backing Off"
-msgstr ""
+msgstr "<0/> En espera"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 msgid "<0/> Healthy"
-msgstr ""
+msgstr "<0/> Correcto"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "<0/> Disabled"
-msgstr ""
+msgstr "<0/> Desactivado"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Unreachable"
-msgstr ""
+msgstr "Inaccesible"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "Offline"
-msgstr ""
+msgstr "Sin conexión"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "<0/> Offline"
-msgstr ""
+msgstr "<0/> Sin conexión"
 
 #. 0: selectedConnectorCapabilities.maxHistoricalDays
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Recent data only (last {0} days)."
-msgstr ""
+msgstr "Solo datos recientes (últimos {0} días)."
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Historical sync is not supported for this connector. <0/>"
-msgstr ""
+msgstr "Este conector no admite sincronización histórica. <0/>"
 
 #. 0: selectedConnectorCapabilities.maxHistoricalDays
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Historical sync limited to the last {0} days."
-msgstr ""
+msgstr "La sincronización histórica está limitada a los últimos {0} días."
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Connector Disabled"
-msgstr ""
+msgstr "Conector desactivado"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Connector Not Running"
-msgstr ""
+msgstr "El conector no está en ejecución"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Total records"
-msgstr ""
+msgstr "Registros totales"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "Breakdown by type:"
-msgstr ""
+msgstr "Desglose por tipo:"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "No breakdown available"
-msgstr ""
+msgstr "No hay desglose disponible"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Records in last 24 hours"
-msgstr ""
+msgstr "Registros de las últimas 24 horas"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Last record received"
-msgstr ""
+msgstr "Último registro recibido"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Connector Offline"
-msgstr ""
+msgstr "Conector sin conexión"
 
 #: src/lib/components/admin/IntegrationsTabContent.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/settings/ConnectorConfigForm.svelte
 msgid "Configured"
-msgstr ""
+msgstr "Configurado"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Manual Sync"
-msgstr ""
+msgstr "Sincronización manual"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "This connector only supports recent syncs."
-msgstr ""
+msgstr "Este conector solo admite sincronizaciones recientes."
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Select a date range to re-sync specific data."
-msgstr ""
+msgstr "Selecciona un intervalo de fechas para volver a sincronizar datos concretos."
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/routes/(authenticated)/alerts/dnd/+page.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 msgid "From"
-msgstr ""
+msgstr "Desde"
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/routes/(authenticated)/alerts/dnd/+page.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 #: src/routes/(authenticated)/settings/audit/+page.svelte
 msgid "To"
-msgstr ""
+msgstr "Hasta"
 
 #. 0: Object.values(items).reduce((a, b) => (a || 0) + (b || 0), 0)
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "({0} items)"
-msgstr ""
+msgstr "({0} elementos)"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "<0/> Sync initiated successfully <1/>"
-msgstr ""
+msgstr "<0/> Sincronización iniciada correctamente <1/>"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 #: src/routes/(authenticated)/settings/connectors/+page.svelte
 msgid "Sync failed"
-msgstr ""
+msgstr "La sincronización ha fallado"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "<0/> Sync Now"
-msgstr ""
+msgstr "<0/> Sincronizar ahora"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Food Definitions"
-msgstr ""
+msgstr "Definiciones de alimentos"
 
 #. 0: foodOnlySyncResult.itemsSynced.Food
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "({0} foods imported)"
-msgstr ""
+msgstr "({0} alimentos importados)"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "<0/> Food sync completed <1/>"
-msgstr ""
+msgstr "<0/> Sincronización de alimentos completada <1/>"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "Food sync failed"
-msgstr ""
+msgstr "La sincronización de alimentos ha fallado"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "<0/> Downloading..."
-msgstr ""
+msgstr "<0/> Descargando..."
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 msgid "<0/> Download Food Definitions"
-msgstr ""
+msgstr "<0/> Descargar definiciones de alimentos"
 
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
@@ -2652,28 +2654,28 @@ msgstr "Cerrar"
 #: src/lib/components/connectors/ConnectorDetailsDialog.svelte
 #: src/lib/components/ui/connector-toggle-group/connector-toggle-group-item.svelte
 msgid "<0/> Configure"
-msgstr ""
+msgstr "<0/> Configurar"
 
 #: src/lib/components/connectors/ConnectorSelectionGrid.svelte
 msgid "Choose a connector"
-msgstr ""
+msgstr "Elige un conector"
 
 #: src/lib/components/connectors/ConnectorSelectionGrid.svelte
 msgid "Select a data source to configure"
-msgstr ""
+msgstr "Selecciona una fuente de datos para configurar"
 
 #: src/lib/components/connectors/ConnectorSelectionGrid.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "<0/> Configured"
-msgstr ""
+msgstr "<0/> Configurado"
 
 #: src/lib/components/connectors/ConnectorSelectionGrid.svelte
 msgid "No connectors available"
-msgstr ""
+msgstr "No hay conectores disponibles"
 
 #: src/lib/components/connectors/ConnectorSelectionGrid.svelte
 msgid "No server-side connectors are registered in this installation."
-msgstr ""
+msgstr "No hay conectores del servidor registrados en esta instalación."
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
@@ -2689,21 +2691,21 @@ msgstr ""
 #: src/routes/(authenticated)/settings/profile/+page.svelte
 #: src/routes/(authenticated)/settings/support/+page.svelte
 msgid "Active"
-msgstr ""
+msgstr "Activo"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Stale"
-msgstr ""
+msgstr "Desactualizado"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Inactive"
-msgstr ""
+msgstr "Inactivo"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Records (24h)"
-msgstr ""
+msgstr "Registros (24 h)"
 
 #: src/lib/components/treatments/TreatmentStatsCard.svelte
 msgid "Total Records"
@@ -2711,154 +2713,154 @@ msgstr "Registros totales"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Delete All Data from This Source"
-msgstr ""
+msgstr "Eliminar todos los datos de esta fuente"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "<0/> Delete Data..."
-msgstr ""
+msgstr "<0/> Eliminar datos..."
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "<0/> Permanently Delete Data"
-msgstr ""
+msgstr "<0/> Eliminar datos permanentemente"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/lib/components/ui/danger-zone-dialog/danger-zone-dialog.svelte
 msgid "THIS ACTION CANNOT BE UNDONE"
-msgstr ""
+msgstr "ESTA ACCIÓN NO SE PUEDE DESHACER"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "You are about to permanently delete <0>all data</0> from <1/> . This includes:"
-msgstr ""
+msgstr "Vas a eliminar permanentemente <0>todos los datos</0> de <1/>. Esto incluye:"
 
 #~ msgid "All glucose records ({0} records)"
 #~ msgstr ""
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "All treatments entered by this device"
-msgstr ""
+msgstr "Todos los tratamientos introducidos por este dispositivo"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "All device status records"
-msgstr ""
+msgstr "Todos los registros de estado del dispositivo"
 
 #. 0: formatNumber(deleteResult.totalDeleted)
 #. 0: formatNumber(demoDeleteResult.totalDeleted)
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Deleted {0} records"
-msgstr ""
+msgstr "Se eliminaron {0} registros"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Type <0>DELETE</0> to confirm:"
-msgstr ""
+msgstr "Escribe <0>DELETE</0> para confirmar:"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "Type DELETE"
-msgstr ""
+msgstr "Escribe DELETE"
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 #: src/lib/components/connectors/DemoDataSection.svelte
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "<0/> Deleting..."
-msgstr ""
+msgstr "<0/> Eliminando..."
 
 #: src/lib/components/connectors/DataSourceManageDialog.svelte
 msgid "<0/> Delete All Data"
-msgstr ""
+msgstr "<0/> Eliminar todos los datos"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Failed to load available connectors"
-msgstr ""
+msgstr "No se pudieron cargar los conectores disponibles"
 
 #. 0: activeId
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Connector \"{0}\" not found"
-msgstr ""
+msgstr "No se encontró el conector \\\"{0}\\\""
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Failed to load connector configuration"
-msgstr ""
+msgstr "No se pudo cargar la configuración del conector"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Configuration saved"
-msgstr ""
+msgstr "Configuración guardada"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Failed to save configuration"
-msgstr ""
+msgstr "No se pudo guardar la configuración"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Connector enabled"
-msgstr ""
+msgstr "Conector activado"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Connector disabled"
-msgstr ""
+msgstr "Conector desactivado"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Failed to update connector state"
-msgstr ""
+msgstr "No se pudo actualizar el estado del conector"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Enable Connector"
-msgstr ""
+msgstr "Activar conector"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "When enabled, the connector will actively sync data"
-msgstr ""
+msgstr "Cuando esté activado, el conector sincronizará datos de forma activa"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "No Runtime Configuration Available"
-msgstr ""
+msgstr "No hay configuración disponible en tiempo de ejecución"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Configure via environment variables on the server."
-msgstr ""
+msgstr "Configúralo mediante variables de entorno en el servidor."
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "This connector does not support runtime configuration. <0/>"
-msgstr ""
+msgstr "Este conector no admite configuración en tiempo de ejecución. <0/>"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Sync Capabilities"
-msgstr ""
+msgstr "Capacidades de sincronización"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "What this connector supports for manual sync"
-msgstr ""
+msgstr "Lo que admite este conector para la sincronización manual"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Supported data types"
-msgstr ""
+msgstr "Tipos de datos admitidos"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Historical sync"
-msgstr ""
+msgstr "Sincronización histórica"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Supported"
-msgstr ""
+msgstr "Admitido"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Not supported"
-msgstr ""
+msgstr "No admitido"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Max historical days"
-msgstr ""
+msgstr "Máximo de días históricos"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Manual sync"
-msgstr ""
+msgstr "Sincronización manual"
 
 #. 0: displayName
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "<0/> View documentation for {0}"
-msgstr ""
+msgstr "<0/> Ver documentación de {0}"
 
 #: src/lib/components/connectors/ConnectorSetup.svelte
 msgid "Back to connectors"
-msgstr ""
+msgstr "Volver a conectores"
 
 #~ msgid "Syncing {0}..."
 #~ msgstr ""
@@ -2875,52 +2877,52 @@ msgstr "Error de conexión"
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "CGM Apps"
-msgstr ""
+msgstr "Aplicaciones CGM"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "AID Systems"
-msgstr ""
+msgstr "Sistemas AID"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "General Uploaders"
-msgstr ""
+msgstr "Cargadores generales"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Android"
-msgstr ""
+msgstr "Android"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Desktop"
-msgstr ""
+msgstr "Escritorio"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Web"
-msgstr ""
+msgstr "Web"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "Connect a Data Source"
-msgstr ""
+msgstr "Conectar una fuente de datos"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "Choose a cloud service or phone app to start sending glucose and treatment data to Nocturne."
-msgstr ""
+msgstr "Elige un servicio en la nube o una aplicación del teléfono para empezar a enviar datos de glucosa y tratamientos a Nocturne."
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/routes/(fullscreen)/setup/connect/+page.svelte
 msgid "Failed to load data sources"
-msgstr ""
+msgstr "No se pudieron cargar las fuentes de datos"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "<0/> Cloud Services"
-msgstr ""
+msgstr "<0/> Servicios en la nube"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "<0/> Phone Apps"
-msgstr ""
+msgstr "<0/> Aplicaciones del teléfono"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/lib/components/meals/MealsFilterBar.svelte
@@ -2938,78 +2940,78 @@ msgstr "Todo"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "<0/> iOS"
-msgstr ""
+msgstr "<0/> iOS"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "<0/> Android"
-msgstr ""
+msgstr "<0/> Android"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "No data sources available"
-msgstr ""
+msgstr "No hay fuentes de datos disponibles"
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 msgid "There are no data sources available at this time."
-msgstr ""
+msgstr "No hay fuentes de datos disponibles en este momento."
 
 #: src/lib/components/connectors/DataSourceSelectionView.svelte
 #: src/routes/(unauthenticated)/setup/+page@.svelte
 msgid "Skip for now"
-msgstr ""
+msgstr "Omitir por ahora"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Failed to delete demo data"
-msgstr ""
+msgstr "No se pudieron eliminar los datos de demostración"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "<0/> Demo Data"
-msgstr ""
+msgstr "<0/> Datos de demostración"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Manage the simulated demo data in your Nocturne instance"
-msgstr ""
+msgstr "Gestiona los datos simulados de demostración de tu instancia de Nocturne"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Demo data cleared successfully"
-msgstr ""
+msgstr "Datos de demostración eliminados correctamente"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "<0>This is demo data</0> — synthetic glucose readings generated for testing and demonstration purposes."
-msgstr ""
+msgstr "<0>Estos son datos de demostración</0> — lecturas de glucosa sintéticas generadas para pruebas y demostraciones."
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "You can safely delete all demo data. It's very easy to regenerate:"
-msgstr ""
+msgstr "Puedes eliminar con seguridad todos los datos de demostración. Es muy fácil volver a generarlos:"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Restart the demo service to regenerate data"
-msgstr ""
+msgstr "Reinicia el servicio de demostración para regenerar los datos"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Only demo-generated data will be deleted"
-msgstr ""
+msgstr "Solo se eliminarán los datos generados por la demostración"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "Your real health data (if any) is not affected"
-msgstr ""
+msgstr "Tus datos de salud reales, si los hay, no se verán afectados"
 
 #: src/lib/components/connectors/DemoDataSection.svelte
 msgid "<0/> Clear Demo Data"
-msgstr ""
+msgstr "<0/> Borrar datos de demostración"
 
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "<0/> Manual Sync Results"
-msgstr ""
+msgstr "<0/> Resultados de sincronización manual"
 
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "Connector"
-msgstr ""
+msgstr "Conector"
 
 #. 0: syncProgress?.connectorName ?? "Connector"
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "{0} is syncing..."
-msgstr ""
+msgstr "{0} se está sincronizando..."
 
 #~ msgid "Sync completed successfully"
 #~ msgstr ""
@@ -3017,19 +3019,19 @@ msgstr ""
 #. 0: manualSyncResult.successfulConnectors; 1: manualSyncResult.totalConnectors; 2: elapsedSeconds
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "{0} of {1} connectors synced in {2}s"
-msgstr ""
+msgstr "{0} de {1} conectores sincronizados en {2} s"
 
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "Connector Results"
-msgstr ""
+msgstr "Resultados del conector"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Failed to start deduplication job"
-msgstr ""
+msgstr "No se pudo iniciar la tarea de eliminación de duplicados"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Failed to start deduplication"
-msgstr ""
+msgstr "No se pudo iniciar la eliminación de duplicados"
 
 #: ../portal/src/lib/components/MilestoneCard.svelte
 #: ../portal/src/routes/roadmap/+page.svelte
@@ -3044,7 +3046,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Completed"
-msgstr ""
+msgstr "Completado"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
@@ -3058,7 +3060,7 @@ msgstr ""
 #: src/routes/(authenticated)/settings/nightscout-transition/+page.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Failed"
-msgstr ""
+msgstr "Fallido"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/lib/components/connectors/DeduplicationDialog.svelte
@@ -3070,95 +3072,95 @@ msgstr ""
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 #: src/routes/(authenticated)/settings/trackers/+page.svelte
 msgid "Cancelled"
-msgstr ""
+msgstr "Cancelado"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Job failed"
-msgstr ""
+msgstr "La tarea ha fallado"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Deduplication complete"
-msgstr ""
+msgstr "Eliminación de duplicados completada"
 
 #. 0: processed; 1: groups
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Processed {0} records, found {1} duplicate groups"
-msgstr ""
+msgstr "Se procesaron {0} registros y se encontraron {1} grupos de duplicados"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Deduplication failed"
-msgstr ""
+msgstr "La eliminación de duplicados ha fallado"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "An unknown error occurred"
-msgstr ""
+msgstr "Se produjo un error desconocido"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Deduplication cancelled"
-msgstr ""
+msgstr "Eliminación de duplicados cancelada"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "<0/> Deduplicate Records"
-msgstr ""
+msgstr "<0/> Eliminar registros duplicados"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Deduplication Complete"
-msgstr ""
+msgstr "Eliminación de duplicados completada"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Records processed:"
-msgstr ""
+msgstr "Registros procesados:"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Groups created:"
-msgstr ""
+msgstr "Grupos creados:"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Duplicates found:"
-msgstr ""
+msgstr "Duplicados encontrados:"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Job Cancelled"
-msgstr ""
+msgstr "Tarea cancelada"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Running deduplication..."
-msgstr ""
+msgstr "Ejecutando eliminación de duplicados..."
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Initializing"
-msgstr ""
+msgstr "Inicializando"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/routes/(authenticated)/settings/migration/+page.svelte
 msgid "Progress"
-msgstr ""
+msgstr "Progreso"
 
 #. 0: formatNumber(deduplicationStatus.progress.processedRecords); 1: formatNumber(deduplicationStatus.progress.totalRecords)
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Processed: {0} / {1}"
-msgstr ""
+msgstr "Procesados: {0} / {1}"
 
 #. 0: formatNumber(deduplicationStatus.progress.groupsFound)
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Groups: {0}"
-msgstr ""
+msgstr "Grupos: {0}"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Records within 30 seconds are considered potential matches"
-msgstr ""
+msgstr "Los registros con una diferencia de hasta 30 segundos se consideran posibles coincidencias"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Matching criteria include timestamps and values"
-msgstr ""
+msgstr "Los criterios de coincidencia incluyen marcas de tiempo y valores"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Original data is preserved; only links are created"
-msgstr ""
+msgstr "Los datos originales se conservan; solo se crean vínculos"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Safe to run multiple times"
-msgstr ""
+msgstr "Se puede ejecutar varias veces de forma segura"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 #: src/lib/components/members/CreateInviteCard.svelte
@@ -3169,23 +3171,23 @@ msgstr ""
 #: src/routes/(unauthenticated)/setup/+page@.svelte
 #: src/routes/(unauthenticated)/setup/+page@.svelte
 msgid "Done"
-msgstr ""
+msgstr "Hecho"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "Cancel Job"
-msgstr ""
+msgstr "Cancelar tarea"
 
 #: src/lib/components/connectors/DeduplicationDialog.svelte
 msgid "<0/> Start Deduplication"
-msgstr ""
+msgstr "<0/> Iniciar eliminación de duplicados"
 
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "<0/> Server Connectors"
-msgstr ""
+msgstr "<0/> Conectores del servidor"
 
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "Connectors that run on the server to pull data from cloud services"
-msgstr ""
+msgstr "Conectores que se ejecutan en el servidor para obtener datos de servicios en la nube"
 
 #: ../portal/src/routes/changelog/+page.svelte
 #: ../portal/src/routes/roadmap/+page.svelte
@@ -3193,34 +3195,34 @@ msgstr ""
 #: src/routes/(authenticated)/reports/battery/+page.svelte
 #: src/routes/(authenticated)/settings/connectors/+page.svelte
 msgid "<0/> Refresh"
-msgstr ""
+msgstr "<0/> Actualizar"
 
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "<0/> Manual Sync"
-msgstr ""
+msgstr "<0/> Sincronización manual"
 
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "<0/> Has Data"
-msgstr ""
+msgstr "<0/> Tiene datos"
 
 #: src/lib/components/connectors/ServerConnectorsCard.svelte
 msgid "Not Configured"
-msgstr ""
+msgstr "No configurado"
 
 #: src/lib/components/connectors/ManualSyncDialog.svelte
 msgid "Sync completed"
-msgstr ""
+msgstr "Sincronización completada"
 
 #~ msgid "An error occurred during sync."
 #~ msgstr ""
 
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "<0/> Set Up an Uploader"
-msgstr ""
+msgstr "<0/> Configurar un cargador"
 
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 msgid "Connect your CGM app or AID system to push data to Nocturne"
-msgstr ""
+msgstr "Conecta tu aplicación CGM o sistema AID para enviar datos a Nocturne"
 
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 #: src/lib/components/entries/FoodBreakdown.svelte
@@ -3239,42 +3241,42 @@ msgstr "Otro"
 #: src/lib/components/connectors/UploaderAppsCard.svelte
 #: src/lib/components/settings/DataSourceRow.svelte
 msgid "<0/> Active"
-msgstr ""
+msgstr "<0/> Activo"
 
 #. 0: getUploaderName(selectedUploader)
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 msgid "<0/> Set up {0}"
-msgstr ""
+msgstr "<0/> Configurar {0}"
 
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Connection Details"
-msgstr ""
+msgstr "Datos de conexión"
 
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/compatibility/+page.svelte
 msgid "Nocturne URL"
-msgstr ""
+msgstr "URL de Nocturne"
 
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "API Key"
-msgstr ""
+msgstr "Clave API"
 
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 msgid "<0/> Generate API key"
-msgstr ""
+msgstr "<0/> Generar clave API"
 
 #. 0: getUploaderName(selectedUploader)
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 msgid "Creates an API token pre-configured for {0}"
-msgstr ""
+msgstr "Crea un token API preconfigurado para {0}"
 
 #. 0: getUploaderName(selectedUploader)
 #: src/lib/components/connectors/UploaderSetupDialog.svelte
 msgid "<0/> Visit {0} Website"
-msgstr ""
+msgstr "<0/> Visitar el sitio web de {0}"
 
 #: src/lib/components/dashboard/BGStatisticsCards.svelte
 #: src/lib/components/dashboard/widgets/BgDeltaWidget.svelte
@@ -3304,137 +3306,137 @@ msgstr "Última lectura: {0}"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Failed to generate API key. You can create one manually in Settings."
-msgstr ""
+msgstr "No se pudo generar la clave API. Puedes crear una manualmente en Ajustes."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "<0/> Back to data sources"
-msgstr ""
+msgstr "<0/> Volver a fuentes de datos"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "Device Authorized"
-msgstr ""
+msgstr "Dispositivo autorizado"
 
 #. 0: app ? getUploaderName(app) \\: ''
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "{0} is now connected. You can return to your device."
-msgstr ""
+msgstr "{0} ya está conectado. Puedes volver a tu dispositivo."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Receiving Data"
-msgstr ""
+msgstr "Recibiendo datos"
 
 #. 0: app ? getUploaderName(app) \\: ''; 1: ds.entriesLast24h ?? 0
 #. 0: app ? getUploaderName(app) \\: ''; 1: ds.entriesLast24h ?? 0
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "{0} is sending data. {1} entries in the last 24 hours."
-msgstr ""
+msgstr "{0} está enviando datos. {1} entradas en las últimas 24 horas."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Continue to Dashboard"
-msgstr ""
+msgstr "Continuar al panel"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Waiting for data"
-msgstr ""
+msgstr "Esperando datos"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "It can take a few minutes for the first glucose reading to arrive. This page will update automatically."
-msgstr ""
+msgstr "La primera lectura de glucosa puede tardar unos minutos en llegar. Esta página se actualizará automáticamente."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "Authorization Denied"
-msgstr ""
+msgstr "Autorización denegada"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "The device will not be granted access."
-msgstr ""
+msgstr "El dispositivo no tendrá acceso."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/consent/+page.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "Authorize Application"
-msgstr ""
+msgstr "Autorizar aplicación"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/consent/+page.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "<0/> wants to access your Nocturne data."
-msgstr ""
+msgstr "<0/> quiere acceder a tus datos de Nocturne."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "This application is not in the Nocturne known app directory. Only approve if you trust it."
-msgstr ""
+msgstr "Esta aplicación no figura en el directorio de aplicaciones conocidas de Nocturne. Apruébala solo si confías en ella."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/consent/+page.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "This application is requesting permission to:"
-msgstr ""
+msgstr "Esta aplicación solicita permiso para:"
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/consent/+page.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "This app is requesting full access, including the ability to delete data."
-msgstr ""
+msgstr "Esta aplicación solicita acceso completo, incluida la posibilidad de eliminar datos."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 #: src/routes/(authenticated)/oauth/consent/+page.svelte
 #: src/routes/(authenticated)/oauth/device/+page.svelte
 msgid "This app cannot delete your data."
-msgstr ""
+msgstr "Esta aplicación no puede eliminar tus datos."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Scan to Connect"
-msgstr ""
+msgstr "Escanear para conectar"
 
 #. 0: app ? getUploaderName(app) \\: ''
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Scan this QR code with your phone's camera to open {0} and start the connection."
-msgstr ""
+msgstr "Escanea este código QR con la cámara del teléfono para abrir {0} e iniciar la conexión."
 
 #. 0: app ? getUploaderName(app) \\: ''
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "QR code to connect {0}"
-msgstr ""
+msgstr "Código QR para conectar {0}"
 
 #. 0: app ? getUploaderName(app) \\: ''
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "After scanning, {0} will show an 8-character code. Enter it here to approve the connection."
-msgstr ""
+msgstr "Después de escanearlo, {0} mostrará un código de 8 caracteres. Introdúcelo aquí para aprobar la conexión."
 
 #. 0: app ? getUploaderName(app) \\: 'your app'
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Enter these values in {0}'s Nightscout settings."
-msgstr ""
+msgstr "Introduce estos valores en los ajustes de Nightscout de {0}."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "<0/> Generating API key..."
-msgstr ""
+msgstr "<0/> Generando clave API..."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Copy this now. It cannot be shown again."
-msgstr ""
+msgstr "Cópiala ahora. No se podrá volver a mostrar."
 
 #. 0: app ? getUploaderName(app) \\: 'your app'
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Configure {0} with the details above, then this page will update when data arrives."
-msgstr ""
+msgstr "Configura {0} con los datos anteriores; esta página se actualizará cuando lleguen datos."
 
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Failed to load setup instructions"
-msgstr ""
+msgstr "No se pudieron cargar las instrucciones de configuración"
 
 #. 0: app ? getUploaderName(app) \\: ''
 #: src/lib/components/connectors/UploaderSetupView.svelte
 msgid "Could not load setup details for {0}. Please try again."
-msgstr ""
+msgstr "No se pudieron cargar los datos de configuración de {0}. Inténtalo de nuevo."
 
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
 msgid "Full Range Overview"
@@ -3452,18 +3454,18 @@ msgstr "Mostrando:"
 #. 0: Math.round( (selectedXDomain[1].getTime() - selectedXDomain[0].getTime()) / (1000 * 60) )
 #: src/lib/components/dashboard/MiniOverviewChart.svelte
 msgid "({0} min)"
-msgstr ""
+msgstr "({0} min)"
 
 #: src/lib/components/settings/ClientDevices.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
 #: src/routes/(authenticated)/settings/patient/+page.svelte
 msgid "Devices"
-msgstr ""
+msgstr "Dispositivos"
 
 #: src/routes/(authenticated)/settings/patient/+page.svelte
 msgid "Insulins"
-msgstr ""
+msgstr "Insulinas"
 
 #: src/lib/components/rbac/PermissionCategorySelector.svelte
 #: src/lib/components/rbac/PermissionSummary.svelte
@@ -3471,11 +3473,11 @@ msgstr ""
 #: src/routes/(authenticated)/alerts/+page.svelte
 #: src/routes/(unauthenticated)/setup/steps/Finish.svelte
 msgid "Alerts"
-msgstr ""
+msgstr "Alertas"
 
 #: src/routes/(authenticated)/settings/members/+page.svelte
 msgid "Sharing & Privacy"
-msgstr ""
+msgstr "Compartir y privacidad"
 
 #: ../portal/src/routes/studio/+page.svelte
 #: src/lib/components/layout/BackupSignInPrompt.svelte
@@ -3484,7 +3486,7 @@ msgstr ""
 #: src/lib/components/meals/MealSuggestionRow.svelte
 #: src/routes/(authenticated)/settings/admin/tenants/+page.svelte
 msgid "Dismiss"
-msgstr ""
+msgstr "Descartar"
 
 #: src/lib/components/dashboard/PredictionSettings.svelte
 msgid "Predictions unavailable"
@@ -3639,7 +3641,7 @@ msgstr "Error al cargar las entradas recientes."
 
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Edit Food"
-msgstr ""
+msgstr "Editar alimento"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
@@ -3677,11 +3679,11 @@ msgstr "No se pudo guardar el alimento"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Update the food's nutritional information."
-msgstr ""
+msgstr "Actualiza la información nutricional del alimento."
 
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Create a new food with nutritional information."
-msgstr ""
+msgstr "Crea un nuevo alimento con información nutricional."
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3692,7 +3694,7 @@ msgstr "Categoría y subcategoría"
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Key Nutritional Info"
-msgstr ""
+msgstr "Información nutricional principal"
 
 #: src/lib/components/entries/CarbIntakeSection.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3708,13 +3710,13 @@ msgstr "Carbohidratos (g)"
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/routes/(authenticated)/food/InlineEditor.svelte
 msgid "Glycemic Index"
-msgstr ""
+msgstr "Índice glucémico"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/routes/(authenticated)/food/FoodListHeader.svelte
 msgid "Portion"
-msgstr ""
+msgstr "Porción"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3727,7 +3729,7 @@ msgstr "Unidad"
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
 msgid "Additional Macros"
-msgstr ""
+msgstr "Macronutrientes adicionales"
 
 #: src/lib/components/food/AddFoodDialog.svelte
 #: src/lib/components/food/AddFoodDialog.svelte
@@ -3749,52 +3751,52 @@ msgstr "Energía (kJ)"
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Select category/subcategory..."
-msgstr ""
+msgstr "Seleccionar categoría/subcategoría..."
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Search categories and subcategories..."
-msgstr ""
+msgstr "Buscar categorías y subcategorías..."
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "No category found."
-msgstr ""
+msgstr "No se encontró ninguna categoría."
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "<0/> (none)"
-msgstr ""
+msgstr "<0/> (ninguna)"
 
 #. 0: searchTerm
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "<0/> Create category \"{0}\""
-msgstr ""
+msgstr "<0/> Crear categoría \\\"{0}\\\""
 
 #. 0: searchTerm
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "<0/> Create subcategory \"{0}\""
-msgstr ""
+msgstr "<0/> Crear subcategoría \\\"{0}\\\""
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Hidden trigger"
-msgstr ""
+msgstr "Activador oculto"
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Search categories..."
-msgstr ""
+msgstr "Buscar categorías..."
 
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "Create new category"
-msgstr ""
+msgstr "Crear nueva categoría"
 
 #. 0: pendingSubcategoryName
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "<0/> Create \"{0}\" as new category"
-msgstr ""
+msgstr "<0/> Crear \\\"{0}\\\" como nueva categoría"
 
 #. 0: cat
 #: src/lib/components/food/CategorySubcategoryCombobox.svelte
 msgid "<0/> Add to {0}"
-msgstr ""
+msgstr "<0/> Añadir a {0}"
 
 #: src/lib/components/food/GiCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
@@ -3808,7 +3810,7 @@ msgstr "Buscar IG..."
 
 #: src/lib/components/food/GiCombobox.svelte
 msgid "No GI level found."
-msgstr ""
+msgstr "No se encontró ningún nivel de IG."
 
 #: src/lib/components/food/UnitCombobox.svelte
 #: src/lib/components/treatments/FoodNutritionalForm.svelte
@@ -3827,7 +3829,7 @@ msgstr "No se encontró ninguna unidad."
 
 #: src/lib/components/entries/BGCheckSection.svelte
 msgid "Finger"
-msgstr ""
+msgstr "Dedo"
 
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/entries/BGCheckSection.svelte
@@ -3839,7 +3841,7 @@ msgstr "Sensor"
 
 #: src/lib/components/entries/BGCheckSection.svelte
 msgid "<0/> BG Check"
-msgstr ""
+msgstr "<0/> Medición de glucosa"
 
 #: src/lib/components/entries/BGCheckSection.svelte
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
@@ -3851,20 +3853,20 @@ msgstr "Unidades"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Square Wave"
-msgstr ""
+msgstr "Onda cuadrada"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Dual Wave"
-msgstr ""
+msgstr "Onda dual"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "<0/> Bolus"
-msgstr ""
+msgstr "<0/> Bolo"
 
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/reports/BasalBolusRatioChart.svelte
 msgid "Insulin (U)"
-msgstr ""
+msgstr "Insulina (U)"
 
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
@@ -3878,40 +3880,40 @@ msgstr "Duración (min)"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Rate (U/hr)"
-msgstr ""
+msgstr "Tasa (U/h)"
 
 #: src/lib/components/entries/BolusSection.svelte
 #: src/lib/components/reports/year-overview/HeatmapLegend.svelte
 msgid "<0/> Advanced"
-msgstr ""
+msgstr "<0/> Avanzado"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Programmed (U)"
-msgstr ""
+msgstr "Programado (U)"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Delivered (U)"
-msgstr ""
+msgstr "Administrado (U)"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Insulin Type"
-msgstr ""
+msgstr "Tipo de insulina"
 
 #: src/lib/components/entries/BolusSection.svelte
 msgid "Unabsorbed (U)"
-msgstr ""
+msgstr "No absorbida (U)"
 
 #: src/lib/components/entries/CarbIntakeSection.svelte
 msgid "<0/> Carb Intake"
-msgstr ""
+msgstr "<0/> Ingesta de carbohidratos"
 
 #: src/lib/components/entries/CarbIntakeSection.svelte
 msgid "Foods"
-msgstr ""
+msgstr "Alimentos"
 
 #: src/lib/components/entries/CarbIntakeSection.svelte
 msgid "Link foods to this carb intake."
-msgstr ""
+msgstr "Vincula alimentos a esta ingesta de carbohidratos."
 
 #~ msgid "<0/> Add Food"
 #~ msgstr ""
@@ -3942,131 +3944,131 @@ msgstr ""
 #: src/lib/components/treatments/FoodSearchCombobox.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "{0}g carbs"
-msgstr ""
+msgstr "{0} g de carbohidratos"
 
 #. 0: pendingTotalCarbs
 #. 0: breakdown.attributedCarbs
 #: src/lib/components/entries/CarbIntakeSection.svelte
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Attributed {0}g"
-msgstr ""
+msgstr "{0} g atribuidos"
 
 #. 0: unspecifiedCarbs
 #. 0: breakdown.unspecifiedCarbs
 #: src/lib/components/entries/CarbIntakeSection.svelte
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Unspecified {0}g"
-msgstr ""
+msgstr "{0} g sin especificar"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 msgid "Sensor Start"
-msgstr ""
+msgstr "Inicio del sensor"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 msgid "Sensor Change"
-msgstr ""
+msgstr "Cambio de sensor"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 msgid "Sensor Stop"
-msgstr ""
+msgstr "Fin del sensor"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 #: src/lib/components/reports/SiteChangeImpactChart.svelte
 msgid "Site Change"
-msgstr ""
+msgstr "Cambio de zona"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 msgid "Insulin Change"
-msgstr ""
+msgstr "Cambio de insulina"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
 msgid "Pump Battery Change"
-msgstr ""
+msgstr "Cambio de batería de la bomba"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Pod Change"
-msgstr ""
+msgstr "Cambio de pod"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Reservoir Change"
-msgstr ""
+msgstr "Cambio de reservorio"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Cannula Change"
-msgstr ""
+msgstr "Cambio de cánula"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Transmitter/Sensor Insert"
-msgstr ""
+msgstr "Inserción de transmisor/sensor"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Pod Activated"
-msgstr ""
+msgstr "Pod activado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Pod Deactivated"
-msgstr ""
+msgstr "Pod desactivado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Pump Suspend"
-msgstr ""
+msgstr "Suspensión de la bomba"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Pump Resume"
-msgstr ""
+msgstr "Reanudación de la bomba"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Priming"
-msgstr ""
+msgstr "Cebado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Tube Priming"
-msgstr ""
+msgstr "Cebado del tubo"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Needle Priming"
-msgstr ""
+msgstr "Cebado de la aguja"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Rewind"
-msgstr ""
+msgstr "Rebobinado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Date Changed"
-msgstr ""
+msgstr "Fecha cambiada"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Time Changed"
-msgstr ""
+msgstr "Hora cambiada"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Bolus Max Changed"
-msgstr ""
+msgstr "Máximo de bolo cambiado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Basal Max Changed"
-msgstr ""
+msgstr "Máximo de basal cambiado"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/icons/TreatmentTypeIcon.svelte
 msgid "Profile Switch"
-msgstr ""
+msgstr "Cambio de perfil"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "<0/> Device Event"
-msgstr ""
+msgstr "<0/> Evento del dispositivo"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 #: src/lib/components/treatments/edit-dialog/NoteFormFields.svelte
 msgid "Event Type"
-msgstr ""
+msgstr "Tipo de evento"
 
 #: ../portal/src/routes/docs/installation/byo-postgres/+page.svelte
 #: src/lib/components/entries/BasalInjectionSection.svelte
@@ -4079,83 +4081,83 @@ msgstr ""
 #: src/lib/components/treatments/edit-dialog/DeviceEventFormFields.svelte
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Notes"
-msgstr ""
+msgstr "Notas"
 
 #: src/lib/components/entries/DeviceEventSection.svelte
 msgid "Add notes..."
-msgstr ""
+msgstr "Añadir notas..."
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Entry updated"
-msgstr ""
+msgstr "Entrada actualizada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Entry created"
-msgstr ""
+msgstr "Entrada creada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Failed to save entry"
-msgstr ""
+msgstr "No se pudo guardar la entrada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Entry deleted"
-msgstr ""
+msgstr "Entrada eliminada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 #: src/routes/(authenticated)/settings/timezone/+page.svelte
 #: src/routes/(authenticated)/settings/weight/+page.svelte
 msgid "Failed to delete entry"
-msgstr ""
+msgstr "No se pudo eliminar la entrada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 #: src/lib/components/meals/MealBolusDialog.svelte
 msgid "Failed to save bolus"
-msgstr ""
+msgstr "No se pudo guardar el bolo"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Failed to save carb intake"
-msgstr ""
+msgstr "No se pudo guardar la ingesta de carbohidratos"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Failed to save BG check"
-msgstr ""
+msgstr "No se pudo guardar la medición de glucosa"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Failed to save note"
-msgstr ""
+msgstr "No se pudo guardar la nota"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Failed to save device event"
-msgstr ""
+msgstr "No se pudo guardar el evento del dispositivo"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Edit Entry"
-msgstr ""
+msgstr "Editar entrada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "New Entry"
-msgstr ""
+msgstr "Nueva entrada"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Edit the details of this entry and its correlated records."
-msgstr ""
+msgstr "Edita los detalles de esta entrada y de sus registros relacionados."
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Create a new entry. Add multiple record types to correlate them."
-msgstr ""
+msgstr "Crea una nueva entrada. Añade varios tipos de registro para relacionarlos."
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 #: src/lib/components/treatments/TreatmentEditDialog.svelte
 msgid "Date & Time"
-msgstr ""
+msgstr "Fecha y hora"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "Source:"
-msgstr ""
+msgstr "Fuente:"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 msgid "<0/> Add Section"
-msgstr ""
+msgstr "<0/> Añadir sección"
 
 #: src/lib/components/entries/EntryEditDialog.svelte
 #: src/lib/components/settings/ConnectorConfigForm.svelte
@@ -4163,40 +4165,40 @@ msgstr ""
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 #: src/lib/components/treatments/TreatmentFoodSelectorDialog.svelte
 msgid "<0/> Saving..."
-msgstr ""
+msgstr "<0/> Guardando..."
 
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Unable to load food breakdown."
-msgstr ""
+msgstr "No se pudo cargar el desglose de alimentos."
 
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Food Breakdown"
-msgstr ""
+msgstr "Desglose de alimentos"
 
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Add foods to match carbs when it helps. Partial attribution is fine."
-msgstr ""
+msgstr "Añade alimentos para asociarlos a los carbohidratos cuando resulte útil. Se permite una atribución parcial."
 
 #: src/lib/components/entries/FoodBreakdown.svelte
 msgid "Loading breakdown..."
-msgstr ""
+msgstr "Cargando desglose..."
 
 #: src/lib/components/entries/FoodBreakdown.svelte
 #: src/routes/(authenticated)/reports/day-in-review/+page.svelte
 msgid "Total Carbs"
-msgstr ""
+msgstr "Carbohidratos totales"
 
 #: src/lib/components/entries/NoteSection.svelte
 msgid "<0/> Note"
-msgstr ""
+msgstr "<0/> Nota"
 
 #: src/lib/components/entries/NoteSection.svelte
 msgid "Enter note..."
-msgstr ""
+msgstr "Introduce una nota..."
 
 #: src/lib/components/entries/NoteSection.svelte
 msgid "Is Announcement"
-msgstr ""
+msgstr "Es un aviso"
 
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/icons/DeviceEventIcon.svelte
@@ -5055,6 +5057,8 @@ msgstr ""
 msgid "Peak"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
 #: src/lib/components/alerts/RuleBuilderLeafEditor.svelte
@@ -6343,6 +6347,7 @@ msgstr ""
 #~ msgid "Avg Before"
 #~ msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 #: src/lib/components/settings/alarm-profile/AlarmGeneralTab.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
@@ -10301,6 +10306,7 @@ msgstr ""
 msgid "+ Add Range"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/settings/alarm-profile/AlarmScheduleTab.svelte
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "to"
@@ -10634,6 +10640,7 @@ msgstr ""
 msgid "Mmol"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
 #: src/routes/(authenticated)/settings/appearance/+page.svelte
 msgid "mmol/L"
@@ -15611,10 +15618,12 @@ msgstr ""
 msgid "<0/> Suggest"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/RuleBuilder.svelte
 msgid "Notify when"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/RuleBuilder.svelte
 msgid "these are true:"
 msgstr ""
@@ -15644,6 +15653,7 @@ msgstr ""
 msgid "NOT"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/RuleBuilderRow.svelte
 msgid "for at least"
 msgstr ""
@@ -15792,10 +15802,12 @@ msgstr ""
 msgid "Shift"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/OperatorToggle.svelte
 msgid "All conditions must hold"
 msgstr ""
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/alerts/OperatorToggle.svelte
 msgid "Any condition is enough"
 msgstr ""
@@ -25518,4 +25530,116 @@ msgstr ""
 
 #: src/lib/components/members/InviteSummary.svelte
 msgid "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "NOT applies to: "
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "No alert over this trace."
+msgstr ""
+
+#. 0: active.label.toLowerCase()
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Whole rule is true"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Alerting"
+msgstr ""
+
+#. 0: issues[index].map((i) => issueText[i.reason] ?? i.reason).join(", ")
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "A save would be refused: this rule needs {0}."
+msgstr ""
+
+#. 0: Math.round(hovered.age)
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "· last reading {0} min ago"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "· no reading yet"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Reset the example"
+msgstr ""
+
+#. 0: failure
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "The alert engine could not run here ({0}). The rest of this page still applies."
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Group: match"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "all of"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "any of"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Remove group"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "NOT: the opposite of this condition"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Glucose value"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Rate"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "at least"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Minutes without a reading"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "no reading for"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Only when true for a while"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Minutes it must hold"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Remove condition"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "not"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "<0/> Group"
+msgstr ""
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "<0/> Condition"
 msgstr ""

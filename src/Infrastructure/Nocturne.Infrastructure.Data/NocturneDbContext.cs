@@ -45,6 +45,16 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     public const int SystemTimestampGroupSize = 1000;
 
     /// <summary>
+    /// The current UTC time truncated to the microsecond a PostgreSQL <c>timestamptz</c> stores, so
+    /// that a stamp held in memory equals the one read back from its row.
+    /// </summary>
+    public static DateTime UtcNowAtStoredPrecision()
+    {
+        var now = DateTime.UtcNow;
+        return now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond));
+    }
+
+    /// <summary>
     /// Initializes a new instance of the NocturneDbContext class
     /// </summary>
     /// <param name="options">The options for this context</param>
@@ -2675,7 +2685,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
     /// </summary>
     private void UpdateTimestamps()
     {
-        var utcNow = DateTime.UtcNow;
+        var utcNow = UtcNowAtStoredPrecision();
         // Column types are a relational concept: asking the InMemory provider for one throws.
         var isRelational = Database.IsRelational();
         var stampedUpdated = new Dictionary<Type, int>();
