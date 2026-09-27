@@ -99,6 +99,13 @@ public interface ILegacyKeyedRepository<TRecord>
     Task<TRecord?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default);
 
     /// <summary>
+    /// Records whose server write stamp (<see cref="IV4Record.ModifiedAt"/>, reported as
+    /// <c>srvModified</c>) falls after <paramref name="cursorMills"/>, oldest first, as one history
+    /// page that ends on a millisecond boundary and so may exceed <paramref name="limit"/>.
+    /// </summary>
+    Task<IReadOnlyList<TRecord>> GetModifiedSinceAsync(long cursorMills, int limit, CancellationToken ct = default);
+
+    /// <summary>
     /// The stored, non-empty correlation id of each live row carrying one of
     /// <paramref name="legacyIds"/>, under the same soft-delete visibility as
     /// <see cref="GetByLegacyIdAsync"/>. A legacy id with no such row is absent.
