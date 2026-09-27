@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Nocturne.Connectors.Core.Extensions;
 using Nocturne.Connectors.Core.Interfaces;
@@ -399,6 +400,46 @@ public abstract class AuthTokenProviderBase<TConfig>(
             response.StatusCode,
             errorContent);
         return false;
+    }
+
+    /// <summary>
+    ///     <see cref="HandleErrorResponseAsync"/> for an OAuth 2.0 token endpoint, which answers
+    ///     rejected credentials with 400 <c>invalid_grant</c> (RFC 6749 section 5.2) rather than 401,
+    ///     so that answer is recorded as a refusal too.
+    /// </summary>
+    protected async Task<bool> HandleOAuthErrorResponseAsync(
+        HttpResponseMessage response,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        var shouldRetry = await HandleErrorResponseAsync(response, operationName, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.BadRequest
+            && ReadJsonString(await response.Content.ReadAsStringAsync(cancellationToken), "error") == "invalid_grant")
+            RecordLoginAnswer(credentialsRefused: true);
+
+        return shouldRetry;
+    }
+
+    /// <summary>
+    ///     The string value of a top-level property of a JSON object body, or null when the body is
+    ///     not such an object or lacks that string.
+    /// </summary>
+    protected static string? ReadJsonString(string body, string propertyName)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                   && document.RootElement.TryGetProperty(propertyName, out var value)
+                   && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     protected void Dispose(bool disposing)

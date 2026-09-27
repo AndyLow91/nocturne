@@ -31,10 +31,14 @@ public class TwiistSignInFailureTests
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
-    [Fact]
-    public async Task Sync_WhenTwiistRefusesTheSignIn_SendsTheTenantToTheirCredentials()
+    /// <summary>Cognito answers a wrong password or unknown user with 400 and the reason in <c>__type</c>.</summary>
+    [Theory]
+    [InlineData("NotAuthorizedException", "Incorrect username or password.")]
+    [InlineData("UserNotFoundException", "User does not exist.")]
+    public async Task Sync_WhenTwiistRefusesTheSignIn_SendsTheTenantToTheirCredentials(string type, string message)
     {
-        var result = await SyncAgainst(_ => Answer(HttpStatusCode.Unauthorized, "{\"__type\":\"NotAuthorizedException\"}"));
+        var result = await SyncAgainst(_ => Answer(
+            HttpStatusCode.BadRequest, $"{{\"__type\":\"{type}\",\"message\":\"{message}\"}}"));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("did not accept this sign-in");

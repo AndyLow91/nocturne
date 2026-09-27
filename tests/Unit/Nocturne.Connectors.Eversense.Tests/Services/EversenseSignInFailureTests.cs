@@ -31,12 +31,14 @@ public class EversenseSignInFailureTests
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
+    /// <summary>Eversense's OAuth token endpoint answers a wrong password with 400 invalid_grant, never 401.</summary>
     [Fact]
     public async Task Sync_WhenEversenseRefusesTheSignIn_SendsTheTenantToTheirCredentials()
     {
-        var result = await SyncAgainst(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        var result = await SyncAgainst(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
-            Content = new StringContent("{\"error\":\"invalid_grant\"}")
+            Content = new StringContent(
+                "{\"error\":\"invalid_grant\",\"error_description\":\"Invalid username or password\"}")
         });
 
         result.Success.Should().BeFalse();

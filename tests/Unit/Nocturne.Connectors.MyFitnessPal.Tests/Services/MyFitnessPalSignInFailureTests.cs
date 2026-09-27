@@ -32,10 +32,13 @@ public class MyFitnessPalSignInFailureTests
         result.Errors.Should().ContainSingle().Which.Should().Be(result.Message);
     }
 
-    [Fact]
-    public async Task Sync_WhenMyFitnessPalRefusesTheSignIn_SendsTheTenantToTheirCredentials()
+    /// <summary>A standard OAuth token endpoint answers a wrong password with 400 invalid_grant; 401 is also a refusal.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task Sync_WhenMyFitnessPalRefusesTheSignIn_SendsTheTenantToTheirCredentials(HttpStatusCode status)
     {
-        var result = await SyncAgainst(_ => Answer(HttpStatusCode.Unauthorized, "{\"error\":\"invalid_grant\"}"));
+        var result = await SyncAgainst(_ => Answer(status, "{\"error\":\"invalid_grant\"}"));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("did not accept this sign-in");
