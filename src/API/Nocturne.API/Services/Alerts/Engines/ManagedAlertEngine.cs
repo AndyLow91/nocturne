@@ -64,8 +64,8 @@ internal sealed class ManagedAlertEngine(
         };
         var conditionMet = await evaluator.EvaluateAsync(rule.ConditionParams, rootContext, ct);
 
-        // Replay-parity leaf log (opt-in): force-evaluate every leaf in isolation (no
-        // short-circuit) with the rule-root context, exactly as AlertReplayService does.
+        // Replay-parity leaf log (opt-in): force-evaluate every leaf in isolation
+        // with the rule-root context, exactly as AlertReplayService does.
         // Leaves are stateless so this contributes no timer mutations.
         IReadOnlyDictionary<int, bool>? leafValues = null;
         if (options.IncludeLeafValues)
