@@ -657,5 +657,118 @@
 				"height": 1312
 			}
 		}
+	},
+	"tracker-complete-dialog": {
+		"alt": "The Complete box for a tracker. It asks when the change happened, the reason it ended, and optional notes, with a tick box to start a fresh one straight away.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-complete-dialog.light.webp",
+				"width": 1024,
+				"height": 956
+			},
+			"dark": {
+				"file": "images/tracker-complete-dialog.dark.webp",
+				"width": 1024,
+				"height": 956
+			}
+		}
+	},
+	"tracker-editor": {
+		"alt": "The Edit Definition box for a tracker. It asks for a name and a category, an optional description, whether the tracker runs for a length of time or is booked for a date, and the expected lifespan, here 240 hours. Under that is the list of device events that restart the tracker automatically, with Sensor Start ticked.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-editor.light.webp",
+				"width": 1024,
+				"height": 1620
+			},
+			"dark": {
+				"file": "images/tracker-editor.dark.webp",
+				"width": 1024,
+				"height": 1620
+			}
+		}
+	},
+	"tracker-pill-bar": {
+		"alt": "The row of status pills beside the current reading on the home screen. After the pills your pump and loop report comes one pill per running tracker, each giving its name and how long it has been running, with a thin line underneath showing how much of its expected life is used up.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-pill-bar.light.webp",
+				"width": 1738,
+				"height": 184
+			},
+			"dark": {
+				"file": "images/tracker-pill-bar.dark.webp",
+				"width": 1738,
+				"height": 184
+			}
+		},
+		"anchors": {
+			"trackers": {
+				"x": 1002,
+				"y": 0,
+				"width": 206,
+				"height": 88
+			}
+		}
+	},
+	"tracker-pill-popover": {
+		"alt": "The panel that opens when you tap a tracker pill. It shows how long the tracker has been running, its expected lifespan, the time remaining and when it was started, with a Complete Tracker button at the bottom.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-pill-popover.light.webp",
+				"width": 576,
+				"height": 472
+			},
+			"dark": {
+				"file": "images/tracker-pill-popover.dark.webp",
+				"width": 576,
+				"height": 472
+			}
+		}
+	},
+	"tracker-thresholds": {
+		"alt": "The Notification Thresholds list inside the tracker editor, with three steps: an Info notice a day before the sensor ends, a Warning two hours before, and an Urgent alert once it has run its full ten days. Each step has a level, a number of hours, a Channels button for choosing where it is delivered, and a message on the line below.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-thresholds.light.webp",
+				"width": 924,
+				"height": 1156
+			},
+			"dark": {
+				"file": "images/tracker-thresholds.dark.webp",
+				"width": 924,
+				"height": 984
+			}
+		}
+	},
+	"tracker-triggers": {
+		"alt": "The Restart automatically on section of the tracker editor. It lists the device events a tracker can restart on, from Sensor Start to Pump Battery Change, each with a tick box; Sensor Start is ticked. Under the list is an optional box for words the event notes must contain.",
+		"variants": {
+			"light": {
+				"file": "images/tracker-triggers.light.webp",
+				"width": 924,
+				"height": 616
+			},
+			"dark": {
+				"file": "images/tracker-triggers.dark.webp",
+				"width": 924,
+				"height": 616
+			}
+		}
+	},
+	"trackers-active": {
+		"alt": "The Active tab of the trackers page. Each running tracker is a row: a CGM sensor, an infusion site, an insulin reservoir and a pump battery, each with the time left before it is due in large type, how old it is and when it was started. Every row has a Complete button and a delete button, the reservoir row also has Record Level, and a Start Tracker menu sits in the top corner.",
+		"variants": {
+			"light": {
+				"file": "images/trackers-active.light.webp",
+				"width": 1744,
+				"height": 916
+			},
+			"dark": {
+				"file": "images/trackers-active.dark.webp",
+				"width": 1744,
+				"height": 916
+			}
+		}
 	}
 }

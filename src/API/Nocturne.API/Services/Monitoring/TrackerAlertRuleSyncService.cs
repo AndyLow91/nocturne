@@ -93,7 +93,7 @@ public sealed class TrackerAlertRuleSyncService : ITrackerAlertRuleSyncService
         //      threshold reclaims the rule whose old minutes it displaced).
         var pending = definition.NotificationThresholds
             .OrderBy(t => t.DisplayOrder)
-            .Select(t => (Threshold: t, Minutes: EffectiveMinutes(definition, t)))
+            .Select(t => (Threshold: t, Minutes: TrackerSchedule.OffsetMinutes(definition.Mode, definition.LifespanHours, t.Hours)))
             .ToList();
         var claimedRuleIds = pending
             .Where(p => p.Threshold.AlertRuleId is not null)
@@ -387,25 +387,6 @@ public sealed class TrackerAlertRuleSyncService : ITrackerAlertRuleSyncService
         {
             return null;
         }
-    }
-
-    /// <summary>
-    /// Resolves a threshold's <c>hours</c> into the tracker_age condition's minutes,
-    /// mirroring the legacy evaluator: Event thresholds are relative to the scheduled
-    /// time (negative = before), Duration thresholds relative to start, and a negative
-    /// Duration threshold means "N hours before the lifespan ends" and is baked in as
-    /// <c>lifespan + hours</c>. Null when a negative Duration threshold has no lifespan.
-    /// </summary>
-    private static int? EffectiveMinutes(
-        TrackerDefinitionEntity definition, TrackerNotificationThresholdEntity threshold)
-    {
-        if (definition.Mode == TrackerMode.Event || threshold.Hours >= 0)
-            return threshold.Hours * 60;
-
-        if (definition.LifespanHours is not { } lifespan)
-            return null;
-
-        return (lifespan + threshold.Hours) * 60;
     }
 
     private static string ThresholdLabel(

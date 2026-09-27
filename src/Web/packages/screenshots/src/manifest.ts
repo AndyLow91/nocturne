@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { stringField } from './json.js';
 import type { ArrangeContext, ScreenshotDefinition } from './types.js';
 
@@ -29,6 +29,64 @@ async function settledPublicLink(page: Page): Promise<void> {
 async function inviteAGuest({ fetch }: ArrangeContext): Promise<Record<string, string>> {
 	await fetch('/api/v4/guest-links', { method: 'POST', body: { label: 'School nurse' } });
 	return {};
+}
+
+/**
+ * Clicks `trigger` until `opened` appears. The settle check cannot tell a server-rendered page from a
+ * hydrated one, and a click that lands before hydration is dropped without a trace. Only for a
+ * trigger that opens and never closes: once `opened` shows, or `trigger` is gone, it stops clicking.
+ */
+async function openWith(trigger: Locator, opened: Locator): Promise<void> {
+	for (let attempt = 0; attempt < 10; attempt++) {
+		if (await opened.isVisible()) return;
+		if (await trigger.isVisible()) await trigger.click();
+		try {
+			await opened.waitFor({ timeout: 3000 });
+			return;
+		} catch {
+			// Not hydrated yet; click again.
+		}
+	}
+	await opened.waitFor();
+}
+
+/** The name {@link sensorTrackerWithThresholds} saves its definition under, for the prepares to find it. */
+const THRESHOLD_TRACKER_NAME = '10-day sensor';
+
+/**
+ * The seeded trackers carry no notification thresholds, so the editor would open on an empty ladder.
+ * This one is a new definition rather than thresholds added to a seeded one: with no instance running
+ * it can never fire, so no alert raised by the arrangement reaches a later capture.
+ */
+async function sensorTrackerWithThresholds({ fetch }: ArrangeContext): Promise<Record<string, string>> {
+	// Two entries photograph this editor in one tenant; a second copy would make its Edit button ambiguous.
+	const existing = await fetch('/api/v4/trackers/definitions');
+	if (Array.isArray(existing) && existing.some((d) => stringField(d, 'name') === THRESHOLD_TRACKER_NAME)) return {};
+
+	await fetch('/api/v4/trackers/definitions', {
+		method: 'POST',
+		body: {
+			name: THRESHOLD_TRACKER_NAME,
+			category: 'Sensor',
+			mode: 'Duration',
+			lifespanHours: 240,
+			triggerEventTypes: ['Sensor Start'],
+			dashboardVisibility: 'Always',
+			visibility: 'Private',
+			notificationThresholds: [
+				{ urgency: 'Info', hours: -24, description: 'Sensor ends tomorrow', displayOrder: 0 },
+				{ urgency: 'Warn', hours: -2, description: 'Change the sensor soon', displayOrder: 1 },
+				{ urgency: 'Urgent', hours: 240, description: 'Sensor has expired', displayOrder: 2 },
+			],
+		},
+	});
+	return {};
+}
+
+async function openThresholdTrackerEditor(page: Page): Promise<void> {
+	const edit = page.getByRole('button', { name: `Edit ${THRESHOLD_TRACKER_NAME}` });
+	await openWith(page.getByRole('tab', { name: /Definitions/ }), edit);
+	await openWith(edit, page.getByTestId('tracker-editor'));
 }
 
 async function seededClockFace({ fetch }: ArrangeContext): Promise<Record<string, string>> {
@@ -387,7 +445,7 @@ export const definitions: ScreenshotDefinition[] = [
 		// Opened with its extra fields showing, because the collapsed form is four boxes and the
 		// docs page it sits under is a table of every field a food holds.
 		prepare: async (page) => {
-			await page.getByRole('button', { name: 'Add food' }).click();
+			await openWith(page.getByRole('button', { name: 'Add food' }), page.getByTestId('food-composer-details'));
 			await page.getByTestId('food-composer-details').click();
 			await page.getByLabel('Energy').waitFor();
 		},
@@ -442,8 +500,7 @@ export const definitions: ScreenshotDefinition[] = [
 		route: '/settings/members',
 		scenario: 'patient',
 		prepare: async (page) => {
-			await page.getByRole('button', { name: 'Create Invite Link' }).click();
-			await page.getByTestId('create-invite-card').waitFor();
+			await openWith(page.getByRole('button', { name: 'Create Invite Link' }), page.getByTestId('create-invite-card'));
 		},
 		clip: '[data-testid="create-invite-card"]',
 		alt: 'The Create Invite Link card. You can name the invite, tick the roles the person should have, choose how long the link stays usable, and limit them to the last 24 hours of data before pressing Create Link.',
@@ -543,7 +600,8 @@ export const definitions: ScreenshotDefinition[] = [
 	},
 	// The alert entries come last, and among them the ones that create rules follow the ones that
 	// read the seeded set: an arranged rule would otherwise join the alerts list, the simulator's
-	// replay and the lookup of the seeded Low by name. Do Not Disturb is last of all because it
+	// replay and the lookup of the seeded Low by name. The tracker entries arrange rules of their own
+	// (a tracker's thresholds), so they sit with those. Do Not Disturb is last of all because it
 	// silences every alert after it.
 	{
 		id: 'alert-rule-editor',
@@ -660,6 +718,82 @@ export const definitions: ScreenshotDefinition[] = [
 		arrange: lowWithSmartSnooze,
 		clip: '[data-testid="alert-smart-snooze-card"]',
 		alt: 'The Smart snooze card switched on. It extends a snooze by 15 minutes at a time while its condition holds, here glucose trending upward, and explains which alerts are extended when no condition is set.',
+	},
+	{
+		id: 'trackers-active',
+		route: '/settings/trackers',
+		scenario: 'patient',
+		clip: '[data-testid="active-trackers"]',
+		// Ages and start times come from the seeded device-change schedule, so this image differs every capture.
+		alt: 'The Active tab of the trackers page. Each running tracker is a row: a CGM sensor, an infusion site, an insulin reservoir and a pump battery, each with the time left before it is due in large type, how old it is and when it was started. Every row has a Complete button and a delete button, the reservoir row also has Record Level, and a Start Tracker menu sits in the top corner.',
+	},
+	{
+		id: 'tracker-pill-bar',
+		route: '/',
+		scenario: 'patient',
+		// The bar lays its pills straight into this row (display: contents), so the row is the clip.
+		clip: '[data-testid="status-pills"]',
+		anchors: { trackers: '[data-testid="tracker-pill-bar"] button' },
+		// Ages and the loop's figures come from the seeded data, so this image differs every capture.
+		alt: 'The row of status pills beside the current reading on the home screen. After the pills your pump and loop report comes one pill per running tracker, each giving its name and how long it has been running, with a thin line underneath showing how much of its expected life is used up.',
+	},
+	{
+		id: 'tracker-pill-popover',
+		route: '/',
+		scenario: 'patient',
+		prepare: async (page) => {
+			await openWith(
+				page.getByTestId('tracker-pill-bar').getByRole('button').first(),
+				page.getByTestId('tracker-pill-popover'),
+			);
+		},
+		clip: '[data-testid="tracker-pill-popover"]',
+		// Running time, time remaining and the start time come from the seeded schedule, so this image differs every capture.
+		alt: 'The panel that opens when you tap a tracker pill. It shows how long the tracker has been running, its expected lifespan, the time remaining and when it was started, with a Complete Tracker button at the bottom.',
+	},
+	{
+		id: 'tracker-editor',
+		route: '/settings/trackers',
+		scenario: 'patient',
+		arrange: sensorTrackerWithThresholds,
+		prepare: openThresholdTrackerEditor,
+		clip: '[data-testid="tracker-editor"]',
+		alt: 'The Edit Definition box for a tracker. It asks for a name and a category, an optional description, whether the tracker runs for a length of time or is booked for a date, and the expected lifespan, here 240 hours. Under that is the list of device events that restart the tracker automatically, with Sensor Start ticked.',
+	},
+	{
+		id: 'tracker-triggers',
+		route: '/settings/trackers',
+		scenario: 'patient',
+		arrange: sensorTrackerWithThresholds,
+		prepare: async (page) => {
+			await openThresholdTrackerEditor(page);
+			await page.getByTestId('tracker-triggers').scrollIntoViewIfNeeded();
+		},
+		clip: '[data-testid="tracker-triggers"]',
+		alt: 'The Restart automatically on section of the tracker editor. It lists the device events a tracker can restart on, from Sensor Start to Pump Battery Change, each with a tick box; Sensor Start is ticked. Under the list is an optional box for words the event notes must contain.',
+	},
+	{
+		id: 'tracker-thresholds',
+		route: '/settings/trackers',
+		scenario: 'patient',
+		arrange: sensorTrackerWithThresholds,
+		prepare: async (page) => {
+			await openThresholdTrackerEditor(page);
+			await page.getByTestId('tracker-thresholds').scrollIntoViewIfNeeded();
+		},
+		clip: '[data-testid="tracker-thresholds"]',
+		alt: 'The Notification Thresholds list inside the tracker editor, with three steps: an Info notice a day before the sensor ends, a Warning two hours before, and an Urgent alert once it has run its full ten days. Each step has a level, a number of hours, a Channels button for choosing where it is delivered, and a message on the line below.',
+	},
+	{
+		id: 'tracker-complete-dialog',
+		route: '/settings/trackers',
+		scenario: 'patient',
+		prepare: async (page) => {
+			await openWith(page.getByTestId('tracker-complete').first(), page.getByTestId('tracker-completion-dialog'));
+		},
+		clip: '[data-testid="tracker-completion-dialog"]',
+		// The completion time defaults to now, so this image differs every capture.
+		alt: 'The Complete box for a tracker. It asks when the change happened, the reason it ended, and optional notes, with a tick box to start a fresh one straight away.',
 	},
 	{
 		id: 'alerts-dnd',
