@@ -4,6 +4,7 @@ using Moq;
 using Nocturne.API.Services.Entries;
 using Nocturne.API.Services.Glucose;
 using Nocturne.API.Services.Platform;
+using Nocturne.Core.Constants;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Xunit;
@@ -97,6 +98,79 @@ public class EntryReadServiceHistoryTests
         page.CursorMills.Should().Be(Mills(loser.ModifiedAt));
     }
 
+    [Fact]
+    public async Task FullPageEntirelyWithheld_IsSkipped_ForTheNextPage_AndTheCursorAdvances()
+    {
+        var demo1 = Sg(Cursor.AddDays(-1), written: Cursor.AddMinutes(1), source: DataSources.DemoService);
+        var demo2 = Sg(Cursor.AddDays(-1).AddMinutes(5), written: Cursor.AddMinutes(2), source: DataSources.DemoService);
+        var real = Mg(Cursor.AddHours(-1), written: Cursor.AddMinutes(3));
+        var cursors = new List<long>();
+        ServeHistory(_sgRepo, new[] { demo1, demo2 }, cursors);
+        ServeHistory(_mgRepo, new[] { real });
+
+        var page = await CreateSut(TestDoubles.CanonicalGlucosePassThrough.Create())
+            .GetModifiedSinceAsync(CursorMills, 2);
+
+        page.Records.Select(e => e.SrvModified).Should().Equal(Mills(real.ModifiedAt));
+        page.CursorMills.Should().Be(Mills(real.ModifiedAt));
+        cursors.Should().Equal(CursorMills, Mills(demo2.ModifiedAt));
+    }
+
+    [Fact]
+    public async Task TwoTypesFillingTheirLimit_AcrossSharedMilliseconds_PageThroughEveryRowExactlyOnce()
+    {
+        DateTime At(int ms) => Cursor.AddMilliseconds(ms);
+        var meter = new[] { 1, 2, 2, 4, 5, 5, 5, 7 }
+            .Select((ms, i) => Mg(Cursor.AddHours(-i), written: At(ms))).ToList();
+        var calibrations = new[] { 2, 2, 3, 3, 5, 6, 7, 7 }
+            .Select((ms, i) => Cal(Cursor.AddHours(-i), written: At(ms))).ToList();
+        ServeHistory(_mgRepo, meter);
+        ServeHistory(_calRepo, calibrations);
+        var sut = CreateSut(TestDoubles.CanonicalGlucosePassThrough.Create());
+
+        var delivered = new List<string>();
+        var pageCursors = new List<long>();
+        var cursor = CursorMills;
+        for (var guard = 0; guard < 50; guard++)
+        {
+            var page = await sut.GetModifiedSinceAsync(cursor, 3);
+            if (page.CursorMills is null)
+                break;
+
+            delivered.AddRange(page.Records.Select(e => e.Id!));
+            pageCursors.Add(page.CursorMills.Value);
+            cursor = page.CursorMills.Value;
+        }
+
+        var expected = meter.Select(r => r.Id.ToString()).Concat(calibrations.Select(r => r.Id.ToString()));
+        delivered.Should().OnlyHaveUniqueItems().And.BeEquivalentTo(expected);
+        pageCursors.Should().BeInAscendingOrder().And.OnlyHaveUniqueItems();
+    }
+
+    /// <summary>
+    /// Serves <paramref name="rows"/> the way <c>HistoryPage</c> pages them: written after the
+    /// cursor's millisecond, oldest first, <c>limit</c> rows extended to the end of the last row's
+    /// millisecond.
+    /// </summary>
+    private static void ServeHistory<TRecord, TRepo>(
+        Mock<TRepo> repo, IReadOnlyList<TRecord> rows, List<long>? cursors = null)
+        where TRecord : class, IV4Record
+        where TRepo : class, ILegacyKeyedRepository<TRecord>
+    {
+        repo.Setup(r => r.GetModifiedSinceAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long cursor, int limit, CancellationToken _) =>
+            {
+                cursors?.Add(cursor);
+                var after = rows.Where(r => Mills(r.ModifiedAt) > cursor)
+                    .OrderBy(r => r.ModifiedAt).ThenBy(r => r.Id).ToList();
+                if (after.Count <= limit)
+                    return after;
+
+                var lastMills = Mills(after[limit - 1].ModifiedAt);
+                return after.Where((r, i) => i < limit || Mills(r.ModifiedAt) == lastMills).ToList();
+            });
+    }
+
     private EntryReadService CreateSut(Core.Contracts.Glucose.ICanonicalGlucoseService canonical) =>
         new(_sgRepo.Object, _mgRepo.Object, _calRepo.Object, canonical, _demoMode.Object,
             NullLogger<EntryReadService>.Instance);
@@ -110,6 +184,15 @@ public class EntryReadServiceHistoryTests
         Mgdl = 120,
         Device = "sensor",
         DataSource = source,
+        CreatedAt = written,
+        ModifiedAt = written,
+    };
+
+    private static Calibration Cal(DateTime at, DateTime written) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        Timestamp = at,
+        Device = "sensor",
         CreatedAt = written,
         ModifiedAt = written,
     };
