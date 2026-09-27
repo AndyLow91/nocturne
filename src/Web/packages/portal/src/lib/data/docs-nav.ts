@@ -72,6 +72,15 @@ export const DOCS_NAV_SECTIONS: DocsNavSection[] = [
         ],
     },
     {
+        id: "trackers",
+        title: "Trackers",
+        items: [
+            { href: "/docs/trackers", label: "Overview" },
+            { href: "/docs/trackers/setting-up", label: "Setting up a tracker" },
+            { href: "/docs/trackers/everyday-use", label: "Everyday use" },
+        ],
+    },
+    {
         id: "alerts",
         title: "Alerts",
         items: [

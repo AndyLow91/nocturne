@@ -150,7 +150,7 @@
       </div>
     </div>
 
-    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1" data-testid="status-pills">
       {#if displayDemoMode}
         <Badge variant="demo">
           <span class="size-2 rounded-full bg-demo animate-pulse" aria-hidden="true"></span>
@@ -171,6 +171,7 @@
         <TrackerPillBar
           instances={realtimeStore.trackerInstances}
           definitions={realtimeStore.trackerDefinitions}
+          now={realtimeStore.now}
           onComplete={handleTrackerComplete}
           class="contents"
         />

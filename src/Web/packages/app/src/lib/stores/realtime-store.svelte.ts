@@ -37,6 +37,7 @@ export interface DeviceStatus extends PillsDeviceStatus {
   uploader?: Record<string, unknown>;
 }
 import { NotificationUrgency } from "$lib/api";
+import { reachedStep } from "$lib/components/trackers/schedule";
 import {
   mergeEntryRecords,
   type EntryRecord,
@@ -53,6 +54,13 @@ import {
 import { isEntryDocument } from "$lib/websocket/payloads";
 import { isRecord } from "$lib/utils/type-guards";
 import { toIsoString } from "$lib/utils/api-date";
+
+/** The tracker levels loud enough for the notifications list; Info stays on the pill. */
+const TRACKER_NOTIFICATION_LEVELS: Partial<Record<NotificationUrgency, "warn" | "hazard" | "urgent">> = {
+  [NotificationUrgency.Warn]: "warn",
+  [NotificationUrgency.Hazard]: "hazard",
+  [NotificationUrgency.Urgent]: "urgent",
+};
 
 /**
  * Normalize a V4 SensorGlucose DTO (REST shape: `id` + `mgdl`, no `_id`/`sgv`) into the Entry
@@ -258,39 +266,27 @@ export class RealtimeStore {
   trackerNotifications = $derived.by(() => {
     return this.trackerInstances
       .map((instance) => {
-        const def = this.trackerDefinitions.find((d) => d.id === instance.definitionId);
-        if (!def || !def.notificationThresholds) return null;
+        const step = reachedStep(instance, this.now);
+        const level = step?.urgency ? TRACKER_NOTIFICATION_LEVELS[step.urgency] : undefined;
+        if (!step || !level) return null;
 
-        // Compute age dynamically from startedAt and current time
-        // This ensures notifications update in real-time as time passes
         const age = instance.startedAt
           ? (this.now - (toDate(instance.startedAt)?.getTime() ?? this.now)) / (1000 * 60 * 60)
           : instance.ageHours ?? 0;
-
-        if (!age || age <= 0) return null;
-
-        // Determine level from notificationThresholds
-        let level: Lowercase<NotificationUrgency> | null = null;
-
-        // Sort thresholds by hours descending to find the highest triggered level
-        const sortedThresholds = [...def.notificationThresholds].sort(
-          (a, b) => (b.hours ?? 0) - (a.hours ?? 0)
-        );
-
-        for (const threshold of sortedThresholds) {
-          if (threshold.hours && age >= threshold.hours) {
-            const urgency = threshold.urgency;
-            if (urgency === NotificationUrgency.Urgent) { level = "urgent"; break; }
-            if (urgency === NotificationUrgency.Hazard) { level = "hazard"; break; }
-            if (urgency === NotificationUrgency.Warn) { level = "warn"; break; }
-            if (urgency === NotificationUrgency.Info) { level = "info"; break; }
-          }
-        }
-
-        if (!level || level === "info") return null;
-        return { ...instance, level, ageHours: age };
+        return {
+          ...instance,
+          level,
+          reachedDescription: step.description,
+          ageHours: age,
+        };
       })
-      .filter((n): n is TrackerInstanceDto & { level: "warn" | "hazard" | "urgent"; ageHours: number } => n !== null);
+      .filter(
+        (n): n is TrackerInstanceDto & {
+          level: "warn" | "hazard" | "urgent";
+          reachedDescription: string | undefined;
+          ageHours: number;
+        } => n !== null
+      );
   });
 
   constructor(config: WebSocketConfig) {

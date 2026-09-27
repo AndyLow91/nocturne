@@ -486,7 +486,7 @@ public class DeduplicationServiceTests : IDisposable
         // partner sits in the previous chunk.
         var partner = entities[499];
         var boundaryDuplicate = CreateTestTempBasalEntity(
-            startTimestamp: partner.StartTimestamp.AddSeconds(5),
+            startTimestamp: partner.Timestamp.AddSeconds(5),
             rate: partner.Rate,
             origin: "Scheduled",
             dataSource: "mylife-connector");
@@ -541,7 +541,7 @@ public class DeduplicationServiceTests : IDisposable
             CanonicalId = Guid.CreateVersion7(),
             RecordType = "tempbasal",
             RecordId = tb.Id,
-            SourceTimestamp = new DateTimeOffset(tb.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            SourceTimestamp = new DateTimeOffset(tb.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
             DataSource = tb.DataSource ?? DeduplicationInput.UnknownDataSource,
             IsPrimary = true,
             SysCreatedAt = DateTime.UtcNow
@@ -1774,7 +1774,7 @@ public class DeduplicationServiceTests : IDisposable
     private static DeduplicationInput ToDeduplicationInput(TempBasalEntity entity) =>
         new(
             RecordId: entity.Id,
-            Mills: new DateTimeOffset(entity.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            Mills: new DateTimeOffset(entity.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
             DataSource: entity.DataSource ?? DeduplicationInput.UnknownDataSource,
             Criteria: MatchCriteriaMapper.From(entity));
 
@@ -1791,7 +1791,7 @@ public class DeduplicationServiceTests : IDisposable
         {
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
-            StartTimestamp = startTimestamp,
+            Timestamp = startTimestamp,
             EndTimestamp = duration.HasValue ? startTimestamp + duration.Value : null,
             Rate = rate,
             Origin = origin,

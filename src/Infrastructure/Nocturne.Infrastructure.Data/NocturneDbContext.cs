@@ -572,10 +572,10 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     /// <summary>
     /// Tables carrying the <see cref="ISyncDedupable"/> upsert key. Listed rather than discovered
-    /// from the interface, which neither implies the index nor is implied by it: several tables carry
-    /// the two columns without declaring the interface, and <see cref="DeviceEventEntity"/> and
-    /// <see cref="NoteEntity"/> declare it for keyed lookup and delete without ever upserting on the
-    /// key, so they need no uniqueness. Adding a table here is a migration.
+    /// from the interface, which does not imply the index: several tables carry the two columns
+    /// without declaring the interface. Every entity a
+    /// <see cref="Repositories.V4.SyncKeyedRepositoryBase{TModel,TEntity}"/> serves must be here, so
+    /// its keyed delete names at most one live row. Adding a table here is a migration.
     /// </summary>
     internal static readonly Type[] SyncDedupedEntities =
     [
@@ -587,6 +587,9 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         typeof(BasalInjectionEntity),
         typeof(CarbIntakeEntity),
         typeof(TempBasalEntity),
+        typeof(BGCheckEntity),
+        typeof(NoteEntity),
+        typeof(DeviceEventEntity),
         .. V4SnapshotEntities,
     ];
 
@@ -1746,13 +1749,13 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
         modelBuilder
             .Entity<TempBasalEntity>()
-            .HasIndex(e => e.StartTimestamp)
+            .HasIndex(e => e.Timestamp)
             .HasDatabaseName("ix_temp_basals_start_timestamp")
             .IsDescending();
 
         modelBuilder
             .Entity<TempBasalEntity>()
-            .HasIndex(e => new { e.TenantId, e.StartTimestamp })
+            .HasIndex(e => new { e.TenantId, e.Timestamp })
             .HasDatabaseName("ix_temp_basals_tenant_start_timestamp")
             .IsDescending(false, true);
 

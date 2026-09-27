@@ -1290,7 +1290,7 @@ public class DeduplicationReconcileTests : IDisposable
             RecordType.BolusCalculation => new BolusCalculationEntity { Id = id, CarbInput = 30, Timestamp = WideBase },
             RecordType.TempBasal => new TempBasalEntity
             {
-                Id = id, Rate = 0.5, StartTimestamp = WideBase, Origin = "Manual"
+                Id = id, Rate = 0.5, Timestamp = WideBase, Origin = "Manual"
             },
             RecordType.StateSpan => new StateSpanEntity
             {

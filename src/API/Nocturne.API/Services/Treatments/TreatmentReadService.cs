@@ -435,7 +435,7 @@ public class TreatmentReadService : ITreatmentStore
             ?? await ResolveOrBackfillLegacyIdAsync(_noteRepo, low, high, ct)
             ?? await ResolveOrBackfillLegacyIdAsync(_deviceEventRepo, low, high, ct)
             ?? await ResolveOrBackfillLegacyIdAsync(_bolusCalcRepo, low, high, ct)
-            ?? await ResolveOrBackfillTempBasalLegacyIdAsync(low, high, ct);
+            ?? await ResolveOrBackfillLegacyIdAsync(_tempBasalRepo, low, high, ct);
     }
 
     private static async Task<string?> ResolveOrBackfillLegacyIdAsync<T>(
@@ -448,18 +448,6 @@ public class TreatmentReadService : ITreatmentStore
         var objectId = MongoObjectId.FromGuid(entity.Id);
         entity.LegacyId = objectId;
         await repo.UpdateAsync(entity.Id, entity, WriteOrigin.Live, ct);
-        return objectId;
-    }
-
-    private async Task<string?> ResolveOrBackfillTempBasalLegacyIdAsync(Guid low, Guid high, CancellationToken ct)
-    {
-        var tempBasal = await _tempBasalRepo.GetByGuidRangeAsync(low, high, ct);
-        if (tempBasal is null) return null;
-        if (!string.IsNullOrEmpty(tempBasal.LegacyId)) return tempBasal.LegacyId;
-
-        var objectId = MongoObjectId.FromGuid(tempBasal.Id);
-        tempBasal.LegacyId = objectId;
-        await _tempBasalRepo.UpdateAsync(tempBasal.Id, tempBasal, WriteOrigin.Live, ct);
         return objectId;
     }
 
