@@ -292,22 +292,29 @@ public class TreatmentDecomposerBatchTests : IDisposable
     }
 
     [Fact]
-    public async Task DecomposeBatchAsync_ProducedRecordsShareCorrelationId()
+    public async Task DecomposeBatchAsync_GivesEachTreatmentItsOwnCorrelationId()
     {
-        // Arrange — one treatment that produces multiple sibling records (bolus + carb)
         var treatments = new List<Treatment>
         {
             new() { Id = "meal-1", EventType = "Meal Bolus", Mills = 1700000000000, Insulin = 5.0, Carbs = 45 },
+            new() { Id = "meal-2", EventType = "Meal Bolus", Mills = 1700003600000, Insulin = 3.0, Carbs = 30 },
+            new() { Id = "carbs-3", EventType = "Carb Correction", Mills = 1700007200000, Carbs = 15 },
         };
 
-        // Act
         var result = await _decomposer.DecomposeBatchAsync(treatments, WriteOrigin.Live);
 
-        // Assert — all sibling records share a single non-empty correlation id
-        result.CorrelationId.Should().NotBeNull().And.NotBe(Guid.Empty);
-        result.CreatedRecords.OfType<V4Models.IV4Record>()
-            .Should().NotBeEmpty()
-            .And.OnlyContain(r => r.CorrelationId == result.CorrelationId);
+        var records = result.CreatedRecords.OfType<V4Models.IV4Record>().ToList();
+        records.Should().HaveCount(5);
+        records.Should().OnlyContain(r => r.CorrelationId.HasValue && r.CorrelationId != Guid.Empty);
+
+        var idsByTreatment = records
+            .GroupBy(r => r.LegacyId)
+            .ToDictionary(g => g.Key!, g => g.Select(r => r.CorrelationId!.Value).Distinct().ToList());
+        idsByTreatment.Should().HaveCount(3);
+        idsByTreatment.Values.Should().OnlyContain(ids => ids.Count == 1, "a meal bolus's bolus and carb intake are siblings");
+        idsByTreatment.Values.Select(ids => ids[0]).Should().OnlyHaveUniqueItems("treatments are separate source records");
+
+        result.CorrelationId.Should().Be(idsByTreatment["meal-1"][0]);
     }
 
     [Fact]

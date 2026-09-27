@@ -20,6 +20,8 @@ public class DeviceService : IDeviceService
     private readonly ITenantAccessor _tenantAccessor;
     private readonly ConcurrentDictionary<(string, string, string, string), Device> _cache = new();
     private readonly ConcurrentDictionary<(string, Guid), IReadOnlyList<PatientDevice>> _patientDeviceCache = new();
+    private readonly Dictionary<Guid, (Device Device, DateTime Persisted)> _deferredLastSeen = [];
+    private int _deferDepth;
 
     private string TenantCacheId => _tenantAccessor.Context?.TenantId.ToString()
         ?? throw new InvalidOperationException("Tenant context is not resolved");
@@ -72,6 +74,13 @@ public class DeviceService : IDeviceService
         if (timestamp <= device.LastSeenTimestamp)
             return;
 
+        if (_deferDepth > 0)
+        {
+            _deferredLastSeen.TryAdd(device.Id, (device, device.LastSeenTimestamp));
+            device.LastSeenTimestamp = timestamp;
+            return;
+        }
+
         var persisted = device.LastSeenTimestamp;
         device.LastSeenTimestamp = timestamp;
         try
@@ -85,6 +94,43 @@ public class DeviceService : IDeviceService
             device.LastSeenTimestamp = persisted;
             throw;
         }
+    }
+
+    public IAsyncDisposable DeferLastSeen(CancellationToken ct = default)
+    {
+        _deferDepth++;
+        return new LastSeenDeferral(this, ct);
+    }
+
+    /// <summary>
+    /// A deferred advance is already on the cached device, so a failed flush rolls back every device
+    /// it has not yet written, for the reason <see cref="AdvanceLastSeenAsync"/> rolls back its own.
+    /// </summary>
+    private async Task FlushDeferredLastSeenAsync(CancellationToken ct)
+    {
+        if (--_deferDepth > 0)
+            return;
+
+        var pending = _deferredLastSeen.Values.ToList();
+        _deferredLastSeen.Clear();
+        for (var i = 0; i < pending.Count; i++)
+        {
+            try
+            {
+                await _repository.UpdateAsync(pending[i].Device.Id, pending[i].Device, WriteOrigin.Live, ct);
+            }
+            catch
+            {
+                foreach (var (device, persisted) in pending.Skip(i))
+                    device.LastSeenTimestamp = persisted;
+                throw;
+            }
+        }
+    }
+
+    private sealed class LastSeenDeferral(DeviceService owner, CancellationToken ct) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => new(owner.FlushDeferredLastSeenAsync(ct));
     }
 
     public async Task<Guid?> ResolvePatientDeviceAsync(Guid? deviceId, long mills, CancellationToken ct = default)

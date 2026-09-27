@@ -408,11 +408,8 @@ public class TempBasalRepository : ITempBasalRepository
         UpdateByLegacyIdAsync(NocturneDbContext ctx, List<TempBasal> records, CancellationToken ct)
     {
         var lastByLegacyId = new Dictionary<string, TempBasal>(StringComparer.Ordinal);
-        foreach (var record in records)
-        {
-            if (!string.IsNullOrEmpty(record.LegacyId))
-                lastByLegacyId[record.LegacyId] = record;
-        }
+        foreach (var record in records.Where(r => !string.IsNullOrEmpty(r.LegacyId)))
+            lastByLegacyId[record.LegacyId!] = record;
 
         var legacyIds = lastByLegacyId.Keys.ToList();
         var storedByLegacyId = new Dictionary<string, TempBasalEntity>(StringComparer.Ordinal);

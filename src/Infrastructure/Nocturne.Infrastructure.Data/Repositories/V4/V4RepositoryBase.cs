@@ -644,11 +644,8 @@ public abstract class V4RepositoryBase<TModel, TEntity>
         NocturneDbContext ctx, List<TModel> records, CancellationToken ct)
     {
         var lastByLegacyId = new Dictionary<string, TModel>(StringComparer.Ordinal);
-        foreach (var record in records)
-        {
-            if (!string.IsNullOrEmpty(record.LegacyId))
-                lastByLegacyId[record.LegacyId] = record;
-        }
+        foreach (var record in records.Where(r => !string.IsNullOrEmpty(r.LegacyId)))
+            lastByLegacyId[record.LegacyId!] = record;
 
         var storedByLegacyId = new Dictionary<string, TEntity>(StringComparer.Ordinal);
         if (lastByLegacyId.Count > 0)

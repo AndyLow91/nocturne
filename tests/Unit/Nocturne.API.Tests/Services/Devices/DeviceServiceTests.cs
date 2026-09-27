@@ -341,6 +341,85 @@ public class DeviceServiceTests
         VerifyLastSeenUpdates(existingId, 2_000L);
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_FailedFlush_LeavesCachedLastSeenAtPersistedValue()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+        await ResolveOmnipodAsync(1_000L);
+
+        _mockRepository
+            .Setup(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<Device>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("transient"));
+        var failed = async () =>
+        {
+            await using (_service.DeferLastSeen())
+                await ResolveOmnipodAsync(3_000L);
+        };
+        await failed.Should().ThrowAsync<InvalidOperationException>();
+
+        _mockRepository
+            .Setup(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<Device>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .Callback((Guid id, Device d, WriteOrigin _, CancellationToken _) => _updates.Add((id, d.LastSeenTimestamp)))
+            .ReturnsAsync((Guid _, Device d, WriteOrigin _, CancellationToken _) => d);
+        await ResolveOmnipodAsync(2_000L);
+
+        VerifyLastSeenUpdates(existingId, 2_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_OldestFirstSequence_WritesOnlyTheLatestOnceTheScopeEnds()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+        {
+            await ResolveOmnipodAsync(2_000L);
+            await ResolveOmnipodAsync(3_000L);
+            await ResolveOmnipodAsync(4_000L);
+
+            VerifyLastSeenUpdates(existingId);
+        }
+
+        VerifyLastSeenUpdates(existingId, 4_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_NestedScopes_WriteWhenTheOutermostEnds()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+        {
+            await using (_service.DeferLastSeen())
+                await ResolveOmnipodAsync(2_000L);
+
+            VerifyLastSeenUpdates(existingId);
+            await ResolveOmnipodAsync(3_000L);
+        }
+
+        VerifyLastSeenUpdates(existingId, 3_000L);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task DeferLastSeen_AfterTheScopeEnds_WritesEachAdvanceAgain()
+    {
+        var existingId = Guid.NewGuid();
+        SetupExistingDevice(existingId, lastSeenMills: 1_000L);
+
+        await using (_service.DeferLastSeen())
+            await ResolveOmnipodAsync(2_000L);
+        await ResolveOmnipodAsync(3_000L);
+
+        VerifyLastSeenUpdates(existingId, 2_000L, 3_000L);
+    }
+
     private Task<Guid?> ResolveOmnipodAsync(long mills) =>
         _service.ResolveAsync(DeviceCategory.InsulinPump, "Omnipod DASH", "ABC123", mills);
 
