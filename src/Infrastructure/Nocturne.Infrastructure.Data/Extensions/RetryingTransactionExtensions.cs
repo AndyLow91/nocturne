@@ -34,8 +34,8 @@ public static class RetryingTransactionExtensions
     /// <param name="verifySucceeded">
     /// Judges, after a commit that reported failure, whether it landed anyway, from the result the
     /// attempt returned. When it did, that result is returned instead of running the work again.
-    /// Needed only where a replayed attempt would write a second row; a unique key or an upsert
-    /// already makes a replay harmless.
+    /// Needed where a replayed attempt would write a second row, and where it would find the work
+    /// already done and so report less than was written.
     /// </param>
     /// <param name="detachBeforeEachAttempt">
     /// Entities to detach before every attempt and before the verification, even when tracked
@@ -150,6 +150,32 @@ public static class RetryingTransactionExtensions
             return false;
         var id = inserted[0].Id;
         return await context.Set<TEntity>().IgnoreQueryFilters().AnyAsync(e => e.Id == id, ct);
+    }
+
+    /// <summary>
+    /// A <c>verifySucceeded</c> for work that updates <paramref name="updated"/> in place: one
+    /// transaction commits all of them or none, so the first one decides: it landed when its stored
+    /// row holds every value the attempt wrote. Pass only rows whose update changed a value, so that
+    /// a row still at its old values cannot pass. With none there is nothing to report, and the
+    /// work runs again.
+    /// </summary>
+    public static async Task<bool> AnyUpdateLandedAsync<TEntity>(
+        this DbContext context, IReadOnlyList<TEntity> updated, CancellationToken ct)
+        where TEntity : class, IIdentified
+    {
+        if (updated.Count == 0)
+            return false;
+        var written = updated[0];
+        var id = written.Id;
+        var stored = await context.Set<TEntity>().IgnoreQueryFilters().AsNoTracking()
+            .SingleOrDefaultAsync(e => e.Id == id, ct);
+        if (stored is null)
+            return false;
+
+        return context.Model.FindEntityType(typeof(TEntity))!.GetProperties()
+            .Where(p => !p.IsShadowProperty())
+            .All(p => p.GetValueComparer().Equals(
+                p.GetGetter().GetClrValue(stored), p.GetGetter().GetClrValue(written)));
     }
 
     /// <inheritdoc cref="ExecuteInTransactionAsync{T}"/>
