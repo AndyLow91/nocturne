@@ -3843,6 +3843,7 @@ msgstr "Sensor"
 msgid "<0/> BG Check"
 msgstr "<0/> BG Check"
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/entries/BGCheckSection.svelte
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
@@ -4233,9 +4234,9 @@ msgstr "PumpBatteryChange"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
 #: src/lib/components/icons/PumpModeIcon.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Automatic"
@@ -15328,7 +15329,7 @@ msgstr "<0/> Running…"
 msgid "Window: {0}"
 msgstr "Window: {0}"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events would have fired in this window."
 msgstr "No events would have fired in this window."
 
@@ -15836,7 +15837,7 @@ msgstr "Drag to reorder"
 msgid "Turn off"
 msgstr "Turn off"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events yet — playhead at start of window."
 msgstr "No events yet — playhead at start of window."
 
@@ -15899,7 +15900,7 @@ msgid "No leaves to evaluate."
 msgstr "No leaves to evaluate."
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "Resolved"
 msgstr "Resolved"
 
@@ -23876,8 +23877,10 @@ msgstr "Protein <0>optional</0>"
 msgid "Energy <0>auto</0>"
 msgstr "Energy <0>auto</0>"
 
+#. 0: rule.name
 #. 0: perm
 #. 0: item.l
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 #: src/lib/components/admin/RoleDialog.svelte
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 msgid "Remove {0}"
@@ -25544,53 +25547,42 @@ msgstr "Mute for me"
 msgid "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 msgstr "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "NOT applies to: "
-msgstr "NOT applies to: "
+#~ msgid "NOT applies to: "
+#~ msgstr "NOT applies to: "
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "No alert over this trace."
-msgstr "No alert over this trace."
+#~ msgid "No alert over this trace."
+#~ msgstr "No alert over this trace."
 
-#. 0: active.label.toLowerCase()
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
-msgstr "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+#~ msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+#~ msgstr "Glucose readings for the {0} example, with the times each rule was alerting shaded."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Whole rule is true"
-msgstr "Whole rule is true"
+#~ msgid "Whole rule is true"
+#~ msgstr "Whole rule is true"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Alerting"
-msgstr "Alerting"
+#~ msgid "Alerting"
+#~ msgstr "Alerting"
 
 #. 0: issues[index].map((i) => issueText[i.reason] ?? i.reason).join(", ")
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "A save would be refused: this rule needs {0}."
 msgstr "A save would be refused: this rule needs {0}."
 
-#. 0: Math.round(hovered.age)
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· last reading {0} min ago"
-msgstr "· last reading {0} min ago"
+#~ msgid "· last reading {0} min ago"
+#~ msgstr "· last reading {0} min ago"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· no reading yet"
-msgstr "· no reading yet"
+#~ msgid "· no reading yet"
+#~ msgstr "· no reading yet"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "<0/> Reset the example"
-msgstr "<0/> Reset the example"
+#~ msgid "<0/> Reset the example"
+#~ msgstr "<0/> Reset the example"
 
 #. 0: failure
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "The alert engine could not run here ({0}). The rest of this page still applies."
 msgstr "The alert engine could not run here ({0}). The rest of this page still applies."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
-msgstr "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+#~ msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+#~ msgstr "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
 
 #: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 msgid "Group: match"
@@ -25722,3 +25714,27 @@ msgstr "Change coming up"
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
 msgid "The chart data could not be loaded."
 msgstr "The chart data could not be loaded."
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Add an example rule"
+msgstr "<0/> Add an example rule"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Start over"
+msgstr "<0/> Start over"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Nocturne's own alert engine and Replay, running in your browser on made-up readings. Not anyone's data, and not medical advice."
+msgstr "Nocturne's own alert engine and Replay, running in your browser on made-up readings. Not anyone's data, and not medical advice."
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Grams"
+msgstr "Grams"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Minutes since carbs"
+msgstr "Minutes since carbs"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "min ago"
+msgstr "min ago"
