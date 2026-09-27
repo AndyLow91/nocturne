@@ -810,7 +810,7 @@ public class StatisticsService : IStatisticsService
     /// <returns>
     /// Comprehensive glycemic variability metrics, or null for fewer than two plausible readings.
     /// The individual metrics have differing data floors; this one governs all of them. Values
-    /// that are not plausible readings are dropped first: a zero mean makes the coefficient of
+    /// and entries that are not plausible readings are dropped first: a zero mean makes the coefficient of
     /// variation NaN, and a non-positive value makes the log-based risk metrics non-finite.
     /// </returns>
     public GlycemicVariability? CalculateGlycemicVariability(
@@ -819,7 +819,7 @@ public class StatisticsService : IStatisticsService
     )
     {
         var valuesList = values.Where(IsPlausibleReading).ToList();
-        var entriesList = entries.ToList();
+        var entriesList = entries.Where(IsPlausibleReading).ToList();
 
         if (valuesList.Count < 2)
             return null;
@@ -1074,7 +1074,8 @@ public class StatisticsService : IStatisticsService
     /// Mean of the Kovatchev risk transform <c>f(BG) = 1.084 * (ln(BG/18)^1.084 - 1.928)</c> over
     /// <paramref name="values"/>, counting only the readings whose <c>f(BG)</c> falls on one side
     /// of zero: the hyperglycaemic side when <paramref name="keepPositive"/>, the hypoglycaemic
-    /// side otherwise. Zero for an empty series.
+    /// side otherwise. Zero for an empty series. A plausible reading below 18 mg/dL, where the
+    /// transform is undefined, is clamped to 18 mg/dL, the transform's maximum hypoglycaemic risk.
     /// </summary>
     /// <seealso cref="KovatchevMgdlPerMmol"/>
     private static double KovatchevRisk(IEnumerable<double> values, bool keepPositive)
@@ -1085,7 +1086,7 @@ public class StatisticsService : IStatisticsService
 
         var riskSum = valuesList.Sum(glucose =>
         {
-            var bgInMmol = glucose / KovatchevMgdlPerMmol;
+            var bgInMmol = Math.Max(glucose, KovatchevMgdlPerMmol) / KovatchevMgdlPerMmol;
             var logBG = Math.Log(bgInMmol);
             var fBG = 1.084 * (Math.Pow(logBG, 1.084) - 1.928);
 

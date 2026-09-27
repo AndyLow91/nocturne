@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Nocturne.API.Services.Analytics;
 using Nocturne.Core.Models;
+using Nocturne.Core.Models.V4;
 
 namespace Nocturne.API.Tests.Services.Analytics;
 
@@ -31,6 +32,34 @@ public class StatisticsServiceInsufficientDataTests
             .Should()
             .OnlyContain(metric => double.IsFinite(metric.Value));
         result!.CoefficientOfVariation.Should().Be(28.6);
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(1)]
+    public void Lbgi_ReadingBelowTransformDomain_CountsAsMaximumLowRisk(double mgdl)
+    {
+        var lbgi = _service.CalculateLBGI([mgdl, 120]);
+
+        double.IsFinite(lbgi).Should().BeTrue();
+        lbgi.Should().Be(_service.CalculateLBGI([18, 120]));
+        lbgi.Should().BeGreaterThan(_service.CalculateLBGI([20, 120]));
+    }
+
+    [Fact]
+    public void GlycemicVariability_ImplausibleEntry_IsExcludedFromTimeBasedMetrics()
+    {
+        var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        SensorGlucose At(int minutes, double mgdl) =>
+            new() { Mgdl = mgdl, Timestamp = start.AddMinutes(minutes) };
+        double[] values = [100, 140, 180];
+        SensorGlucose[] plausible = [At(0, 100), At(10, 140), At(15, 180)];
+
+        var withImplausible = _service.CalculateGlycemicVariability(
+            values, [At(0, 100), At(5, 700), At(10, 140), At(15, 180)]);
+        var withoutImplausible = _service.CalculateGlycemicVariability(values, plausible);
+
+        withImplausible.Should().BeEquivalentTo(withoutImplausible);
     }
 
     [Theory]
