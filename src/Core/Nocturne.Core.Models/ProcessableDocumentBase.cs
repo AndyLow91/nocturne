@@ -16,6 +16,8 @@ public abstract class ProcessableDocumentBase : IProcessableDocument
     /// <remarks>
     /// Ignored here because System.Text.Json serializes this declaration as its own property next
     /// to every override's renamed <c>_id</c>, shipping a second, unconverted copy of the id.
+    /// Readers that must keep an uploader's <c>id</c> also drop it: see
+    /// <see cref="Serializers.UploaderIdJsonModifier"/>.
     /// </remarks>
     [JsonIgnore]
     public abstract string? Id { get; set; }
