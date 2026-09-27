@@ -501,7 +501,10 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
     /// <summary>
     ///     Fetches legacy DeviceStatus records from the v1 API of the remote instance through
     ///     <see cref="BackwardTimePager.PageAsync{T}"/>. The remote parses the created_at bound into
-    ///     a time and compares records against it, so a bound admits exactly its own instant.
+    ///     a time and compares it against each record's Mills, sorting newest-first by Mills, so a
+    ///     bound admits exactly its own instant and the crawl steps on Mills. The created_at a remote
+    ///     sends back is its save time on older servers, which on a bulk-loaded remote lies after
+    ///     every reading and would pin the bound in place; it is read only when no row has Mills.
     /// </summary>
     /// <remarks>A page that never arrives costs the range, for the reason given on
     /// <see cref="FetchPaginatedAsync{T}"/>.</remarks>
@@ -523,10 +526,7 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
                     BuildV1DeviceStatusUrl(from, bound, count), V1DeviceStatusEndpoint, config, ct);
                 return new TimePage<DeviceStatus>(statuses, statuses.Length);
             },
-            statuses => statuses
-                .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
-                .Where(dt => dt.HasValue)
-                .Min(),
+            OldestDeviceStatusTime,
             bound => bound,
             _logger,
             ConnectorSource,
@@ -541,6 +541,18 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
             allStatuses.Count);
 
         return allStatuses;
+    }
+
+    private static DateTime? OldestDeviceStatusTime(DeviceStatus[] statuses)
+    {
+        var mills = statuses.Where(d => d.Mills > 0).Select(d => (long?)d.Mills).Min();
+        if (mills.HasValue)
+            return DateTimeOffset.FromUnixTimeMilliseconds(mills.Value).UtcDateTime;
+
+        return statuses
+            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
+            .Where(dt => dt.HasValue)
+            .Min();
     }
 
     #endregion

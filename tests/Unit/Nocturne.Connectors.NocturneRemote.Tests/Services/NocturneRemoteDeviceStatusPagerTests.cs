@@ -17,8 +17,8 @@ using Xunit;
 namespace Nocturne.Connectors.NocturneRemote.Tests.Services;
 
 /// <summary>
-/// The v1 device-status crawl pages back by created_at, and uploaders write several statuses at
-/// one millisecond, so a page can end partway through one. The crawl has to return the rest on
+/// The v1 device-status crawl pages back by the reading's time, and uploaders write several
+/// statuses at one millisecond, so a page can end partway through one. The crawl has to return the rest on
 /// the next page without repeating what it already returned.
 /// </summary>
 public class NocturneRemoteDeviceStatusPagerTests
@@ -67,10 +67,14 @@ public class NocturneRemoteDeviceStatusPagerTests
 
     /// <summary>
     /// Stands in for a remote Nocturne's v1 device-status route, which parses the created_at bound
-    /// into a time and serves the statuses at or before it, newest first, ties in insertion order.
+    /// into a time and serves the statuses whose Mills are at or before it, newest first by Mills,
+    /// ties in insertion order. Like an older remote, it writes created_at from the save time, and
+    /// every status was saved in one bulk load after the newest reading.
     /// </summary>
     private sealed class Source : HttpMessageHandler
     {
+        private static readonly DateTime SavedAt = Crowded.AddDays(1);
+
         private readonly List<(string Id, DateTime At)> _records = [];
 
         public List<string> Ids => _records.Select(r => r.Id).ToList();
@@ -97,19 +101,23 @@ public class NocturneRemoteDeviceStatusPagerTests
             var url = Uri.UnescapeDataString(uri.Query);
             var count = Math.Min(
                 int.Parse(Regex.Match(url, @"count=(\d+)").Groups[1].Value, CultureInfo.InvariantCulture), CountCap);
-            DateTime? lte = Regex.Match(url, @"\[\$lte\]=([^&]+)") is { Success: true } match
-                ? DateTime.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal)
-                : null;
+            var gte = Bound(url, "gte");
+            var lte = Bound(url, "lte");
 
             var page = _records
-                .Where(r => lte is null || r.At <= lte)
+                .Where(r => (gte is null || r.At >= gte) && (lte is null || r.At <= lte))
                 .OrderByDescending(r => r.At)
                 .Take(count)
-                .Select(r => $$"""{"_id":"{{r.Id}}","created_at":"{{r.At:yyyy-MM-dd'T'HH:mm:ss.fff'Z'}}"}""");
+                .Select(r => $$"""{"_id":"{{r.Id}}","mills":{{new DateTimeOffset(r.At).ToUnixTimeMilliseconds()}},"created_at":"{{SavedAt:yyyy-MM-dd'T'HH:mm:ss.fff'Z'}}"}""");
 
             return Task.FromResult(Json($"[{string.Join(',', page)}]"));
         }
+
+        private static DateTime? Bound(string url, string op) =>
+            Regex.Match(url, $@"\[\${op}\]=([^&]+)") is { Success: true } match
+                ? DateTime.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal)
+                : null;
 
         private static HttpResponseMessage Json(string body) =>
             new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
