@@ -529,7 +529,8 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     /// <summary>
     /// Tables a v3 history endpoint pages through <see cref="HistoryPage"/>: the treatment
-    /// projection's <c>LegacyTreatmentTables.All</c> and the device-status projection's APS snapshots.
+    /// projection's <c>LegacyTreatmentTables.All</c>, the device-status projection's APS snapshots,
+    /// the three glucose types the entry projection reads and the five profile-decomposition tables.
     /// </summary>
     internal static readonly Type[] V4HistoryPagedEntities =
     [
@@ -541,6 +542,14 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         typeof(TempBasalEntity),
         typeof(BolusCalculationEntity),
         typeof(ApsSnapshotEntity),
+        typeof(SensorGlucoseEntity),
+        typeof(MeterGlucoseEntity),
+        typeof(CalibrationEntity),
+        typeof(TherapySettingsEntity),
+        typeof(BasalScheduleEntity),
+        typeof(CarbRatioScheduleEntity),
+        typeof(SensitivityScheduleEntity),
+        typeof(TargetRangeScheduleEntity),
     ];
 
     /// <summary>
@@ -818,6 +827,13 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             .Entity<FoodEntity>()
             .HasIndex(f => f.SysCreatedAt)
             .HasDatabaseName("ix_foods_sys_created_at");
+
+        // The v3 food history page; see the V4HistoryPagedEntities index. Foods are hard-deleted,
+        // so there is no deleted_at filter.
+        modelBuilder
+            .Entity<FoodEntity>()
+            .HasIndex(f => new { f.TenantId, f.SysUpdatedAt, f.Id })
+            .HasDatabaseName("ix_foods_tenant_sys_updated_at");
 
         modelBuilder
             .Entity<FoodEntity>()
