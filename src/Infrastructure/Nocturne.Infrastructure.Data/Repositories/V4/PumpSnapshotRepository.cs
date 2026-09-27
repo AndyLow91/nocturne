@@ -76,12 +76,7 @@ public class PumpSnapshotRepository : SyncUpsertRepositoryBase<PumpSnapshot, Pum
         await using var ctx = await ContextFactory.CreateAsync(ct);
         var aps = ApsSnapshotRepository.InWindow(ctx.ApsSnapshots.AsNoTracking(), from, to, device);
 
-        var pumps = ctx.PumpSnapshots.AsNoTracking();
-        if (from.HasValue) pumps = pumps.Where(e => e.Timestamp >= from.Value);
-        if (to.HasValue) pumps = pumps.Where(e => e.Timestamp <= to.Value);
-        if (device != null) pumps = pumps.Where(e => e.Device == device);
-
-        return await pumps
+        return await InWindow(ctx.PumpSnapshots.AsNoTracking(), from, to, device)
             .Where(p => p.CorrelationId == null || !aps.Any(a => a.CorrelationId == p.CorrelationId))
             .CountAsync(ct);
     }
