@@ -71,7 +71,7 @@ range, in range, high, very high.
 Your loop's forecast of where glucose is heading. The condition is true if
 **any** forecast point within the next so many minutes matches.
 
-- **Settings:** a comparison (≥, >, ≤, <), a glucose value, and how many minutes
+- **Settings:** a comparison (at least, more than, at most or less than), a glucose value, and how many minutes
   ahead to look.
 - **Use it for:** "warn me if my loop thinks I will be under 70 within the next
   30 minutes", before the low arrives.
