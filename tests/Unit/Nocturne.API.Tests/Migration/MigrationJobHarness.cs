@@ -62,6 +62,11 @@ internal static class MigrationJobHarness
             .Setup(d => d.DecomposeBatchAsync(It.IsAny<IReadOnlyList<DeviceStatus>>(), It.IsAny<string?>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DecompositionResult());
 
+        var profiles = new Mock<IProfileDecomposer>();
+        profiles
+            .Setup(d => d.DecomposeAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DecompositionResult());
+
         var activities = new Mock<IActivityDecomposer>();
         activities
             .Setup(d => d.DecomposeBatchAsync(It.IsAny<IReadOnlyList<Activity>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
@@ -75,6 +80,7 @@ internal static class MigrationJobHarness
             .AddSingleton(entries.Object)
             .AddSingleton(treatments.Object)
             .AddSingleton(deviceStatuses.Object)
+            .AddSingleton(profiles.Object)
             .AddSingleton(activities.Object)
             .BuildServiceProvider();
     }
