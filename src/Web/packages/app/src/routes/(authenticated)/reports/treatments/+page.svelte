@@ -14,6 +14,7 @@
     countEntryRecords,
     filterEntryRecords,
     isEntryCategoryFilter,
+    TREATMENT_LOG_CATEGORY,
     type EntryCategoryId,
     type EntryRecord,
     ENTRY_CATEGORIES,
@@ -42,13 +43,13 @@
   // Import remote function forms and commands
   import {
     getTreatmentsData,
-    getTreatmentStats,
     deleteEntryForm,
     bulkDeleteEntries,
     updateEntry,
     createEntry,
   } from "./data.remote";
   import { toCreateEntryInput, toUpdateEntryInput } from "./entry-request";
+  import { getStats as getTreatmentLogStats } from "$lib/api/generated/treatmentLogs.generated.remote";
 
   // Get shared date params from context (set by reports layout)
   const reportsParams = requireDateParamsContext(7);
@@ -82,13 +83,21 @@
   let searchQuery = $state(initialSearch || "");
   const debouncedSearch = new Debounced(() => searchQuery.trim(), 300);
 
+  // The stats endpoint takes the range getTreatmentsData resolved on the
+  // patient's calendar, so it waits for that range.
+  const pendingStats = { loading: true, error: null, current: undefined, refresh: () => {} };
   const statsResource = contextResource(
-    () =>
-      getTreatmentStats({
-        range: reportsParams.dateRangeInput,
-        category: activeCategory,
-        search: debouncedSearch.current,
-      }),
+    () => {
+      const range = reportsResource.current?.dateRange;
+      if (!range) return pendingStats;
+      return getTreatmentLogStats({
+        from: range.from,
+        to: range.to,
+        dayCount: range.dayCount,
+        category: TREATMENT_LOG_CATEGORY[activeCategory],
+        search: debouncedSearch.current || undefined,
+      });
+    },
     { errorTitle: "Error Loading Treatments" }
   );
 
@@ -357,7 +366,7 @@
   {#if statsResource.current}
     <TreatmentStatsCard
       treatmentSummary={statsResource.current.treatmentSummary}
-      counts={statsResource.current.counts}
+      counts={statsResource.current.counts ?? {}}
     />
   {/if}
 

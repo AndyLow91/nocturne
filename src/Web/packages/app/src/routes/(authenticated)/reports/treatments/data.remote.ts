@@ -17,13 +17,6 @@ import {
 	UpdateBasalInjectionRequestSchema,
 } from '$lib/api/generated/schemas';
 import { DateRangeSchema, resolveReportRange } from '$api/report-range';
-import {
-	countEntryRecords,
-	filterEntryRecords,
-	isEntryCategoryFilter,
-	mergeEntryRecords,
-	type EntryCategoryFilter,
-} from '$lib/constants/entry-categories';
 
 async function fetchEntries(startDate: string, endDate: string) {
 	const { apiClient } = getRequestEvent().locals;
@@ -60,7 +53,7 @@ async function fetchEntries(startDate: string, endDate: string) {
 export const getTreatmentsData = query(
 	DateRangeSchema.optional(),
 	async (input) => {
-		const { startDate, endDate } = await resolveReportRange(input);
+		const { startDate, endDate, dayCount } = await resolveReportRange(input);
 		const entries = await fetchEntries(startDate, endDate);
 
 		return {
@@ -68,40 +61,9 @@ export const getTreatmentsData = query(
 			dateRange: {
 				from: startDate,
 				to: endDate,
+				dayCount,
 			},
 		};
-	}
-);
-
-/**
- * Figures for the Treatment Log's stats card. Every one of them is taken from
- * the records the page's filter keeps: the counts here, and the backend
- * treatment summary over the kept boluses and carb intakes.
- */
-export const getTreatmentStats = query(
-	z.object({
-		range: DateRangeSchema.optional(),
-		category: z.custom<EntryCategoryFilter>(
-			(value) => typeof value === 'string' && isEntryCategoryFilter(value)
-		),
-		search: z.string(),
-	}),
-	async ({ range, category, search }) => {
-		const { apiClient } = getRequestEvent().locals;
-		const { startDate, endDate, dayCount } = await resolveReportRange(range);
-		const records = filterEntryRecords(
-			mergeEntryRecords(await fetchEntries(startDate, endDate)),
-			{ category, search }
-		);
-
-		const boluses = records.flatMap((r) => (r.kind === 'bolus' ? [r.data] : []));
-		const carbIntakes = records.flatMap((r) => (r.kind === 'carbs' ? [r.data] : []));
-		const treatmentSummary =
-			boluses.length > 0 || carbIntakes.length > 0
-				? await apiClient.statistics.calculateTreatmentSummary({ boluses, carbIntakes, dayCount })
-				: null;
-
-		return { counts: countEntryRecords(records), treatmentSummary };
 	}
 );
 

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Bolus, CarbIntake, TreatmentSummaryRequest } from "$lib/api";
+import { describe, it, expect, vi } from "vitest";
+import type { Bolus, CarbIntake } from "$lib/api";
 
 const boluses: Bolus[] = [
   { id: "b-pump", insulin: 4, mills: 1_000, device: "pump-a" },
@@ -11,8 +11,6 @@ const carbIntakes: CarbIntake[] = [
 ];
 const bgChecks = [{ id: "g-pump", mgdl: 110, mills: 5_000, device: "pump-a" }];
 const notes = [{ id: "n-1", text: "walk", mills: 6_000 }];
-
-const summaryRequests: TreatmentSummaryRequest[] = [];
 
 const page = <T>(data: T[]) => Promise.resolve({ data });
 
@@ -26,12 +24,6 @@ vi.mock("$app/server", () => ({
         note: { getAll: () => page(notes) },
         deviceEvent: { getAll: () => page([]) },
         basalInjection: { getAll: () => page([]) },
-        statistics: {
-          calculateTreatmentSummary: (request: TreatmentSummaryRequest) => {
-            summaryRequests.push(request);
-            return Promise.resolve({ bolusCount: request.boluses?.length });
-          },
-        },
       },
     },
   }),
@@ -52,58 +44,10 @@ vi.mock("$api/report-range", async (importOriginal) => ({
     }),
 }));
 
-const { getTreatmentStats, getTreatmentsData } = await import("./data.remote");
-
-type Stats = {
-  counts: Record<string, number>;
-  treatmentSummary: unknown;
-};
-const statsFor = (category: string, search: string) =>
-  (getTreatmentStats as unknown as (input: unknown) => Promise<Stats>)({
-    category,
-    search,
-  });
-
-/**
- * The stats card renders the counts and the backend summary side by side, so
- * both have to come from the one set of records the page's filter keeps.
- */
-describe("Treatment Log stats", () => {
-  beforeEach(() => {
-    summaryRequests.length = 0;
-  });
-
-  it("summarises only the records the search keeps, and counts the same records", async () => {
-    const stats = await statsFor("all", "pump-a");
-
-    expect(summaryRequests).toHaveLength(1);
-    const [request] = summaryRequests;
-    expect(request.boluses?.map((b) => b.id)).toEqual(["b-pump"]);
-    expect(request.carbIntakes?.map((c) => c.id)).toEqual(["c-pump"]);
-    expect(request.dayCount).toBe(3);
-    expect(stats.counts).toMatchObject({ all: 3, bolus: 1, carbs: 1, bgCheck: 1, note: 0 });
-  });
-
-  it("leaves carb intakes out of the summary when the category is insulin", async () => {
-    const stats = await statsFor("bolus", "");
-
-    const [request] = summaryRequests;
-    expect(request.boluses?.map((b) => b.id)).toEqual(["b-pen", "b-pump"]);
-    expect(request.carbIntakes).toEqual([]);
-    expect(stats.counts).toMatchObject({ all: 2, bolus: 2, carbs: 0 });
-  });
-
-  it("has no summary when the filter keeps no boluses or carb intakes", async () => {
-    const stats = await statsFor("bgCheck", "");
-
-    expect(summaryRequests).toHaveLength(0);
-    expect(stats.treatmentSummary).toBeNull();
-    expect(stats.counts).toMatchObject({ all: 1, bgCheck: 1, bolus: 0, carbs: 0 });
-  });
-});
+const { getTreatmentsData } = await import("./data.remote");
 
 describe("Treatment Log data", () => {
-  it("returns every entry kind for the resolved range", async () => {
+  it("returns every entry kind and the resolved range the stats endpoint is asked for", async () => {
     const data = await (getTreatmentsData as unknown as (input?: unknown) => Promise<{
       boluses: Bolus[];
       carbIntakes: CarbIntake[];
@@ -111,7 +55,7 @@ describe("Treatment Log data", () => {
       notes: unknown[];
       deviceEvents: unknown[];
       basalInjections: unknown[];
-      dateRange: { from: string; to: string };
+      dateRange: { from: string; to: string; dayCount: number };
     }>)();
 
     expect(data.boluses.map((b) => b.id)).toEqual(["b-pump", "b-pen"]);
@@ -123,20 +67,7 @@ describe("Treatment Log data", () => {
     expect(data.dateRange).toEqual({
       from: "2026-01-01T00:00:00.000Z",
       to: "2026-01-03T23:59:59.999Z",
+      dayCount: 3,
     });
-  });
-});
-
-describe("Treatment Log stats input", () => {
-  const schema = (getTreatmentStats as unknown as { schema: import("zod").ZodType }).schema;
-
-  it("accepts 'all' and known categories", () => {
-    expect(schema.safeParse({ category: "all", search: "" }).success).toBe(true);
-    expect(schema.safeParse({ category: "basalInjection", search: "pen" }).success).toBe(true);
-  });
-
-  it("rejects an unknown or non-string category", () => {
-    expect(schema.safeParse({ category: "insulin", search: "" }).success).toBe(false);
-    expect(schema.safeParse({ category: 3, search: "" }).success).toBe(false);
   });
 });

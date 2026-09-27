@@ -1,13 +1,12 @@
 <script lang="ts">
   import FigureStrip from "$lib/components/reports/FigureStrip.svelte";
-  import type { EntryCategoryId } from "$lib/constants/entry-categories";
-  import type { TreatmentSummary } from "$lib/api";
+  import type { TreatmentLogCounts, TreatmentSummary } from "$lib/api";
   import { ENTRY_CATEGORIES } from "$lib/constants/entry-categories";
 
   interface Props {
-    /** Null when the filtered records hold no boluses or carb intakes. */
-    treatmentSummary: TreatmentSummary | null;
-    counts: Record<EntryCategoryId | "all", number>;
+    /** Absent when the filtered records hold no boluses or carb intakes. */
+    treatmentSummary: TreatmentSummary | undefined;
+    counts: TreatmentLogCounts;
   }
 
   let { treatmentSummary, counts }: Props = $props();
@@ -17,7 +16,7 @@
 
   const categoryBreakdown = $derived(
     Object.values(ENTRY_CATEGORIES)
-      .filter((cat) => counts[cat.id] > 0)
+      .filter((cat) => (counts[cat.id] ?? 0) > 0)
       .map((cat) => `${cat.name} ${counts[cat.id]}`)
       .join(" · ")
   );
@@ -25,7 +24,7 @@
 
 <FigureStrip
   figures={[
-    { label: "Total Records", value: String(counts.all), note: categoryBreakdown || undefined },
+    { label: "Total Records", value: String(counts.all ?? 0), note: categoryBreakdown || undefined },
     {
       label: "Bolus insulin",
       value: totalInsulin.toFixed(1),

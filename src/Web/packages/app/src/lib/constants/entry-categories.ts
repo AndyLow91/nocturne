@@ -1,10 +1,11 @@
-import type {
-  Bolus,
-  CarbIntake,
-  BGCheck,
-  Note,
-  DeviceEvent,
-  BasalInjection,
+import {
+  TreatmentLogCategory,
+  type Bolus,
+  type CarbIntake,
+  type BGCheck,
+  type Note,
+  type DeviceEvent,
+  type BasalInjection,
 } from "$lib/api";
 
 export const ENTRY_CATEGORIES = {
@@ -121,9 +122,21 @@ export function isEntryCategoryFilter(value: string | null): value is EntryCateg
   return value === "all" || (value !== null && Object.hasOwn(ENTRY_CATEGORIES, value));
 }
 
+/** The backend's name for each filter category, for the Treatment Log stats endpoint. */
+export const TREATMENT_LOG_CATEGORY: Record<EntryCategoryFilter, TreatmentLogCategory> = {
+  all: TreatmentLogCategory.All,
+  bolus: TreatmentLogCategory.Bolus,
+  carbs: TreatmentLogCategory.Carbs,
+  bgCheck: TreatmentLogCategory.BgCheck,
+  note: TreatmentLogCategory.Note,
+  deviceEvent: TreatmentLogCategory.DeviceEvent,
+  basalInjection: TreatmentLogCategory.BasalInjection,
+};
+
 /**
- * The records a Treatment Log filter keeps. The page's rows and its stats card
- * (`getTreatmentStats`) both select through this, so they cover the same records.
+ * The rows a Treatment Log filter keeps. Mirrors the backend's `TreatmentLogFilter`,
+ * which selects the records behind the stats card, so the rows and the card's
+ * figures cover the same records; a change to one must be made to the other.
  */
 export function filterEntryRecords(records: EntryRecord[], filter: EntryFilter): EntryRecord[] {
   let filtered = records;
