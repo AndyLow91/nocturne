@@ -1440,7 +1440,7 @@ internal class MigrationJob
                 UpdateCollectionProgress(collectionName, documents.Length, totalMigrated, totalFailed, false, tally);
                 UpdateOverallProgress();
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 totalFailed++;
             }
@@ -1517,7 +1517,7 @@ internal class MigrationJob
                     }
                     totalMigrated++;
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                 {
                     totalFailed++;
                 }

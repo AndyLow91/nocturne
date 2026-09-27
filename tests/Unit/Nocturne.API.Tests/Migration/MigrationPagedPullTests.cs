@@ -263,4 +263,25 @@ public class MigrationPagedPullTests
         status.State.Should().Be(MigrationJobState.Cancelled);
         status.CollectionProgress["entries"].DocumentsFailed.Should().Be(0);
     }
+
+    [Fact]
+    public async Task A_migration_cancelled_while_a_profile_is_stored_does_not_count_that_profile_failed()
+    {
+        var handler = new NightscoutPager(
+            "/api/v1/profile.json",
+            new Queue<(HttpStatusCode, string)>([
+                (HttpStatusCode.OK, """[{"_id":"a"},{"_id":"b"}]"""),
+            ]));
+        MigrationJob? running = null;
+
+        await using var provider = MigrationJobHarness.BuildProvider(handler, profileOutcome: _ =>
+        {
+            running!.Cancel();
+            throw new OperationCanceledException();
+        });
+        var status = await MigrationJobHarness.RunAsync(provider, job => running = job, ["profile"]);
+
+        status.State.Should().Be(MigrationJobState.Cancelled);
+        status.CollectionProgress["profile"].DocumentsFailed.Should().Be(0);
+    }
 }

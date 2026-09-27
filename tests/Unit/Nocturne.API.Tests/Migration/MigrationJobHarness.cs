@@ -38,10 +38,12 @@ internal static class MigrationJobHarness
 
     /// <param name="entryOutcome">What the entry decomposer reports for each page; empty when omitted.</param>
     /// <param name="treatmentOutcome">What the treatment decomposer reports for each page; empty when omitted.</param>
+    /// <param name="profileOutcome">What the profile decomposer reports for each profile; empty when omitted.</param>
     public static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
         Func<IReadOnlyList<Entry>, DecompositionResult>? entryOutcome = null,
-        Func<IReadOnlyList<Treatment>, DecompositionResult>? treatmentOutcome = null)
+        Func<IReadOnlyList<Treatment>, DecompositionResult>? treatmentOutcome = null,
+        Func<Profile, DecompositionResult>? profileOutcome = null)
     {
         var database = $"migration-{Guid.NewGuid():N}";
 
@@ -65,7 +67,8 @@ internal static class MigrationJobHarness
         var profiles = new Mock<IProfileDecomposer>();
         profiles
             .Setup(d => d.DecomposeAsync(It.IsAny<Profile>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DecompositionResult());
+            .ReturnsAsync((Profile profile, WriteOrigin _, CancellationToken _) =>
+                profileOutcome?.Invoke(profile) ?? new DecompositionResult());
 
         var activities = new Mock<IActivityDecomposer>();
         activities
