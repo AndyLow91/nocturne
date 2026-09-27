@@ -8804,24 +8804,12 @@ namespace Nocturne.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.AuthAuditLogEntity", b =>
                 {
-                    b.HasOne("Nocturne.Infrastructure.Data.Entities.SubjectEntity", null)
-                        .WithMany()
-                        .HasForeignKey("ActorSubjectId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Nocturne.Infrastructure.Data.Entities.RefreshTokenEntity", "RefreshToken")
                         .WithMany()
                         .HasForeignKey("RefreshTokenId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Nocturne.Infrastructure.Data.Entities.SubjectEntity", "Subject")
-                        .WithMany()
-                        .HasForeignKey("SubjectId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("RefreshToken");
-
-                    b.Navigation("Subject");
                 });
 
             modelBuilder.Entity("Nocturne.Infrastructure.Data.Entities.BodyWeightEntity", b =>

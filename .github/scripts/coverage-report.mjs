@@ -250,7 +250,10 @@ function main() {
   const patterns = (args.reports ?? "").split(",").filter(Boolean);
   const reportFiles = [...new Set(patterns.flatMap((p) => globSync(p, { cwd: repo }).map((f) => resolve(repo, f))))];
   if (reportFiles.length === 0) {
-    console.error("coverage-report: no Cobertura reports matched");
+    const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
+    if (args["out-markdown"]) writeFileSync(args["out-markdown"], "## Coverage\n\nNo coverage reports were produced.\n");
+    if (args["out-json"]) writeFileSync(args["out-json"], JSON.stringify({ commit, areas: {}, patch: null }, null, 2));
+    console.error("::error::coverage-report: no Cobertura reports matched");
     process.exit(2);
   }
   const files = mergeReports(reportFiles.map((f) => parseCobertura(readFileSync(f, "utf8"), f)));
