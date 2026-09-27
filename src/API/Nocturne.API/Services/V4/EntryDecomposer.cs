@@ -213,9 +213,9 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
     /// <summary>
     /// Whether <paramref name="id"/> is the 24-hex form <see cref="MongoObjectId.FromGuid"/> gave a
     /// stored record that has no legacy id: the id Nightscout write-back sent it under, now pulled
-    /// back by the connector. Keyed on <c>LegacyId</c>, the bulk insert cannot see that record and
+    /// back by the connector. Keyed on <c>LegacyId</c>, the bulk upsert cannot see that record and
     /// would store the reading a second time. A record with a legacy id was written back under that
-    /// id, which the bulk insert already matches.
+    /// id, which the bulk upsert already matches.
     /// </summary>
     private static async Task<bool> EchoesUnkeyedRecordAsync<TRecord>(
         IV4Repository<TRecord> repository, string? id, CancellationToken ct)
