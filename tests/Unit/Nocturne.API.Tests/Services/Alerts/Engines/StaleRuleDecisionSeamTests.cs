@@ -209,6 +209,45 @@ public class StaleRuleDecisionSeamTests
         AlertRuleConditions.Of(rule).HeldBy(rule).Should().Be(held);
     }
 
+    [Fact] public Task A_tree_with_a_repeated_key_opens_managed() =>
+        A_tree_with_a_repeated_key_opens(Engine.Managed);
+    [NativeFact] public Task A_tree_with_a_repeated_key_opens_rust() =>
+        A_tree_with_a_repeated_key_opens(Engine.Rust);
+
+    /// <summary>
+    /// A stored tree that repeats a key binds its last occurrence, and still equals itself, so its
+    /// decisions are written.
+    /// </summary>
+    private static async Task A_tree_with_a_repeated_key_opens(Engine kind)
+    {
+        var rule = Rule();
+        rule.ConditionParams = """{"direction":"below","value":50,"value":70}""";
+        rule.AutoResolveEnabled = false;
+        var time = new ManualTimeProvider();
+        time.SetUtcNow(T0);
+        var timers = new RecordingTimerStore();
+        var store = new InMemoryTrackerRepository([rule]);
+        IAlertEvaluationEngine engine;
+        IAsyncDisposable scope = NoScope.Instance;
+        if (kind == Engine.Rust)
+        {
+            engine = EngineTestHarness.BuildRustEngine(time, timers, store);
+        }
+        else
+        {
+            var (managed, provider) = EngineTestHarness.BuildManagedEngine(time, timers, store);
+            (engine, scope) = (managed, provider);
+        }
+        await using var _ = scope;
+
+        var evaluation = await engine.EvaluateRuleAsync(
+            Snapshot(rule), Glucose(60), AlertEngineOptions.Default, CancellationToken.None);
+
+        evaluation.Transition.Type.Should().Be(ExcursionTransitionType.ExcursionOpened);
+        var state = await store.GetTrackerStateAsync(RuleId);
+        state.Should().BeEquivalentTo(new { State = "active", ActiveExcursionId = evaluation.Transition.ExcursionId });
+    }
+
     private static async Task ShouldStayActiveAsync(Fixture fixture)
     {
         var state = await fixture.Store.GetTrackerStateAsync(RuleId);
