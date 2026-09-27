@@ -95,7 +95,8 @@ internal sealed class RustBackedAlertEngine(
             result.CloseReason is { } reason ? RustEnvelopeMapper.CloseReasonFromWire(reason) : null,
             RustEnvelopeMapper.PostStateFromWire(response.Tracker!));
         var (transition, autoResolveTransition) = await ExcursionTransitionWriter.ApplyAsync(
-            trackerRepository, logger, rule.Id, trackerState, decision, now, ct, result.AutoResolved);
+            trackerRepository, logger, rule.Id, trackerState, decision, AlertRuleConditions.Of(rule), now, ct,
+            result.AutoResolved);
 
         return new AlertEngineEvaluation
         {
@@ -140,7 +141,7 @@ internal sealed class RustBackedAlertEngine(
             return none;
 
         var (transition, _) = await ExcursionTransitionWriter.ApplyAsync(
-            trackerRepository, logger, rule.Id, state, close, now, ct);
+            trackerRepository, logger, rule.Id, state, close, AlertRuleConditions.Of(rule), now, ct);
         return transition;
     }
 
