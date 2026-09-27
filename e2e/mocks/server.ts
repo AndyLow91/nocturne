@@ -2,6 +2,9 @@
 // (`/nightscout/...`), so a connector is pointed at `http://mocks:8080/<vendor>`.
 // Adding a vendor means adding a module under ./vendors and listing it below.
 //
+// A vendor is also served at the root of a host of its own name, for a client that drops a base
+// URL's path; docker-compose.yml gives the container that name as an alias.
+//
 // Every vendor also answers `GET /<vendor>/__requests` with the requests it has served, and
 // `DELETE /<vendor>/__requests` to clear them, so specs can assert what a connector called.
 //
@@ -9,9 +12,10 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { nightscout } from "./vendors/nightscout.ts";
+import { nightscoutMigration } from "./vendors/nightscout-migration.ts";
 import type { Vendor, VendorRequest } from "./vendors/vendor.ts";
 
-const vendors: Record<string, Vendor> = { nightscout };
+const vendors: Record<string, Vendor> = { nightscout, "nightscout-migration": nightscoutMigration };
 const seen: Record<string, VendorRequest[]> = Object.fromEntries(Object.keys(vendors).map((k) => [k, []]));
 
 function send(res: ServerResponse, status: number, body: unknown) {
@@ -30,11 +34,13 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://mocks");
   if (url.pathname === "/health") return send(res, 200, "ok");
 
-  const [, name, ...rest] = url.pathname.split("/");
+  const hostVendor = (req.headers.host ?? "").split(":")[0]!;
+  const [, first, ...rest] = url.pathname.split("/");
+  const name = vendors[hostVendor] ? hostVendor : first;
   const vendor = name ? vendors[name] : undefined;
   if (!vendor) return send(res, 404, { error: `no fake vendor '${name}'` });
 
-  const path = "/" + rest.join("/");
+  const path = name === hostVendor ? url.pathname : "/" + rest.join("/");
   if (path === "/__requests") {
     if (req.method === "DELETE") {
       seen[name!] = [];
