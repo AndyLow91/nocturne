@@ -1742,8 +1742,8 @@ internal class MigrationJob
         var mills =
             doc.Contains("mills") ? doc["mills"].ToInt64()
             : doc.Contains("created_at")
-              && DateTime.TryParse(doc["created_at"].AsString, out var createdAt)
-                ? new DateTimeOffset(createdAt).ToUnixTimeMilliseconds()
+              && UploaderTimestamp.TryParse(doc["created_at"].AsString, out var createdAt)
+                ? createdAt.ToUnixTimeMilliseconds()
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var defaultProfile = doc.Contains("defaultProfile") ? doc["defaultProfile"].AsString : "Default";

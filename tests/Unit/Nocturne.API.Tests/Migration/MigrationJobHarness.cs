@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -39,10 +40,12 @@ internal static class MigrationJobHarness
 
     /// <param name="entryOutcome">What the entry decomposer reports for each page; empty when omitted.</param>
     /// <param name="treatmentOutcome">What the treatment decomposer reports for each page; empty when omitted.</param>
+    /// <param name="interceptor">Attached to every <see cref="NocturneDbContext"/> the provider creates.</param>
     public static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
         Func<IReadOnlyList<Entry>, DecompositionResult>? entryOutcome = null,
-        Func<IReadOnlyList<Treatment>, DecompositionResult>? treatmentOutcome = null)
+        Func<IReadOnlyList<Treatment>, DecompositionResult>? treatmentOutcome = null,
+        IInterceptor? interceptor = null)
     {
         var database = $"migration-{Guid.NewGuid():N}";
 
@@ -69,7 +72,12 @@ internal static class MigrationJobHarness
             .ReturnsAsync(new DecompositionResult());
 
         return new ServiceCollection()
-            .AddDbContext<NocturneDbContext>(o => o.UseInMemoryDatabase(database))
+            .AddDbContext<NocturneDbContext>(o =>
+            {
+                o.UseInMemoryDatabase(database);
+                if (interceptor is not null)
+                    o.AddInterceptors(interceptor);
+            })
             .AddScoped<ITenantAccessor, FixedTenantAccessor>()
             .AddScoped<IAuditContext, AuditContext>()
             .AddSingleton<IHttpClientFactory>(new StubHttpClientFactory(handler))

@@ -153,29 +153,18 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
         var activeTypes = ResolveActiveTypes(request, config);
 
         // Glucose keeps request.From: the framework derived it from the newest stored glucose
-        // record, so it already is glucose's own cursor. Every other family widens it with its own
-        // resume point (see ResumeFrom) rather than inheriting it alone. An explicit range
-        // (request.To set, as a cursor reset sends) bypasses the catch-up bounds entirely.
+        // record, so it already is glucose's own cursor. Every other type widens it with its own
+        // resume point (see ResumeFrom) rather than inheriting it alone, because each is fetched
+        // from its own endpoint and one that fails while the rest advance would otherwise be left
+        // below every later cycle's window. An explicit range (request.To set, as a cursor reset
+        // sends) bypasses the catch-up bounds entirely.
+        //
+        // Each bound is resolved inside the loop's error boundary, so a watermark the publisher
+        // cannot answer fails only the type whose bound it was.
         var openEnded = request.To is null;
 
-        // Resolved at most once per run and awaited inside the loop's error boundary, so a publisher
-        // that cannot answer fails only the families whose bound it was: a faulted task re-throws on
-        // every await, which attributes it to each of them and leaves the rest of the run alone.
-        Task<DateTime?>? treatment = null;
-        Task<DateTime?>? deviceStatus = null;
-        Task<DateTime?>? activity = null;
-
-        // The six types below all land in the v1 treatments collection, so they share one watermark:
-        // its newest record of any of them. They therefore do not resume independently of each
-        // other — a sibling that published in the same run still carries the bound past a range one
-        // of them failed to read. Separating them needs a per-type watermark the publisher does not
-        // expose.
-        Task<DateTime?> TreatmentFromAsync() =>
-            treatment ??= BoundAsync(() => CalculateTreatmentSinceTimestampAsync(config));
-        Task<DateTime?> DeviceStatusFromAsync() =>
-            deviceStatus ??= BoundAsync(() => CalculateDeviceStatusCatchUpSinceAsync(config));
-        Task<DateTime?> ActivityFromAsync() =>
-            activity ??= BoundAsync(() => CalculateActivityCatchUpSinceAsync(config));
+        Task<DateTime?> TreatmentFromAsync(SyncDataType type) =>
+            BoundAsync(() => CalculateTreatmentSinceTimestampAsync(config, type));
 
         async Task<DateTime?> BoundAsync(Func<Task<DateTime?>> resumePoint)
         {
@@ -187,7 +176,7 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
             var resume = await resumePoint();
 
             // A run carrying no glucose cursor imports the remote's full history here, which no
-            // family's resume point may narrow — unlike ResumeFrom's own reading of an absent
+            // type's resume point may narrow — unlike ResumeFrom's own reading of an absent
             // caller bound, which the other connectors keep.
             return request.From is null ? null : ResumeFrom(request.From, resume ?? request.From);
         }
@@ -201,18 +190,16 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
                 await (type switch
                 {
                     SyncDataType.Glucose => SyncSensorGlucoseAsync(request.From, request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.ManualBG => SyncBGChecksAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.Boluses => SyncBolusesAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.CarbIntake => SyncCarbIntakeAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.BolusCalculations => SyncBolusCalculationsAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.Notes => SyncNotesAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.DeviceEvents => SyncDeviceEventsAsync(await TreatmentFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    // State spans have no resume watermark to widen with, so they alone still
-                    // resume from wherever the glucose cursor reached.
-                    SyncDataType.StateSpans => SyncStateSpansAsync(request.From, request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.ManualBG => SyncBGChecksAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.Boluses => SyncBolusesAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.CarbIntake => SyncCarbIntakeAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.BolusCalculations => SyncBolusCalculationsAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.Notes => SyncNotesAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.DeviceEvents => SyncDeviceEventsAsync(await TreatmentFromAsync(type), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.StateSpans => SyncStateSpansAsync(await BoundAsync(() => CalculateStateSpanSinceTimestampAsync(config)), request.To, config, result, activeTypes, cancellationToken),
                     SyncDataType.Profiles => SyncProfilesAsync(config, result, activeTypes, cancellationToken),
-                    SyncDataType.DeviceStatus => SyncDeviceStatusAsync(await DeviceStatusFromAsync(), request.To, config, result, activeTypes, cancellationToken),
-                    SyncDataType.Activity => SyncActivityAsync(await ActivityFromAsync(), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.DeviceStatus => SyncDeviceStatusAsync(await BoundAsync(() => CalculateDeviceStatusCatchUpSinceAsync(config)), request.To, config, result, activeTypes, cancellationToken),
+                    SyncDataType.Activity => SyncActivityAsync(await BoundAsync(() => CalculateActivityCatchUpSinceAsync(config)), request.To, config, result, activeTypes, cancellationToken),
                     SyncDataType.Food => SyncFoodAsync(config, result, activeTypes, cancellationToken),
                     _ => Task.CompletedTask
                 });
@@ -550,7 +537,7 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
             return DateTimeOffset.FromUnixTimeMilliseconds(mills.Value).UtcDateTime;
 
         return statuses
-            .Select(d => DateTimeOffset.TryParse(d.CreatedAt, out var dto) ? dto.UtcDateTime : (DateTime?)null)
+            .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
             .Where(dt => dt.HasValue)
             .Min();
     }

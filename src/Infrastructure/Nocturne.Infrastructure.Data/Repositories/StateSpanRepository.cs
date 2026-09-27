@@ -766,6 +766,16 @@ public class StateSpanRepository : IStateSpanRepository
             .Where(s => ActivityCategories.Contains(s.Category) && s.Source == source)
             .MaxAsync(s => (DateTime?)s.StartTimestamp, cancellationToken);
 
+    /// <inheritdoc />
+    public async Task<DateTime?> GetLatestNonActivityTimestampAsync(
+        string source,
+        CancellationToken cancellationToken = default
+    ) =>
+        await _context.StateSpans
+            .AsNoTracking()
+            .Where(s => !ActivityCategories.Contains(s.Category) && s.Source == source)
+            .MaxAsync(s => (DateTime?)s.StartTimestamp, cancellationToken);
+
     /// <summary>
     /// Get a state span by ID that represents an Activity record
     /// </summary>

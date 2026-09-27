@@ -189,11 +189,20 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         {
             try
             {
+                var recent = openEnded && request.From is { } crawlFrom
+                    ? new RecentRecords<Entry>(crawlFrom - RecentReconcileWindow, Full: false, EntryTime)
+                    : null;
+
                 var outcome = await CrawlAndPublishAsync(
                     "Glucose", request.From, request.To,
-                    FetchGlucosePagesAsync,
+                    (from, to) => FetchGlucosePagesAsync(from, to, recent),
                     oldestOf: OldestEntryTime,
                     publishAsync: p => PublishGlucoseDataInBatchesAsync(p, config, cancellationToken));
+
+                if (recent is not null && outcome.Success)
+                    outcome = outcome.Plus(await PublishUncrawledAsync(recent, request.From!.Value,
+                        async (p, uncrawled) => await p.Glucose.PublishRecentEntriesAsync(
+                            uncrawled, ConnectorSource, await GlucosePublishOriginAsync(), cancellationToken)));
 
                 RecordPublishOutcome(result, SyncDataType.Glucose, outcome.Count, outcome.Success);
             }
@@ -236,7 +245,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                 if (recent is not null && outcome.Success)
                 {
                     var reconciled = await ReconcileRecentTreatmentsAsync(recent, treatmentFrom!.Value, cancellationToken);
-                    outcome = new PagedCrawlOutcome(outcome.Count + reconciled.Count, reconciled.Success);
+                    outcome = outcome.Plus(reconciled);
                     if (reconciled.Success && recent.Full)
                         await RecordFullReconcileAsync(now);
                 }
@@ -276,11 +285,22 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
                     ? ResumeFrom(request.From, await CalculateDeviceStatusCatchUpSinceAsync(config) ?? request.From)
                     : request.From;
 
+                var recent = openEnded && deviceStatusFrom is { } crawlFrom
+                    ? new RecentRecords<DeviceStatus>(crawlFrom - RecentReconcileWindow, Full: false,
+                        d => ParseCreatedAt(d.CreatedAt)?.UtcDateTime)
+                    : null;
+
                 var outcome = await CrawlAndPublishAsync(
                     "DeviceStatus", deviceStatusFrom, request.To,
-                    FetchDeviceStatusPagesAsync,
+                    (from, to) => FetchCreatedAtPagesAsync<DeviceStatus>(
+                        from, to, "devicestatus", d => d.CreatedAt, "FetchDeviceStatus", observe: page => recent?.Collect(page)),
                     oldestOf: p => OldestCreatedAt(p, d => d.CreatedAt),
                     publishAsync: p => PublishDeviceStatusAsync(p, config, cancellationToken));
+
+                if (recent is not null && outcome.Success)
+                    outcome = outcome.Plus(await PublishUncrawledAsync(recent, deviceStatusFrom!.Value,
+                        async (p, uncrawled) => await p.Device.PublishRecentDeviceStatusAsync(
+                            uncrawled, ConnectorSource, await DevicePublishOriginAsync(), cancellationToken)));
 
                 RecordPublishOutcome(result, SyncDataType.DeviceStatus, outcome.Count, outcome.Success);
             }
@@ -347,7 +367,11 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         from is null && to is null ? DateTime.UtcNow : to;
 
     /// <summary>Outcome of one crawled collection, spanning every page of the crawl.</summary>
-    private sealed record PagedCrawlOutcome(int Count, bool Success);
+    private sealed record PagedCrawlOutcome(int Count, bool Success)
+    {
+        /// <summary>This outcome followed by <paramref name="next"/>, which ran only because this one succeeded.</summary>
+        public PagedCrawlOutcome Plus(PagedCrawlOutcome next) => new(Count + next.Count, next.Success);
+    }
 
     private Task<DateTime?> GetBackfillLowWaterMarkAsync(string collection) =>
         Publisher is { IsAvailable: true } p
@@ -530,6 +554,9 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
         }
     }
 
+    private static DateTime? EntryTime(Entry entry) =>
+        entry.Mills > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(entry.Mills).UtcDateTime : null;
+
     private static DateTime? OldestEntryTime(Entry[] page)
     {
         var oldestMs = page.Min(e => e.Mills);
@@ -539,7 +566,7 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     private static DateTimeOffset? ParseCreatedAt(string? createdAt) =>
-        DateTimeOffset.TryParse(createdAt, out var parsed) ? parsed : null;
+        UploaderTimestamp.TryParse(createdAt, out var parsed) ? parsed : null;
 
     /// <summary>
     ///     Oldest created_at on a page. Uses DateTimeOffset for consistent UTC comparison
@@ -579,25 +606,34 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
             });
     }
 
-    private async IAsyncEnumerable<Entry[]> FetchGlucosePagesAsync(DateTime? from, DateTime? to)
+    /// <param name="recent">
+    ///     Collects every page the read returns. Entries are read on their own time with no margin, so
+    ///     the read reaches down to <see cref="RecentRecords{T}.ReadFrom"/> when that lies below
+    ///     <paramref name="from"/>; only entries from <paramref name="from"/> on are yielded to publish.
+    /// </param>
+    private IAsyncEnumerable<Entry[]> FetchGlucosePagesAsync(DateTime? from, DateTime? to, RecentRecords<Entry>? recent)
     {
-        await foreach (var page in FetchPagesAsync<Entry>(
-            from, to, BuildEntriesUrl, OldestEntryTime, bound => bound, "entries", "FetchGlucosePages"))
-        {
-            foreach (var entry in page)
-                entry.DataSource = ConnectorSource;
-            yield return page;
-        }
+        var readFrom = recent is not null && from > recent.ReadFrom ? recent.ReadFrom : from;
+
+        return FetchPagesAsync<Entry>(
+            readFrom, to, BuildEntriesUrl, OldestEntryTime, bound => bound, "entries", "FetchGlucosePages",
+            keep: page =>
+            {
+                foreach (var entry in page)
+                    entry.DataSource = ConnectorSource;
+                recent?.Collect(page);
+                return readFrom == from ? page : page.Where(e => EntryTime(e) is not { } at || at >= from).ToArray();
+            });
     }
 
     /// <param name="recent">
     ///     Collects every page the read returns as it arrives, before the crawl's window is applied.
-    ///     A full reconcile reaches back to <see cref="RecentTreatments.ReadFrom"/> when that lies
+    ///     A full reconcile reaches back to <see cref="RecentRecords{T}.ReadFrom"/> when that lies
     ///     below <paramref name="from"/>; only records from <paramref name="from"/> on are yielded to
     ///     publish.
     /// </param>
     private async IAsyncEnumerable<Treatment[]> FetchTreatmentPagesAsync(
-        DateTime? from, DateTime? to, RecentTreatments? recent = null)
+        DateTime? from, DateTime? to, RecentRecords<Treatment>? recent = null)
     {
         var readFrom = recent is { Full: true } && from > recent.ReadFrom ? recent.ReadFrom : from;
 
@@ -617,9 +653,11 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     /// <summary>
-    ///     How far below the crawl's resume point every catch-up reconciles. The crawl's read already
-    ///     reaches <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/> below it for offset-written created_at values, so this
-    ///     window plus <see cref="ReconcileReadMargin"/> stays inside what it downloads anyway.
+    ///     How far below the crawl's resume point every catch-up reconciles. A created_at read already
+    ///     reaches <see cref="BackwardTimePager.CreatedAtOffsetEnvelope"/> below it for offset-written
+    ///     values, so this window plus <see cref="ReconcileReadMargin"/> stays inside what it downloads
+    ///     anyway. The entries read has no such margin and is extended by it
+    ///     (<see cref="FetchGlucosePagesAsync"/>).
     /// </summary>
     private static readonly TimeSpan RecentReconcileWindow = TimeSpan.FromHours(12);
 
@@ -668,18 +706,51 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     private static readonly TimeSpan ConfirmedPresentFor = TimeSpan.FromHours(6);
 
     /// <summary>
-    ///     What a catch-up's treatment read returned from <see cref="ReadFrom"/> on, for
-    ///     <see cref="ReconcileRecentTreatmentsAsync"/>.
+    ///     What a catch-up's read of one collection returned from <see cref="ReadFrom"/> on, for
+    ///     <see cref="PublishUncrawledAsync{T}"/>.
     /// </summary>
-    /// <param name="Full">Whether this is the hourly full reconcile, which may extend the read.</param>
-    private sealed record RecentTreatments(DateTime WindowStart, bool Full)
+    /// <param name="Full">Whether this is the hourly full treatment reconcile, which may extend the read.</param>
+    /// <param name="TimeOf">The time the collection is read and crawled on.</param>
+    private sealed record RecentRecords<T>(DateTime WindowStart, bool Full, Func<T, DateTime?> TimeOf)
+        where T : ProcessableDocumentBase
     {
         public DateTime ReadFrom => WindowStart - ReconcileReadMargin;
 
-        public List<Treatment> Records { get; } = [];
+        public List<T> Records { get; } = [];
 
-        public void Collect(IEnumerable<Treatment> page) =>
-            Records.AddRange(page.Where(t => ParseCreatedAt(t.CreatedAt) is not { } at || at.UtcDateTime >= ReadFrom));
+        public void Collect(IEnumerable<T> page) =>
+            Records.AddRange(page.Where(r => TimeOf(r) is not { } at || at >= ReadFrom));
+
+        /// <summary>The identified records the crawl from <paramref name="crawledFrom"/> did not publish.</summary>
+        public List<T> Uncrawled(DateTime crawledFrom) =>
+            Records.Where(r => r.Id is { Length: > 0 } && TimeOf(r) is { } at && at < crawledFrom).ToList();
+    }
+
+    /// <summary>
+    ///     Publishes what the read returned below the crawl's resume point. The crawl resumes from the
+    ///     newest stored time, so a record that reaches the source after a newer one is never crawled:
+    ///     CGM readings backfilled after a signal loss, back-dated treatments, uploads from an offline
+    ///     phone.
+    /// </summary>
+    /// <param name="crawledFrom">The crawl's own lower bound; it already published what lies above.</param>
+    /// <param name="publishRecentAsync">Writes what the store does not already hold, returning how many, or null on failure.</param>
+    /// <returns>How many records were written, not how many were compared.</returns>
+    private async Task<PagedCrawlOutcome> PublishUncrawledAsync<T>(
+        RecentRecords<T> recent,
+        DateTime crawledFrom,
+        Func<IConnectorPublisher, List<T>, Task<int?>> publishRecentAsync)
+        where T : ProcessableDocumentBase
+    {
+        if (Publisher is not { IsAvailable: true } publisher)
+            return new PagedCrawlOutcome(0, true);
+
+        var uncrawled = recent.Uncrawled(crawledFrom);
+        if (uncrawled.Count == 0)
+            return new PagedCrawlOutcome(0, true);
+
+        return await publishRecentAsync(publisher, uncrawled) is { } written
+            ? new PagedCrawlOutcome(written, true)
+            : new PagedCrawlOutcome(0, false);
     }
 
     /// <summary>
@@ -687,58 +758,50 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     ///     <see cref="FullReconcileEvery"/> has passed since the last full one, otherwise
     ///     <see cref="RecentReconcileWindow"/> below the crawl's resume point.
     /// </summary>
-    private async Task<RecentTreatments> RecentTreatmentsForAsync(DateTime crawlFrom, DateTime now)
+    private async Task<RecentRecords<Treatment>> RecentTreatmentsForAsync(DateTime crawlFrom, DateTime now)
     {
         var lastFull = await LastFullReconcileAsync();
         return lastFull is { } last && last <= now && now - last < FullReconcileEvery
-            ? new RecentTreatments(crawlFrom - RecentReconcileWindow, Full: false)
-            : new RecentTreatments(now - FullReconcileWindow, Full: true);
+            ? new RecentRecords<Treatment>(crawlFrom - RecentReconcileWindow, Full: false, TreatmentTime)
+            : new RecentRecords<Treatment>(now - FullReconcileWindow, Full: true, TreatmentTime);
     }
+
+    private static DateTime? TreatmentTime(Treatment treatment) => ParseCreatedAt(treatment.CreatedAt)?.UtcDateTime;
 
     /// <summary>
     ///     Catches up on what the event-time crawl cannot see, from the treatments the crawl's own read
-    ///     returned in the reconcile window. The crawl resumes from the newest stored event time, so
-    ///     it misses a treatment that reaches the source after a newer one. Trio edits that way, by
-    ///     deleting and re-uploading under the original event time; so do back-dated entries and
-    ///     offline phones. It also misses an edit made in place under the same id (Loop, AAPS,
-    ///     Careportal). Those are published again, under
-    ///     <see cref="ITreatmentPublisher.PublishRecentTreatmentsAsync"/>'s rule. Nightscout's v1 API
-    ///     hard-deletes and leaves no tombstone to page for. Stored rows the read did not return are
-    ///     therefore deleted once the source confirms them gone
+    ///     returned in the reconcile window (<see cref="PublishUncrawledAsync{T}"/>). Trio edits by
+    ///     deleting and re-uploading under the original event time, which the crawl misses. It also
+    ///     misses an edit made in place under the same id (Loop, AAPS, Careportal). Those are published
+    ///     again, under <see cref="ITreatmentPublisher.PublishRecentTreatmentsAsync"/>'s rule.
+    ///     Nightscout's v1 API hard-deletes and leaves no tombstone to page for. Stored rows the read did
+    ///     not return are therefore deleted once the source confirms them gone
     ///     (<see cref="DeleteTreatmentsGoneUpstreamAsync"/>).
     /// </summary>
     /// <param name="crawledFrom">The crawl's own lower bound; it already published what lies above.</param>
     /// <returns>How many treatments were written, not how many were compared.</returns>
     private async Task<PagedCrawlOutcome> ReconcileRecentTreatmentsAsync(
-        RecentTreatments recent, DateTime crawledFrom, CancellationToken cancellationToken)
+        RecentRecords<Treatment> recent, DateTime crawledFrom, CancellationToken cancellationToken)
     {
         if (Publisher is not { IsAvailable: true } publisher || recent.Records.Count == 0)
             return new PagedCrawlOutcome(0, true);
 
-        var identified = recent.Records.Where(t => t.Id is { Length: > 0 }).ToList();
-        var uncrawled = identified
-            .Where(t => ParseCreatedAt(t.CreatedAt) is { } at && at.UtcDateTime < crawledFrom)
-            .ToList();
-
-        var written = 0;
-        if (uncrawled.Count > 0)
-        {
-            if (await publisher.Treatments.PublishRecentTreatmentsAsync(
-                    uncrawled, ConnectorSource, await TreatmentPublishOriginAsync(), cancellationToken) is not { } count)
-                return new PagedCrawlOutcome(0, false);
-            written = count;
-        }
+        var republished = await PublishUncrawledAsync(recent, crawledFrom,
+            async (p, uncrawled) => await p.Treatments.PublishRecentTreatmentsAsync(
+                uncrawled, ConnectorSource, await TreatmentPublishOriginAsync(), cancellationToken));
+        if (!republished.Success)
+            return republished;
 
         var read = new Dictionary<string, DateTime>();
-        foreach (var treatment in identified)
+        foreach (var treatment in recent.Records.Where(t => t.Id is { Length: > 0 }))
         {
-            if (ParseCreatedAt(treatment.CreatedAt) is { } at)
-                read.TryAdd(treatment.Id!, at.UtcDateTime);
+            if (TreatmentTime(treatment) is { } at)
+                read.TryAdd(treatment.Id!, at);
         }
 
         await DeleteTreatmentsGoneUpstreamAsync(publisher.Treatments, recent.WindowStart, read, cancellationToken);
 
-        return new PagedCrawlOutcome(written, true);
+        return republished;
     }
 
     /// <summary>
@@ -875,10 +938,6 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
 
         return profiles;
     }
-
-    private IAsyncEnumerable<DeviceStatus[]> FetchDeviceStatusPagesAsync(DateTime? from, DateTime? to) =>
-        FetchCreatedAtPagesAsync<DeviceStatus>(
-            from, to, "devicestatus", d => d.CreatedAt, "FetchDeviceStatus");
 
     private async Task<IEnumerable<Food>> FetchFoodAsync()
     {

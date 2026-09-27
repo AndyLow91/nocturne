@@ -50,7 +50,7 @@ public static class BackwardTimePager
     ///     rather than shifting it by its offset or the host's timezone.
     /// </summary>
     public static DateTime? OldestWrittenCreatedAt<T>(IEnumerable<T> page, Func<T, string?> createdAtOf) =>
-        page.Select(item => DateTimeOffset.TryParse(createdAtOf(item), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+        page.Select(item => UploaderTimestamp.TryParse(createdAtOf(item), out var parsed)
                 ? DateTime.SpecifyKind(parsed.DateTime, DateTimeKind.Utc)
                 : (DateTime?)null)
             .Min();
@@ -61,7 +61,7 @@ public static class BackwardTimePager
     /// </summary>
     public static bool CreatedAtWithin(string? createdAt, DateTime? from, DateTime? to)
     {
-        if (!DateTimeOffset.TryParse(createdAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        if (!UploaderTimestamp.TryParse(createdAt, out var parsed))
             return true;
 
         return (from is null || parsed.UtcDateTime >= from.Value)
