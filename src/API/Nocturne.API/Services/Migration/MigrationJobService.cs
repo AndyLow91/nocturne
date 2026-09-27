@@ -85,6 +85,15 @@ public class MigrationJobService : IMigrationJobService
         _runGuard = runGuard;
     }
 
+    private static readonly TimeSpan TerminalHolderWait = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TerminalHolderPollInterval = TimeSpan.FromMilliseconds(20);
+
+    private bool IsTerminal(Guid jobId) =>
+        _jobs.TryGetValue(jobId, out var job)
+        && job.GetStatus().State is MigrationJobState.Completed
+            or MigrationJobState.Failed
+            or MigrationJobState.Cancelled;
+
     public async Task<MigrationJobInfo> StartMigrationAsync(
         StartMigrationRequest request,
         TenantContext? tenantContext,
@@ -121,10 +130,21 @@ public class MigrationJobService : IMigrationJobService
         // The lease is held for the whole run and records the job id, so a refused start can report
         // which job it collided with rather than a bare conflict.
         IDisposable lease;
+        var terminalHolderDeadline = DateTime.UtcNow + TerminalHolderWait;
         while ((lease = _runGuard.TryAcquire(tenantId, MigrationRunName, jobId)) is null)
         {
             if (_runGuard.TryGetHolder(tenantId, MigrationRunName, out var runningJobId))
+            {
+                // A job reports its terminal state before it writes its final record and releases
+                // the lease, so a caller who saw it finish must not be refused for that window.
+                if (IsTerminal(runningJobId) && DateTime.UtcNow < terminalHolderDeadline)
+                {
+                    await Task.Delay(TerminalHolderPollInterval, ct);
+                    continue;
+                }
+
                 throw new MigrationAlreadyRunningException(runningJobId);
+            }
 
             // The holder released between the failed acquire and the read; try again.
         }
@@ -1193,10 +1213,10 @@ internal class MigrationJob
         to => $"&find[date][$lte]={new DateTimeOffset(to, TimeSpan.Zero).ToUnixTimeMilliseconds()}",
         page =>
         {
-            var oldestMs = page.Min(d => d.Mills);
-            return oldestMs <= 0
+            var dated = page.Where(d => d.Mills > 0).ToList();
+            return dated.Count == 0
                 ? null
-                : DateTimeOffset.FromUnixTimeMilliseconds(oldestMs).UtcDateTime;
+                : DateTimeOffset.FromUnixTimeMilliseconds(dated.Min(d => d.Mills)).UtcDateTime;
         });
 
     /// <summary>Every other collection pages on the ISO-8601 <c>created_at</c> string.</summary>
@@ -1254,6 +1274,52 @@ internal class MigrationJob
             return (page, ct) => decomposer.DecomposeBatchAsync(page, WriteOrigin.Backfill, ct);
         });
 
+    /// <summary>
+    /// Reads each document on its own, so one Nocturne cannot read is counted failed instead of
+    /// taking the rest of the collection with it. The log names only where the document sat: its
+    /// body is health data.
+    /// </summary>
+    /// <remarks>
+    /// The cursor pages back from the oldest document that was read, so an unreadable one older
+    /// than that comes round again on the next page. <paramref name="failedIds"/> holds the
+    /// <c>_id</c> of each failure so far, and one already in it is not counted again. A document
+    /// with no <c>_id</c> cannot be recognised, so it is counted each time it is seen.
+    /// </remarks>
+    private (T[] Parsed, int NewlyFailed) ParseDocuments<T>(
+        System.Text.Json.JsonElement[] documents, string label, int pageNumber, HashSet<string> failedIds)
+        where T : ProcessableDocumentBase
+    {
+        var parsed = new List<T>(documents.Length);
+        var newlyFailed = 0;
+        for (var i = 0; i < documents.Length; i++)
+        {
+            try
+            {
+                if (System.Text.Json.JsonSerializer.Deserialize<T>(documents[i]) is { } document)
+                {
+                    parsed.Add(document);
+                    continue;
+                }
+
+                _logger.LogWarning("Skipped {Collection} document {Index} on page {Page}: it was null", label, i, pageNumber);
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogWarning(
+                    "Skipped {Collection} document {Index} on page {Page}: {Path} could not be read",
+                    label, i, pageNumber, ex.Path);
+            }
+
+            var seenBefore = documents[i].ValueKind is System.Text.Json.JsonValueKind.Object
+                && documents[i].TryGetProperty("_id", out var id)
+                && !failedIds.Add(id.GetRawText());
+            if (!seenBefore)
+                newlyFailed++;
+        }
+
+        return ([.. parsed], newlyFailed);
+    }
+
     private async Task MigratePagedCollectionAsync<T>(
         HttpClient httpClient,
         PagedCollection<T> collection,
@@ -1268,11 +1334,12 @@ internal class MigrationJob
         var totalFailed = 0L;
         var tally = new DecompositionTally();
         DateTime? currentTo = FirstPageAnchor;
+        var failedIds = new HashSet<string>(StringComparer.Ordinal);
 
         using var scope = CreateTenantScope();
         var decompose = collection.Decompose(scope.ServiceProvider);
 
-        while (true)
+        for (var pageNumber = 1; ; pageNumber++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -1280,20 +1347,27 @@ internal class MigrationJob
             if (currentTo.HasValue)
                 url += collection.Cursor.Filter(currentTo.Value);
 
-            var page = await ReadPageFromSourceAsync<T>(httpClient, url, collection.Label, ct);
+            var documents = await ReadPageFromSourceAsync<System.Text.Json.JsonElement>(
+                httpClient, url, collection.Label, ct);
 
-            if (page.Length == 0) break;
+            if (documents.Length == 0) break;
 
-            try
+            var (page, newlyFailed) = ParseDocuments<T>(documents, collection.Label, pageNumber, failedIds);
+            totalFailed += newlyFailed;
+
+            if (page.Length > 0)
             {
-                var before = tally.DocumentsSkipped;
-                tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
-                totalMigrated += page.Length - (tally.DocumentsSkipped - before);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to decompose {Collection} page", collection.Label);
-                totalFailed += page.Length;
+                try
+                {
+                    var before = tally.DocumentsSkipped;
+                    tally = tally.Add(await decompose(page, ct), collection.OneRecordPerDocument);
+                    totalMigrated += page.Length - (tally.DocumentsSkipped - before);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to decompose {Collection} page", collection.Label);
+                    totalFailed += page.Length;
+                }
             }
 
             UpdateCollectionProgress(collection.Name,
@@ -1301,11 +1375,18 @@ internal class MigrationJob
                 totalMigrated, totalFailed, false, tally);
             UpdateOverallProgress();
 
-            if (page.Length < ApiPageSize) break;
+            if (documents.Length < ApiPageSize) break;
 
-            var oldestDate = collection.Cursor.Oldest(page);
+            // With no date on a full page to page back from, the cursor cannot move, and ending
+            // here would drop every older document without saying so.
+            var oldestDate = page.Length == 0 ? null : collection.Cursor.Oldest(page);
+            if (!oldestDate.HasValue)
+            {
+                throw new MigrationSourceException(
+                    $"Nightscout sent a page of {collection.Label} that Nocturne could not read, so the rest were not fetched.",
+                    MigrationFailureCause.Internal);
+            }
 
-            if (!oldestDate.HasValue) break;
             if (currentTo.HasValue && oldestDate.Value >= currentTo.Value) break;
             currentTo = oldestDate.Value.AddMilliseconds(-1);
         }

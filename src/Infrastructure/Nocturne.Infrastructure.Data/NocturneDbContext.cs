@@ -346,6 +346,8 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
     public DbSet<AlertExcursionEntity> AlertExcursions { get; set; }
 
+    public DbSet<AlertExcursionMuteEntity> AlertExcursionMutes { get; set; }
+
     public DbSet<AlertInstanceEntity> AlertInstances { get; set; }
 
     public DbSet<AlertDeliveryEntity> AlertDeliveries { get; set; }
@@ -516,6 +518,22 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         [.. V4LegacyIdRecordEntities, typeof(DeviceStatusExtrasEntity)];
 
     /// <summary>
+    /// Tables a v3 history endpoint pages through <see cref="HistoryPage"/>: the treatment
+    /// projection's <c>LegacyTreatmentTables.All</c> and the device-status projection's APS snapshots.
+    /// </summary>
+    internal static readonly Type[] V4HistoryPagedEntities =
+    [
+        typeof(BolusEntity),
+        typeof(CarbIntakeEntity),
+        typeof(BGCheckEntity),
+        typeof(NoteEntity),
+        typeof(DeviceEventEntity),
+        typeof(TempBasalEntity),
+        typeof(BolusCalculationEntity),
+        typeof(ApsSnapshotEntity),
+    ];
+
+    /// <summary>
     /// Profile-decomposition schedule tables, read as (tenant, profile, newest-first).
     /// </summary>
     internal static readonly Type[] V4ProfileScheduleEntities =
@@ -571,6 +589,7 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
         [
             typeof(AlertCustomSoundEntity),
             typeof(AlertDeliveryEntity),
+            typeof(AlertExcursionMuteEntity),
             typeof(AlertInviteEntity),
             typeof(AlertRuleChannelEntity),
             typeof(AlertRuleEntity),
@@ -710,6 +729,18 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             entity.HasIndex([nameof(ITenantScoped.TenantId), nameof(IV4Entity.LegacyId)], name)
                 .HasDatabaseName(name)
                 .HasFilter("legacy_id IS NOT NULL AND deleted_by_user");
+        }
+
+        // Matches HistoryPage's (sys_updated_at, id) order under the tenant and soft-delete filters,
+        // so a poll reads its page off the index instead of sorting the tenant's whole table.
+        foreach (var entity in V4HistoryPagedEntities.Select(t => modelBuilder.Entity(t)))
+        {
+            entity.HasIndex(
+                    nameof(ITenantScoped.TenantId),
+                    nameof(ISystemTimestamped.SysUpdatedAt),
+                    nameof(IIdentified.Id))
+                .HasDatabaseName($"ix_{entity.Metadata.GetTableName()}_tenant_sys_updated_at")
+                .HasFilter("deleted_at IS NULL");
         }
 
         foreach (var entity in V4CorrelationIndexedEntities.Select(t => modelBuilder.Entity(t)))
@@ -2428,6 +2459,24 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<AlertExcursionMuteEntity>(entity =>
+        {
+            entity.HasOne(e => e.AlertExcursion)
+                .WithMany()
+                .HasForeignKey(e => e.AlertExcursionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Subject)
+                .WithMany()
+                .HasForeignKey(e => e.SubjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.TenantId, e.SubjectId, e.AlertExcursionId })
+                .IsUnique()
+                .HasDatabaseName("ix_alert_excursion_mutes_tenant_subject_excursion");
+            entity.HasIndex(e => e.AlertExcursionId);
+        });
+
         modelBuilder.Entity<AlertInstanceEntity>(entity =>
         {
             entity.ToTable("alert_instances");
@@ -2578,10 +2627,34 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
             UpdateTimestamps();
             return await base.SaveChangesAsync(cancellationToken);
         }
+        catch
+        {
+            DetachPendingAuditRows();
+            throw;
+        }
         finally
         {
             ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
         }
+    }
+
+    /// <summary>
+    /// Drops the audit rows of a save that did not complete, so a retry on the same context does
+    /// not write them twice. It runs from <see cref="SaveChangesAsync(CancellationToken)"/> rather
+    /// than an interceptor hook because EF reports a <see cref="DbUpdateConcurrencyException"/>
+    /// to no interceptor failure hook. Every <see cref="MutationAuditLogEntity"/>
+    /// still <c>Added</c> belongs to the failed save: <see cref="Interceptors.MutationAuditInterceptor"/>
+    /// adds its rows during it, and <see cref="Extensions.AuditedBulkDeleteExtensions"/> adds its own
+    /// immediately before it, inside the same transaction as the delete they describe.
+    /// </summary>
+    private void DetachPendingAuditRows()
+    {
+        var pending = ChangeTracker.Entries<MutationAuditLogEntity>()
+            .Where(e => e.State == EntityState.Added)
+            .ToList();
+
+        foreach (var entry in pending)
+            entry.State = EntityState.Detached;
     }
 
     /// <summary>
