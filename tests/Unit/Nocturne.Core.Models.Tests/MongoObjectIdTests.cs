@@ -170,4 +170,11 @@ public class MongoObjectIdTests
         ids.Should().OnlyHaveUniqueItems();
         ids.Should().OnlyContain(id => MongoObjectId.Coerce(id) == id);
     }
+
+    [Fact]
+    public void NewObjectId_IsNotGuidPrefixShaped()
+    {
+        for (var i = 0; i < 64; i++)
+            MongoObjectId.IsGuidPrefixShaped(MongoObjectId.NewObjectId()).Should().BeFalse();
+    }
 }

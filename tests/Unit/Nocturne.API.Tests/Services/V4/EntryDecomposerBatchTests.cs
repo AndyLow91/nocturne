@@ -296,4 +296,23 @@ public class EntryDecomposerBatchTests : IDisposable
 
         written!.Select(r => r.LegacyId).Should().Equal("dexcom_7f3c2a91", "0198c2a41f3b7c2d9e55ffff");
     }
+
+    /// <summary>
+    /// An id the server minted for an id-less upload names no stored uuid, so it costs no range lookup.
+    /// </summary>
+    [Fact]
+    public async Task DecomposeBatchAsync_SkipsTheEchoLookupForAServerMintedId()
+    {
+        _sgRepoMock
+            .Setup(x => x.BulkUpsertAsync(It.IsAny<IEnumerable<SensorGlucose>>(), It.IsAny<WriteOrigin>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<SensorGlucose> records, WriteOrigin _, CancellationToken _) => [.. records]);
+
+        await _decomposer.DecomposeBatchAsync(
+            [new Entry { Id = MongoObjectId.NewObjectId(), Type = "sgv", Mills = 1700000000000, Sgv = 120.0 }],
+            WriteOrigin.Live);
+
+        _sgRepoMock.Verify(
+            x => x.GetByGuidRangeAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 }

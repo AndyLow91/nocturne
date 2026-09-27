@@ -41,7 +41,15 @@ public static class MongoObjectId
     /// A fresh ObjectId for a record uploaded without an id. Stored as its legacy id, it is the id
     /// every surface puts on the wire verbatim, so later lookups and write-back resolve it directly.
     /// </summary>
-    public static string NewObjectId() => FromGuid(Guid.CreateVersion7());
+    /// <remarks>
+    /// The UUID v7 version nibble is zeroed so the id fails <see cref="IsGuidPrefixShaped"/>: it names
+    /// no stored uuid, so the uuid range lookup that shape gates would only ever miss.
+    /// </remarks>
+    public static string NewObjectId() => string.Create(24, Guid.CreateVersion7(), static (chars, guid) =>
+    {
+        FromGuid(guid).AsSpan().CopyTo(chars);
+        chars[12] = '0';
+    });
 
     /// <summary>
     /// Coerces any identifier into a 24-hex ObjectId for the wire:
