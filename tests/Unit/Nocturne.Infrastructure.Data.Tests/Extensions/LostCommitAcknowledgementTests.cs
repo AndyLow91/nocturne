@@ -102,6 +102,48 @@ public sealed class LostCommitAcknowledgementTests : IDisposable
     }
 
     [Fact]
+    public async Task An_update_only_bulk_upsert_by_legacy_id_reports_and_broadcasts_the_update_that_landed()
+    {
+        Guid seededId;
+        using (var seed = _db.CreateContext())
+        {
+            var row = new BolusEntity
+            {
+                Id = Guid.CreateVersion7(),
+                TenantId = TenantId,
+                Timestamp = T0,
+                DataSource = "synthetic",
+                LegacyId = "legacy-0",
+                Insulin = 5.0,
+            };
+            seed.Boluses.Add(row);
+            seed.SaveChanges();
+            seededId = row.Id;
+        }
+        var broadcaster = new RecordingV4RecordBroadcaster<Bolus>();
+        var repository = new BolusRepository(
+            new TestTenantDbContextFactory(_retrying),
+            new Mock<IDeduplicationService>().Object,
+            new Mock<IAuditContext>().Object,
+            NullLogger<BolusRepository>.Instance,
+            broadcaster);
+
+        var written = await repository.BulkUpsertAsync(
+            [new Bolus { Timestamp = T0, DataSource = "synthetic", LegacyId = "legacy-0", Insulin = 9.0 }],
+            WriteOrigin.Live);
+
+        _fault.Fired.Should().BeTrue();
+        await using var check = _db.CreateContext();
+        var stored = await check.Boluses.AsNoTracking().SingleAsync();
+        stored.Insulin.Should().Be(9.0);
+        written.Updated.Should().ContainSingle().Which.Id.Should().Be(seededId);
+        written.Should().ContainSingle();
+        // A replay would find the row already at 9.0 and broadcast nothing.
+        broadcaster.Updated.Should().ContainSingle().Which.Insulin.Should().Be(stored.Insulin);
+        broadcaster.Created.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_soft_delete_reports_the_rows_the_first_attempt_deleted()
     {
         SeedBoluses(2);

@@ -374,7 +374,11 @@ fn render_icon(app: &AppHandle, current: Option<&CurrentBg>, attention: bool) {
 
 fn tile(current: Option<&CurrentBg>, attention: bool) -> (String, (u8, u8, u8)) {
     let text = current.map_or_else(|| "--".to_string(), |c| to_display(c.sgv_mgdl));
-    let color = if attention { COLOR_ATTENTION } else { status_color(current.and_then(|c| c.status.as_deref())) };
+    let color = if attention {
+        COLOR_ATTENTION
+    } else {
+        status_color(current.and_then(|c| c.status.as_deref()))
+    };
     (text, color)
 }
 
@@ -497,10 +501,16 @@ fn spawn_flash_task(app: AppHandle, generation: u64) {
     tauri::async_runtime::spawn(async move {
         let mut attention = true;
         while FLASH_GENERATION.load(Ordering::SeqCst) == generation {
-            let current = tray_state().lock().ok().and_then(|s| s.last_reading.clone());
+            let current = tray_state()
+                .lock()
+                .ok()
+                .and_then(|s| s.last_reading.clone());
             render_icon(&app, current.as_ref(), attention);
             if FLASH_GENERATION.load(Ordering::SeqCst) != generation {
-                let current = tray_state().lock().ok().and_then(|s| s.last_reading.clone());
+                let current = tray_state()
+                    .lock()
+                    .ok()
+                    .and_then(|s| s.last_reading.clone());
                 render_icon(&app, current.as_ref(), false);
                 break;
             }
@@ -540,19 +550,31 @@ mod tests {
     }
 
     fn with_status(sgv_mgdl: f64, status: Option<&str>) -> CurrentBg {
-        CurrentBg { status: status.map(str::to_string), ..reading(sgv_mgdl) }
+        CurrentBg {
+            status: status.map(str::to_string),
+            ..reading(sgv_mgdl)
+        }
     }
 
     #[test]
     fn tile_colours_from_the_server_status_not_the_value() {
-        assert_eq!(tile(Some(&with_status(170.0, Some("High"))), false).1, COLOR_HIGH);
-        assert_eq!(tile(Some(&with_status(170.0, Some("InRange"))), false).1, COLOR_IN_RANGE);
+        assert_eq!(
+            tile(Some(&with_status(170.0, Some("High"))), false).1,
+            COLOR_HIGH
+        );
+        assert_eq!(
+            tile(Some(&with_status(170.0, Some("InRange"))), false).1,
+            COLOR_IN_RANGE
+        );
     }
 
     #[test]
     fn tile_is_neutral_without_a_known_status() {
         for status in [None, Some("Stale"), Some("Unknown"), Some("SomethingNew")] {
-            assert_eq!(tile(Some(&with_status(40.0, status)), false).1, COLOR_NEUTRAL);
+            assert_eq!(
+                tile(Some(&with_status(40.0, status)), false).1,
+                COLOR_NEUTRAL
+            );
         }
         assert_eq!(tile(None, false), ("--".to_string(), COLOR_NEUTRAL));
     }
@@ -575,7 +597,10 @@ mod tests {
 
     #[test]
     fn attention_overrides_the_status_colour() {
-        assert_eq!(tile(Some(&with_status(120.0, Some("InRange"))), true).1, COLOR_ATTENTION);
+        assert_eq!(
+            tile(Some(&with_status(120.0, Some("InRange"))), true).1,
+            COLOR_ATTENTION
+        );
         assert_eq!(tile(None, true).1, COLOR_ATTENTION);
     }
 
@@ -608,15 +633,24 @@ mod tests {
     }
 
     fn fresh_state() -> TrayState {
-        TrayState { last_reading: None, flashing: HashSet::new() }
+        TrayState {
+            last_reading: None,
+            flashing: HashSet::new(),
+        }
     }
 
     #[test]
     fn first_flash_starts_and_duplicate_is_unchanged() {
         let mut s = fresh_state();
-        assert_eq!(apply_flash_change(&mut s, "a", true), FlashTransition::Started);
+        assert_eq!(
+            apply_flash_change(&mut s, "a", true),
+            FlashTransition::Started
+        );
         // Same excursion again → already flashing, no task change.
-        assert_eq!(apply_flash_change(&mut s, "a", true), FlashTransition::Unchanged);
+        assert_eq!(
+            apply_flash_change(&mut s, "a", true),
+            FlashTransition::Unchanged
+        );
         assert!(s.flashing.contains("a"));
     }
 
@@ -625,25 +659,43 @@ mod tests {
         let mut s = fresh_state();
         apply_flash_change(&mut s, "a", true);
         // A second flashing excursion keeps the task running.
-        assert_eq!(apply_flash_change(&mut s, "b", true), FlashTransition::Unchanged);
+        assert_eq!(
+            apply_flash_change(&mut s, "b", true),
+            FlashTransition::Unchanged
+        );
         // Removing one of two → still flashing.
-        assert_eq!(apply_flash_change(&mut s, "a", false), FlashTransition::Unchanged);
+        assert_eq!(
+            apply_flash_change(&mut s, "a", false),
+            FlashTransition::Unchanged
+        );
         // Removing the last → stop.
-        assert_eq!(apply_flash_change(&mut s, "b", false), FlashTransition::Stopped);
+        assert_eq!(
+            apply_flash_change(&mut s, "b", false),
+            FlashTransition::Stopped
+        );
         assert!(s.flashing.is_empty());
     }
 
     #[test]
     fn removing_absent_excursion_is_unchanged() {
         let mut s = fresh_state();
-        assert_eq!(apply_flash_change(&mut s, "ghost", false), FlashTransition::Unchanged);
+        assert_eq!(
+            apply_flash_change(&mut s, "ghost", false),
+            FlashTransition::Unchanged
+        );
         assert!(s.flashing.is_empty());
     }
 
     // ── flash generation: (set, generation) must change atomically ───────────────────────
 
     fn reading(sgv_mgdl: f64) -> CurrentBg {
-        CurrentBg { sgv_mgdl, delta_mgdl: None, direction: None, mills: 0, status: None }
+        CurrentBg {
+            sgv_mgdl,
+            delta_mgdl: None,
+            direction: None,
+            mills: 0,
+            status: None,
+        }
     }
 
     #[test]
