@@ -204,6 +204,15 @@ describe("Nightscout migration", { timeout: 420_000 }, () => {
     expect(await deviceStatuses(tenant)).toHaveLength(MIGRATION_DEVICE_STATUSES.length);
     expect(await migratedProfiles(tenant)).toHaveLength(1);
   });
+
+  // Bug #1812: the count answers `{count}`, and `{}` at zero. Flip to `it` once fixed.
+  it.fails("counts in the legacy [{_id, count}] shape, and [] when nothing matches", async () => {
+    const counted = await tenant.api.ok<unknown>("GET", "/api/v1/count/entries/where");
+    expect(counted).toEqual([{ _id: null, count: MIGRATION_ENTRY_COUNT }]);
+
+    const empty = await seedTenant();
+    expect(await empty.api.ok<unknown>("GET", "/api/v1/count/entries/where")).toEqual([]);
+  });
 });
 
 describe("Nightscout migration from a sub-path", { timeout: 240_000 }, () => {
