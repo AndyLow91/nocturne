@@ -1620,10 +1620,26 @@ internal class MigrationJob
 
         for (var batchNumber = 1; await cursor.MoveNextAsync(ct); batchNumber++)
         {
-            var documents = cursor.Current.Select(ToNightscoutJson).ToArray();
-            if (documents.Length == 0) continue;
+            var documents = new List<System.Text.Json.JsonElement>(cursor.Current.Count());
+            var index = 0;
+            foreach (var bson in cursor.Current)
+            {
+                try
+                {
+                    documents.Add(ToNightscoutJson(bson));
+                }
+                catch (OverflowException)
+                {
+                    _logger.LogWarning(
+                        "Skipped {Collection} document {Index} in batch {Batch}: a decimal is out of range",
+                        collection.Label, index, batchNumber);
+                    totalFailed++;
+                }
+                index++;
+            }
+            if (documents.Count == 0) continue;
 
-            var (page, newlyFailed) = ParseDocuments<T>(documents, collection.Label, batchNumber, failedIds);
+            var (page, newlyFailed) = ParseDocuments<T>([.. documents], collection.Label, batchNumber, failedIds);
             totalFailed += newlyFailed;
 
             if (page.Length > 0)
@@ -1658,10 +1674,11 @@ internal class MigrationJob
     /// Renders a stored document the way Nightscout's API serves it: an ObjectId as its hex string
     /// and a BSON date as an ISO-8601 string, which is what the domain models read.
     /// </summary>
-    private static System.Text.Json.JsonElement ToNightscoutJson(BsonDocument document) =>
+    /// <exception cref="OverflowException">A Decimal128 lies outside the range of <see cref="decimal"/>.</exception>
+    internal static System.Text.Json.JsonElement ToNightscoutJson(BsonDocument document) =>
         System.Text.Json.JsonSerializer.SerializeToElement(ToJsonNode(document));
 
-    private static System.Text.Json.Nodes.JsonNode? ToJsonNode(BsonValue value) => value.BsonType switch
+    internal static System.Text.Json.Nodes.JsonNode? ToJsonNode(BsonValue value) => value.BsonType switch
     {
         BsonType.Document => new System.Text.Json.Nodes.JsonObject(
             value.AsBsonDocument.Select(e => KeyValuePair.Create(e.Name, ToJsonNode(e.Value)))),

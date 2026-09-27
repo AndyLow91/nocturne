@@ -42,7 +42,8 @@ public class MongoMigrationStorageTests : ApiIntegrationTestBase, IClassFixture<
     private async Task<string> SeedAsync(params (string Collection, BsonDocument[] Documents)[] collections)
     {
         var name = $"ns_{Guid.NewGuid():N}";
-        var database = new MongoClient(_migration.MongoConnectionString).GetDatabase(name);
+        using var client = new MongoClient(_migration.MongoConnectionString);
+        var database = client.GetDatabase(name);
         foreach (var (collection, documents) in collections)
             await database.GetCollection<BsonDocument>(collection).InsertManyAsync(documents);
         return name;
@@ -97,6 +98,27 @@ public class MongoMigrationStorageTests : ApiIntegrationTestBase, IClassFixture<
         var activity = status.CollectionProgress["activity"];
         activity.DocumentsMigrated.Should().Be(2);
         activity.RecordsStored.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_document_with_an_out_of_range_decimal_fails_alone()
+    {
+        var database = await SeedAsync(
+            ("treatments",
+            [
+                new() { { "_id", ObjectId.GenerateNewId() }, { "eventType", "Correction Bolus" }, { "insulin", new BsonDecimal128(Decimal128.Parse("1E+100")) }, { "created_at", Iso(10) } },
+                new() { { "_id", ObjectId.GenerateNewId() }, { "eventType", "Correction Bolus" }, { "insulin", new BsonDecimal128(2.5m) }, { "created_at", Iso(20) } },
+            ]));
+
+        var status = await RunToCompletionAsync(database, ["treatments"]);
+
+        status.State.Should().Be(MigrationJobState.Completed);
+        var treatments = status.CollectionProgress["treatments"];
+        treatments.DocumentsFailed.Should().Be(1);
+        treatments.DocumentsMigrated.Should().Be(1);
+
+        await using var db = Fixture.CreateDbContext(Fixture.TenantId);
+        (await db.Boluses.CountAsync()).Should().Be(1);
     }
 
     [Fact]
