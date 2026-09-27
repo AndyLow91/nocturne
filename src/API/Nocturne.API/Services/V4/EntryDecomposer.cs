@@ -152,8 +152,7 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
         if (entries.Count == 0)
             return new DecompositionResult();
 
-        var correlationId = Guid.CreateVersion7();
-        var result = new DecompositionResult { CorrelationId = correlationId };
+        var result = new DecompositionResult();
 
         var sgvList = new List<SensorGlucose>();
         var mbgList = new List<MeterGlucose>();
@@ -162,6 +161,7 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
 
         foreach (var entry in entries)
         {
+            var correlationId = Guid.CreateVersion7();
             switch (entry.Type?.ToLowerInvariant())
             {
                 case "sgv":
@@ -176,8 +176,10 @@ public class EntryDecomposer : DecomposerBase, IEntryDecomposer, IDecomposer<Ent
                 default:
                     result.SkippedUnsupported++;
                     unsupportedTypes.Add(SanitizeForLog(entry.Type));
-                    break;
+                    continue;
             }
+
+            result.CorrelationId ??= correlationId;
         }
 
         if (result.SkippedUnsupported > 0)
