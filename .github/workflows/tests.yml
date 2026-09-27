@@ -364,7 +364,9 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Tests with coverage
         if: ${{ !cancelled() }}
-        run: cargo llvm-cov --locked --cobertura --output-path "$GITHUB_WORKSPACE/TestResults/desktop-rust/cobertura.xml"
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/TestResults/desktop-rust"
+          cargo llvm-cov --locked --cobertura --output-path "$GITHUB_WORKSPACE/TestResults/desktop-rust/cobertura.xml"
       - uses: actions/upload-artifact@v6
         if: always()
         with:
