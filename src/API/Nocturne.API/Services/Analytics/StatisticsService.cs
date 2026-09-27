@@ -229,14 +229,22 @@ public class StatisticsService : IStatisticsService
     /// Assess glucose data against clinical targets for a specific diabetes population
     /// Based on International Consensus on Time in Range (2019) and subsequent updates
     /// </summary>
+    /// <remarks>
+    /// A metric the data cannot yield is <see cref="TargetStatus.NotAssessed"/>, never a defaulted
+    /// zero: every maximum target is met at zero, so a window with no readings would otherwise
+    /// report its below-range, above-range and variability targets as met. The time-in-range
+    /// targets need a reading (<see cref="BasicGlucoseStats.Count"/>), the CV target a
+    /// <see cref="GlucoseAnalytics.GlycemicVariability"/>, and the overall grade all six.
+    /// </remarks>
     public ClinicalTargetAssessment AssessAgainstTargets(
         GlucoseAnalytics analytics,
         DiabetesPopulation population = DiabetesPopulation.Type1Adult
     )
     {
         var targets = ClinicalTargets.ForPopulation(population);
-        var tir = analytics.TimeInRange.Percentages;
-        var cv = analytics.GlycemicVariability?.CoefficientOfVariation ?? 0;
+        TimeInRangePercentages? tir =
+            analytics.BasicStats.Count > 0 ? analytics.TimeInRange.Percentages : null;
+        var cv = analytics.GlycemicVariability?.CoefficientOfVariation;
 
         var assessment = new ClinicalTargetAssessment
         {
@@ -245,51 +253,42 @@ public class StatisticsService : IStatisticsService
             TotalTargets = 6,
         };
 
-        // Time in Range Assessment (minimum target)
         assessment.TIRAssessment = AssessMinimumTarget(
             "Time in Range",
-            tir.Target,
+            tir?.Target,
             targets.TargetTIR
         );
 
-        // Time Below Range Assessment (maximum target - lower is better)
-        var totalTBR = tir.VeryLow + tir.Low;
         assessment.TBRAssessment = AssessMaximumTarget(
             "Time Below Range",
-            totalTBR,
+            tir?.VeryLow + tir?.Low,
             targets.MaxTBR
         );
 
-        // Very Low Assessment (maximum target)
         assessment.VeryLowAssessment = AssessMaximumTarget(
             "Time Very Low (<54)",
-            tir.VeryLow,
+            tir?.VeryLow,
             targets.MaxTBRVeryLow
         );
 
-        // Time Above Range Assessment (maximum target)
-        var totalTAR = tir.VeryHigh + tir.High;
         assessment.TARAssessment = AssessMaximumTarget(
             "Time Above Range",
-            totalTAR,
+            tir?.VeryHigh + tir?.High,
             targets.MaxTAR
         );
 
-        // Very High Assessment (maximum target)
         assessment.VeryHighAssessment = AssessMaximumTarget(
             "Time Very High (>250)",
-            tir.VeryHigh,
+            tir?.VeryHigh,
             targets.MaxTARVeryHigh
         );
 
-        // CV Assessment (maximum target)
         assessment.CVAssessment = AssessMaximumTarget(
             "Coefficient of Variation",
             cv,
             targets.TargetCV
         );
 
-        // Count targets met
         var assessments = new[]
         {
             assessment.TIRAssessment,
@@ -301,24 +300,43 @@ public class StatisticsService : IStatisticsService
         };
 
         assessment.TargetsMet = assessments.Count(a => a.Status == TargetStatus.Met);
+        assessment.TargetsAssessed = assessments.Count(a => a.Status != TargetStatus.NotAssessed);
 
-        // Determine overall assessment
-        assessment.OverallAssessment = assessment.TargetsMet switch
-        {
-            6 => ClinicalAssessmentLevel.Excellent,
-            >= 4 => ClinicalAssessmentLevel.Good,
-            >= 2 => ClinicalAssessmentLevel.NeedsAttention,
-            _ => ClinicalAssessmentLevel.NeedsSignificantImprovement,
-        };
+        assessment.OverallAssessment =
+            assessment.TargetsAssessed < assessment.TotalTargets
+                ? ClinicalAssessmentLevel.InsufficientData
+                : assessment.TargetsMet switch
+                {
+                    6 => ClinicalAssessmentLevel.Excellent,
+                    >= 4 => ClinicalAssessmentLevel.Good,
+                    >= 2 => ClinicalAssessmentLevel.NeedsAttention,
+                    _ => ClinicalAssessmentLevel.NeedsSignificantImprovement,
+                };
 
-        // Generate actionable insights
-        GenerateActionableInsights(assessment, tir, cv, targets);
+        GenerateActionableInsights(
+            assessment,
+            tir ?? new TimeInRangePercentages(),
+            cv ?? 0,
+            targets
+        );
 
         return assessment;
     }
 
-    private TargetAssessment AssessMinimumTarget(string name, double current, double target)
+    private static TargetAssessment NotAssessedTarget(string name, double target, bool isMaximum) =>
+        new()
+        {
+            MetricName = name,
+            TargetValue = target,
+            IsMaximumTarget = isMaximum,
+            Status = TargetStatus.NotAssessed,
+        };
+
+    private TargetAssessment AssessMinimumTarget(string name, double? measured, double target)
     {
+        if (measured is not { } current)
+            return NotAssessedTarget(name, target, isMaximum: false);
+
         var status =
             current >= target ? TargetStatus.Met
             : current >= target * 0.9 ? TargetStatus.Close
@@ -337,8 +355,11 @@ public class StatisticsService : IStatisticsService
         };
     }
 
-    private TargetAssessment AssessMaximumTarget(string name, double current, double target)
+    private TargetAssessment AssessMaximumTarget(string name, double? measured, double target)
     {
+        if (measured is not { } current)
+            return NotAssessedTarget(name, target, isMaximum: true);
+
         var status =
             current <= target ? TargetStatus.Met
             : current <= target * 1.1 ? TargetStatus.Close
@@ -787,16 +808,18 @@ public class StatisticsService : IStatisticsService
     /// <param name="values">Collection of glucose values</param>
     /// <param name="entries">Collection of glucose entries with timestamps</param>
     /// <returns>
-    /// Comprehensive glycemic variability metrics, or null for fewer than two readings. The
-    /// individual metrics have differing data floors; this one governs all of them.
+    /// Comprehensive glycemic variability metrics, or null for fewer than two plausible readings.
+    /// The individual metrics have differing data floors; this one governs all of them. Values
+    /// and entries that are not plausible readings are dropped first: a zero mean makes the coefficient of
+    /// variation NaN, and a non-positive value makes the log-based risk metrics non-finite.
     /// </returns>
     public GlycemicVariability? CalculateGlycemicVariability(
         IEnumerable<double> values,
         IEnumerable<SensorGlucose> entries
     )
     {
-        var valuesList = values.ToList();
-        var entriesList = entries.ToList();
+        var valuesList = values.Where(IsPlausibleReading).ToList();
+        var entriesList = entries.Where(IsPlausibleReading).ToList();
 
         if (valuesList.Count < 2)
             return null;
@@ -982,9 +1005,6 @@ public class StatisticsService : IStatisticsService
     public double CalculateADRR(IEnumerable<double> values)
     {
         var logTransformed = values.Select(val => Math.Log(val)).ToList();
-        if (logTransformed.Count == 0)
-            return 0;
-
         return GlucoseStatistics.StandardDeviation(logTransformed, VarianceMode.Population) * 100;
     }
 
@@ -1054,7 +1074,8 @@ public class StatisticsService : IStatisticsService
     /// Mean of the Kovatchev risk transform <c>f(BG) = 1.084 * (ln(BG/18)^1.084 - 1.928)</c> over
     /// <paramref name="values"/>, counting only the readings whose <c>f(BG)</c> falls on one side
     /// of zero: the hyperglycaemic side when <paramref name="keepPositive"/>, the hypoglycaemic
-    /// side otherwise. Zero for an empty series.
+    /// side otherwise. Zero for an empty series. A plausible reading below 18 mg/dL, where the
+    /// transform is undefined, is clamped to 18 mg/dL, the transform's maximum hypoglycaemic risk.
     /// </summary>
     /// <seealso cref="KovatchevMgdlPerMmol"/>
     private static double KovatchevRisk(IEnumerable<double> values, bool keepPositive)
@@ -1065,7 +1086,7 @@ public class StatisticsService : IStatisticsService
 
         var riskSum = valuesList.Sum(glucose =>
         {
-            var bgInMmol = glucose / KovatchevMgdlPerMmol;
+            var bgInMmol = Math.Max(glucose, KovatchevMgdlPerMmol) / KovatchevMgdlPerMmol;
             var logBG = Math.Log(bgInMmol);
             var fBG = 1.084 * (Math.Pow(logBG, 1.084) - 1.928);
 
