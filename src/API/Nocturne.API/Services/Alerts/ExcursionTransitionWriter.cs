@@ -33,13 +33,10 @@ internal static class ExcursionTransitionWriter
     /// A decision made against <paramref name="decidedAgainst"/> is stale too once the rule, read
     /// under the same lock, no longer holds those fields, and is dropped the same way. A rule edit
     /// saves the rule under this lock (<see cref="AlertRuleRearm"/>), so an evaluation that loaded
-    /// the rule before the edit cannot land a hold the edit cleared.
+    /// the rule before the edit cannot land a hold the edit cleared. A decision that does not
+    /// depend on the rule passes no <paramref name="decidedAgainst"/>.
     /// </para>
     /// </remarks>
-    /// <param name="decidedAgainst">
-    /// The rule as the evaluation that made <paramref name="decision"/> read it, or
-    /// <see langword="null"/> for a decision that does not depend on it.
-    /// </param>
     /// <returns>
     /// The decision's transition with the host's excursion id, and the auto-resolve close when
     /// <paramref name="autoResolved"/> closed one.

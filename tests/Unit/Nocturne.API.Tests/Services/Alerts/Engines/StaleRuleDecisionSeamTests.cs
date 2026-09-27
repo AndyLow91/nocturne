@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Nocturne.Alerts.ParityCorpus.Generator.Harness;
+using Nocturne.API.Services.Alerts;
 using Nocturne.API.Services.Alerts.Engines;
 using Nocturne.API.Tests.Services.BackgroundServices;
 using Nocturne.Core.Contracts.Alerts;
@@ -155,6 +156,57 @@ public class StaleRuleDecisionSeamTests
             ExcursionTransitionType.ExcursionClosed, fixture.ExcursionId, ExcursionCloseReason.AutoResolve));
         var state = await fixture.Store.GetTrackerStateAsync(RuleId);
         state.Should().BeEquivalentTo(new { State = "idle", ActiveExcursionId = (Guid?)null, AwaitingRearm = true });
+    }
+
+    /// <summary>
+    /// The edit lands after the snapshot was loaded and before the Rust-backed engine reads the rule
+    /// row under the lease. The engine decides on the edited row, so its decision stands.
+    /// </summary>
+    [NativeFact]
+    public async Task A_decision_on_a_row_edited_after_the_snapshot_is_written_rust()
+    {
+        var rule = Rule();
+        rule.AutoResolveParams = """{"type":"threshold","threshold":{"direction":"below","value":50}}""";
+        var preEdit = Snapshot(rule);
+        var fixture = await BuildAsync(Engine.Rust, rule, _ => { });
+        await using var _ = fixture.Scope;
+        rule.AutoResolveParams = Rule().AutoResolveParams;
+
+        var evaluation = await fixture.Engine.EvaluateRuleAsync(
+            preEdit, Glucose(60), AlertEngineOptions.Default, CancellationToken.None);
+
+        evaluation.AutoResolveTransition.Should().Be(new ExcursionTransition(
+            ExcursionTransitionType.ExcursionClosed, fixture.ExcursionId, ExcursionCloseReason.AutoResolve));
+        var state = await fixture.Store.GetTrackerStateAsync(RuleId);
+        state.Should().BeEquivalentTo(new { State = "idle", ActiveExcursionId = (Guid?)null, AwaitingRearm = true });
+    }
+
+    /// <summary>A disable that lands before the row read leaves nothing for the decision to land on.</summary>
+    [NativeFact]
+    public async Task A_decision_on_a_row_disabled_after_the_snapshot_is_dropped_rust()
+    {
+        var rule = Rule();
+        var preEdit = Snapshot(rule);
+        var fixture = await BuildAsync(Engine.Rust, rule, _ => { });
+        await using var _ = fixture.Scope;
+        rule.IsEnabled = false;
+
+        var evaluation = await fixture.Engine.EvaluateRuleAsync(
+            preEdit, Glucose(60), AlertEngineOptions.Default, CancellationToken.None);
+
+        evaluation.AutoResolveTransition.Should().BeNull();
+        await ShouldStayActiveAsync(fixture);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void A_row_holds_its_own_conditions_only_while_enabled(bool enabled, bool held)
+    {
+        var rule = Rule();
+        rule.IsEnabled = enabled;
+
+        AlertRuleConditions.Of(rule).HeldBy(rule).Should().Be(held);
     }
 
     private static async Task ShouldStayActiveAsync(Fixture fixture)

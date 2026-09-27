@@ -94,8 +94,10 @@ internal sealed class RustBackedAlertEngine(
             RustEnvelopeMapper.TransitionFromWire(result.Transition!.Value),
             result.CloseReason is { } reason ? RustEnvelopeMapper.CloseReasonFromWire(reason) : null,
             RustEnvelopeMapper.PostStateFromWire(response.Tracker!));
+        // The engine decided on the row read under the lease, which an edit can have changed
+        // since the snapshot was loaded.
         var (transition, autoResolveTransition) = await ExcursionTransitionWriter.ApplyAsync(
-            trackerRepository, logger, rule.Id, trackerState, decision, AlertRuleConditions.Of(rule), now, ct,
+            trackerRepository, logger, rule.Id, trackerState, decision, AlertRuleConditions.Of(ruleRow), now, ct,
             result.AutoResolved);
 
         return new AlertEngineEvaluation
