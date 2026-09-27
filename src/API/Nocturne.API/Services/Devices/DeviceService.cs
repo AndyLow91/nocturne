@@ -41,14 +41,14 @@ public class DeviceService : IDeviceService
         var timestamp = DateTimeOffset.FromUnixTimeMilliseconds(mills).UtcDateTime;
         if (_cache.TryGetValue(key, out var cached))
         {
-            await AdvanceLastSeenAsync(cached, timestamp, ct);
+            await WidenSeenWindowAsync(cached, timestamp, ct);
             return cached.Id;
         }
 
         var existing = await _repository.FindByCategoryTypeAndSerialAsync(category, type, serial, ct);
         if (existing is not null)
         {
-            await AdvanceLastSeenAsync(existing, timestamp, ct);
+            await WidenSeenWindowAsync(existing, timestamp, ct);
             _cache[key] = existing;
             return existing.Id;
         }
@@ -67,24 +67,20 @@ public class DeviceService : IDeviceService
         return created.Id;
     }
 
-    private async Task AdvanceLastSeenAsync(Device device, DateTime timestamp, CancellationToken ct)
+    private async Task WidenSeenWindowAsync(Device device, DateTime timestamp, CancellationToken ct)
     {
-        if (timestamp <= device.LastSeenTimestamp)
+        // The stored window only ever widens, so an instant inside this copy's window is inside it too.
+        if (timestamp >= device.FirstSeenTimestamp && timestamp <= device.LastSeenTimestamp)
             return;
 
-        var persisted = device.LastSeenTimestamp;
-        device.LastSeenTimestamp = timestamp;
-        try
-        {
-            await _repository.UpdateAsync(device.Id, device, WriteOrigin.Live, ct);
-        }
-        catch
-        {
-            // The cached device outlives a failed page in a migration's scope, so it must not
-            // claim a last seen the database never took.
-            device.LastSeenTimestamp = persisted;
-            throw;
-        }
+        await _repository.WidenSeenWindowAsync(device.Id, timestamp, WriteOrigin.Live, ct);
+
+        // Widened only once the database took it: the cached device outlives a failed page in a
+        // migration's scope and must not claim a window the database never stored.
+        if (timestamp > device.LastSeenTimestamp)
+            device.LastSeenTimestamp = timestamp;
+        if (timestamp < device.FirstSeenTimestamp)
+            device.FirstSeenTimestamp = timestamp;
     }
 
     public async Task<Guid?> ResolvePatientDeviceAsync(Guid? deviceId, long mills, CancellationToken ct = default)
