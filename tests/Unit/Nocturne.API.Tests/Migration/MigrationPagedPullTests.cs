@@ -84,7 +84,7 @@ public class MigrationPagedPullTests
         await MigrationJobHarness.RunAsync(provider, "entries");
 
         handler.Requests.Should().HaveCount(2);
-        handler.Requests[1].Should().Contain($"find[date][$lte]={oldestMs - 1}");
+        handler.Requests[1].Should().Contain($"find[date][$lte]={oldestMs}");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class MigrationPagedPullTests
 
         handler.Requests.Should().HaveCount(2);
         handler.Requests[1].Should().Contain(
-            $"find[created_at][$lte]={oldest.UtcDateTime.AddMilliseconds(-1):o}");
+            $"find[created_at][$lte]={oldest.UtcDateTime:yyyy-MM-dd'T'HH:mm:ss'Z'}");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class MigrationPagedPullTests
         var status = await MigrationJobHarness.RunAsync(provider, "entries");
 
         handler.Requests.Should().HaveCount(2);
-        handler.Requests[1].Should().Contain($"find[date][$lte]={oldestMs - 1}");
+        handler.Requests[1].Should().Contain($"find[date][$lte]={oldestMs}");
         decomposedPageSizes.Should().Equal(LegacyReadLimits.MaxMergedCount - 1, 2);
 
         var entries = status.CollectionProgress["entries"];

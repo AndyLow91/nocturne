@@ -486,7 +486,12 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
     }
 
     /// <summary>
-    ///     Fetches legacy DeviceStatus records from the v1 API of the remote instance.
+    ///     Fetches legacy DeviceStatus records from the v1 API of the remote instance through
+    ///     <see cref="BackwardTimePager.PageAsync{T}"/>. The remote parses the created_at bound into
+    ///     a time and compares it against each record's Mills, sorting newest-first by Mills, so a
+    ///     bound admits exactly its own instant and the crawl steps on Mills. The created_at a remote
+    ///     sends back is its save time on older servers, which on a bulk-loaded remote lies after
+    ///     every reading and would pin the bound in place; it is read only when no row has Mills.
     /// </summary>
     /// <remarks>A page that never arrives costs the range, for the reason given on
     /// <see cref="FetchPaginatedAsync{T}"/>.</remarks>
@@ -495,39 +500,27 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
         NocturneRemoteConnectorConfiguration config, CancellationToken ct)
     {
         var allStatuses = new List<DeviceStatus>();
-        var currentTo = to;
 
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
+        var pages = BackwardTimePager.PageAsync<DeviceStatus>(
+            from,
+            to,
+            config.MaxCount,
+            BackwardTimePager.WidestPageSize(config.MaxCount),
+            async (bound, count) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                var statuses = await FetchOrFailAsync<DeviceStatus[]>(
+                    BuildV1DeviceStatusUrl(from, bound, count), V1DeviceStatusEndpoint, config, ct);
+                return new TimePage<DeviceStatus>(statuses, statuses.Length);
+            },
+            OldestDeviceStatusTime,
+            bound => bound,
+            _logger,
+            ConnectorSource,
+            "devicestatus");
 
-            var statuses = await FetchOrFailAsync<DeviceStatus[]>(
-                BuildV1DeviceStatusUrl(from, currentTo, config), V1DeviceStatusEndpoint, config, ct);
-
-            if (statuses.Length == 0)
-                break;
-
-            allStatuses.AddRange(statuses);
-
-            if (statuses.Length < config.MaxCount)
-                break;
-
-            var oldestDate = statuses
-                .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
-                .Where(dt => dt.HasValue)
-                .Min();
-
-            if (!oldestDate.HasValue)
-                break;
-
-            if (currentTo.HasValue && oldestDate.Value >= currentTo.Value)
-                break;
-
-            currentTo = oldestDate.Value.AddMilliseconds(-1);
-
-            if (from.HasValue && currentTo < from)
-                break;
-        }
+        await foreach (var page in pages)
+            allStatuses.AddRange(page);
 
         _logger.LogInformation(
             "[{ConnectorSource}] Fetched {Count} DeviceStatus records from remote v1 API",
@@ -535,6 +528,18 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
             allStatuses.Count);
 
         return allStatuses;
+    }
+
+    private static DateTime? OldestDeviceStatusTime(DeviceStatus[] statuses)
+    {
+        var mills = statuses.Where(d => d.Mills > 0).Select(d => (long?)d.Mills).Min();
+        if (mills.HasValue)
+            return DateTimeOffset.FromUnixTimeMilliseconds(mills.Value).UtcDateTime;
+
+        return statuses
+            .Select(d => UploaderTimestamp.ParseUtcDateTime(d.CreatedAt))
+            .Where(dt => dt.HasValue)
+            .Min();
     }
 
     #endregion
@@ -557,10 +562,9 @@ public class NocturneRemoteConnectorService : BaseConnectorService<NocturneRemot
 
     private const string V1DeviceStatusEndpoint = "/api/v1/devicestatus.json";
 
-    private static string BuildV1DeviceStatusUrl(
-        DateTime? from, DateTime? to, NocturneRemoteConnectorConfiguration config)
+    private static string BuildV1DeviceStatusUrl(DateTime? from, DateTime? to, int count)
     {
-        var url = $"{V1DeviceStatusEndpoint}?count={config.MaxCount}";
+        var url = $"{V1DeviceStatusEndpoint}?count={count}";
 
         if (from.HasValue)
             url += $"&find[created_at][$gte]={from.Value.ToUniversalTime():o}";
