@@ -142,7 +142,7 @@ public static class AuditedBulkDeleteExtensions
         var (deleted, _) = await context.ExecuteInTransactionAsync(
             async token =>
             {
-                var deletedAt = SoftDeleteStamp();
+                var deletedAt = NocturneDbContext.UtcNowAtStoredPrecision();
                 var count = await SoftDeleteRowsAsync(query, auditContext, deletedAt, token);
                 await WriteBulkDeleteSummaryAsync<T>(context, count, scope, auditContext, token);
                 return (count, deletedAt);
@@ -187,7 +187,7 @@ public static class AuditedBulkDeleteExtensions
     {
         var (result, _) = await context.ExecuteInTransactionAsync(async token =>
         {
-            var deletedAt = SoftDeleteStamp();
+            var deletedAt = NocturneDbContext.UtcNowAtStoredPrecision();
             // One row past the cap is all it takes to know the match set exceeds it.
             var records = await query.Take(BroadcastMaterializationCap + 1).ToListAsync(token);
             var collapsed = records.Count > BroadcastMaterializationCap;
@@ -221,17 +221,8 @@ public static class AuditedBulkDeleteExtensions
     }
 
     /// <summary>
-    /// The <c>DeletedAt</c> one soft delete stamps, truncated to the microsecond PostgreSQL stores so
-    /// that <see cref="SoftDeleteLandedAsync{T}"/> can find the rows it stamped.
-    /// </summary>
-    private static DateTime SoftDeleteStamp()
-    {
-        var now = DateTime.UtcNow;
-        return now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond));
-    }
-
-    /// <summary>
-    /// Whether a soft delete whose commit reported failure landed: its rows carry its stamp. With
+    /// Whether a soft delete whose commit reported failure landed: its rows carry its stamp, taken at
+    /// <see cref="NocturneDbContext.UtcNowAtStoredPrecision"/> so that it compares equal to the stored one. With
     /// nothing deleted there is nothing to report, and the work runs again.
     /// </summary>
     private static async Task<bool> SoftDeleteLandedAsync<T>(

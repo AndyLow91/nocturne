@@ -155,27 +155,21 @@ public static class RetryingTransactionExtensions
     /// <summary>
     /// A <c>verifySucceeded</c> for work that updates <paramref name="updated"/> in place: one
     /// transaction commits all of them or none, so the first one decides: it landed when its stored
-    /// row holds every value the attempt wrote. Pass only rows whose update changed a value, so that
-    /// a row still at its old values cannot pass. With none there is nothing to report, and the
-    /// work runs again.
+    /// row carries the <see cref="ISystemTimestamped.SysUpdatedAt"/> the attempt stamped, which
+    /// <see cref="NocturneDbContext"/> takes at the stored precision. Pass only rows the attempt
+    /// saved with a changed value, so that each was stamped. With none there is nothing to report,
+    /// and the work runs again.
     /// </summary>
     public static async Task<bool> AnyUpdateLandedAsync<TEntity>(
         this DbContext context, IReadOnlyList<TEntity> updated, CancellationToken ct)
-        where TEntity : class, IIdentified
+        where TEntity : class, IIdentified, ISystemTimestamped
     {
         if (updated.Count == 0)
             return false;
-        var written = updated[0];
-        var id = written.Id;
-        var stored = await context.Set<TEntity>().IgnoreQueryFilters().AsNoTracking()
-            .SingleOrDefaultAsync(e => e.Id == id, ct);
-        if (stored is null)
-            return false;
-
-        return context.Model.FindEntityType(typeof(TEntity))!.GetProperties()
-            .Where(p => !p.IsShadowProperty())
-            .All(p => p.GetValueComparer().Equals(
-                p.GetGetter().GetClrValue(stored), p.GetGetter().GetClrValue(written)));
+        var id = updated[0].Id;
+        var stamp = updated[0].SysUpdatedAt;
+        return await context.Set<TEntity>().IgnoreQueryFilters()
+            .AnyAsync(e => e.Id == id && e.SysUpdatedAt == stamp, ct);
     }
 
     /// <inheritdoc cref="ExecuteInTransactionAsync{T}"/>
