@@ -588,11 +588,7 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         if (statuses.Count == 0)
             return new V4Models.DecompositionResult();
 
-        var correlationId = Guid.CreateVersion7();
-        var result = new V4Models.DecompositionResult
-        {
-            CorrelationId = correlationId
-        };
+        var result = new V4Models.DecompositionResult();
 
         var apsList = new List<V4Models.ApsSnapshot>();
         var pumpList = new List<V4Models.PumpSnapshot>();
@@ -604,6 +600,8 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
         {
             NormalizeMills(ds);
 
+            var correlationId = Guid.CreateVersion7();
+            result.CorrelationId ??= correlationId;
             var legacyId = ds.Id;
             var statusMills = ResolveStatusMills(ds);
 
@@ -651,6 +649,19 @@ public class DeviceStatusDecomposer : DecomposerBase, IDeviceStatusDecomposer, I
             await BulkCreateAsync(_apsRepo, apsList, result, origin, ct);
             await BulkCreateAsync(_pumpRepo, pumpList, result, origin, ct);
             await BulkCreateAsync(_uploaderRepo, uploaderList, result, origin, ct);
+
+            // Extras carry no legacy id, so nothing holds them when a re-run skips their status's
+            // snapshots; written under that run's fresh correlation id they would join nothing.
+            var written = result.CreatedRecords.OfType<V4Models.IV4Record>()
+                .Select(r => r.CorrelationId)
+                .ToHashSet();
+            var held = apsList.Select(a => a.CorrelationId)
+                .Concat(pumpList.Select(p => p.CorrelationId))
+                .Concat(uploaderList.Select(u => u.CorrelationId))
+                .Where(id => !written.Contains(id))
+                .ToHashSet();
+            extrasList.RemoveAll(e => held.Contains(e.CorrelationId));
+
             await BulkCreateAsync(_extrasRepo, extrasList, result, origin, ct);
         }
 
