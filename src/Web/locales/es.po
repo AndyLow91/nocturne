@@ -3843,6 +3843,7 @@ msgstr "Sensor"
 msgid "<0/> BG Check"
 msgstr "<0/> Medición de glucosa"
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/entries/BGCheckSection.svelte
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
@@ -4233,9 +4234,9 @@ msgstr "Cambio de batería de la bomba"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
 #: src/lib/components/icons/PumpModeIcon.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Automatic"
@@ -15328,7 +15329,7 @@ msgstr "<0/> Ejecutando…"
 msgid "Window: {0}"
 msgstr "Ventana: {0}"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events would have fired in this window."
 msgstr "No se habría activado ningún evento en esta ventana."
 
@@ -15836,7 +15837,7 @@ msgstr "Arrastra para reordenar"
 msgid "Turn off"
 msgstr "Desactivar"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events yet — playhead at start of window."
 msgstr "Aún no hay eventos — el cursor está al inicio de la ventana."
 
@@ -15899,7 +15900,7 @@ msgid "No leaves to evaluate."
 msgstr "No hay condiciones finales que evaluar."
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "Resolved"
 msgstr "Resuelta"
 
@@ -23876,8 +23877,10 @@ msgstr "Proteína <0>opcional</0>"
 msgid "Energy <0>auto</0>"
 msgstr "Energía <0>automática</0>"
 
+#. 0: rule.name
 #. 0: perm
 #. 0: item.l
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 #: src/lib/components/admin/RoleDialog.svelte
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 msgid "Remove {0}"
@@ -25544,53 +25547,42 @@ msgstr "Silenciar para mí"
 msgid "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 msgstr "Puedes pulsar Silenciar para mí en una alerta para dejar de recibirla. Las demás personas seguirán recibiéndola hasta que alguien con permiso para gestionar alertas la confirme o hasta que termine."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "NOT applies to: "
-msgstr "NOT se aplica a: "
+#~ msgid "NOT applies to: "
+#~ msgstr ""
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "No alert over this trace."
-msgstr "No hay ninguna alerta en esta traza."
+#~ msgid "No alert over this trace."
+#~ msgstr ""
 
-#. 0: active.label.toLowerCase()
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
-msgstr "Lecturas de glucosa del ejemplo {0}, con sombreados los periodos en que cada regla estaba generando una alerta."
+#~ msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+#~ msgstr ""
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Whole rule is true"
-msgstr "Toda la regla es verdadera"
+#~ msgid "Whole rule is true"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Alerting"
-msgstr "Alertando"
+#~ msgid "Alerting"
+#~ msgstr ""
 
 #. 0: issues[index].map((i) => issueText[i.reason] ?? i.reason).join(", ")
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "A save would be refused: this rule needs {0}."
 msgstr "Se rechazaría el guardado: esta regla necesita {0}."
 
-#. 0: Math.round(hovered.age)
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· last reading {0} min ago"
-msgstr "· última lectura hace {0} min"
+#~ msgid "· last reading {0} min ago"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· no reading yet"
-msgstr "· todavía no hay lectura"
+#~ msgid "· no reading yet"
+#~ msgstr ""
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "<0/> Reset the example"
-msgstr "<0/> Restablecer el ejemplo"
+#~ msgid "<0/> Reset the example"
+#~ msgstr ""
 
 #. 0: failure
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "The alert engine could not run here ({0}). The rest of this page still applies."
 msgstr "El motor de alertas no pudo ejecutarse aquí ({0}). El resto de esta página sigue siendo aplicable."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
-msgstr "Esto ejecuta el propio motor de alertas de Nocturne en tu navegador, con una comprobación cada 5 minutos, igual que hace <0>Reproducir</0> en la aplicación. Las lecturas son inventadas para mostrar un comportamiento; no son datos de nadie y nada de esto constituye asesoramiento médico."
+#~ msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+#~ msgstr ""
 
 #: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 msgid "Group: match"
@@ -25722,3 +25714,27 @@ msgstr "Cambio próximo"
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
 msgid "The chart data could not be loaded."
 msgstr "No se pudieron cargar los datos del gráfico."
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Add an example rule"
+msgstr "<0/> Añadir una regla de ejemplo"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Start over"
+msgstr "<0/> Empezar de nuevo"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Nocturne's own alert engine and Replay, running in your browser on made-up readings. Not anyone's data, and not medical advice."
+msgstr "Motor de alertas propio de Nocturne y Reproducir, ejecutándose en tu navegador con lecturas simuladas. No son datos de ninguna persona y no constituyen asesoramiento médico."
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Grams"
+msgstr "Gramos"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Minutes since carbs"
+msgstr "Minutos desde los carbohidratos"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "min ago"
+msgstr "min atrás"
