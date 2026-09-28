@@ -77,7 +77,7 @@ internal sealed class ManagedAlertEngine(
         // only read of it (docs/alerts/engine-semantics.md §6.3).
         var rearmReadResolve = false;
         var transition = await excursionTracker.ProcessEvaluationAsync(
-            rule.Id,
+            rule,
             conditionMet,
             token =>
             {
@@ -155,7 +155,7 @@ internal sealed class ManagedAlertEngine(
         if (!await AutoResolveHoldsAsync(rule, context, ct))
             return null;
 
-        return await excursionTracker.ForceCloseAsync(rule.Id, ExcursionCloseReason.AutoResolve, ct);
+        return await excursionTracker.ForceCloseAsync(rule, ExcursionCloseReason.AutoResolve, ct);
     }
 
     /// <summary>

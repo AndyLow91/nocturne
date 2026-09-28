@@ -455,7 +455,10 @@ the condition holds re-opens on the next evaluation, once.
 
 The host clears `AwaitingRearm` when a rule's condition, auto-resolve configuration or
 enablement changes: the hold was taken against the rule as it was when the auto-resolve
-closed it.
+closed it. For the same reason a host drops a tracker decision made against a rule whose
+condition, auto-resolve configuration or enablement changed after the evaluation read it:
+checked under the rule's transition lock, which the edit also takes, so an evaluation that
+loaded the rule before an edit cannot set a hold the edit cleared.
 
 State persisted before `AwaitingRearm` existed has none and reads as armed.
 
