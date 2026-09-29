@@ -110,7 +110,7 @@
         <ReportPrintHeader title={reportName} period={printPeriod} />
 
         <div
-                class="sticky top-(--app-sticky-top,0px) z-20 transition-[top] duration-300 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/60 print:hidden"
+                class="sticky top-(--app-sticky-top,0px) z-20 transition-all duration-300 border-b border-border bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/60 print:hidden"
         >
             <div class="flex h-14 items-center justify-between gap-2 px-3 @md:px-6">
                 <div class="flex items-center gap-2">
