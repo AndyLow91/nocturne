@@ -105,7 +105,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </svelte:head>
 
-<div class="relative min-h-full bg-background" bind:this={reportRoot} data-report-root>
+<div class="@container relative min-h-full bg-background" bind:this={reportRoot} data-report-root>
     {#if page.url.pathname !== "/reports"}
         <ReportPrintHeader title={reportName} period={printPeriod} />
 
@@ -165,7 +165,7 @@
     <HistoryLimitNotice class="mx-3 mt-3 w-auto @md:mx-6 print:hidden" />
 
     <!-- Main Content -->
-    <div class="relative">
+    <div class={useResourceGuard ? "relative mx-auto w-full max-w-7xl p-3 @md:p-6 print:max-w-none print:p-3" : "relative"}>
         {#if useResourceGuard}
             <ResourceGuard
                 loading={resourceCtx.loading}
