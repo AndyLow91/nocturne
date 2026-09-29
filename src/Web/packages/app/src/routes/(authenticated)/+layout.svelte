@@ -220,7 +220,7 @@
          MobileHeader plus the banner strip); page-level sticky bars pin to it with the
          header's 300ms transition. -->
     <Sidebar.Inset
-      class="[--app-sticky-top:calc(var(--mobile-header-offset,0px)_+_var(--app-banner-height))] md:[--app-sticky-top:var(--app-banner-height)]"
+      class="min-w-0 [--app-sticky-top:calc(var(--mobile-header-offset,0px)_+_var(--app-banner-height))] md:[--app-sticky-top:var(--app-banner-height)]"
       style="--app-banner-height: {bannerStripHeight}px"
     >
       <MobileHeader />

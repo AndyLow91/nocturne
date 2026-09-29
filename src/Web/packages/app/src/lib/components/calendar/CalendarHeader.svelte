@@ -43,11 +43,11 @@
     </div>
 
     <!-- Navigation Controls -->
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <Button variant="outline" size="icon" onclick={previousMonth}>
         <ChevronLeft class="h-4 w-4" />
       </Button>
-      <div class="text-lg font-semibold min-w-[180px] text-center">
+      <div class="text-lg font-semibold text-center @md:min-w-[180px]">
         {MONTH_NAMES[currentMonth]}
         {currentYear}
       </div>
