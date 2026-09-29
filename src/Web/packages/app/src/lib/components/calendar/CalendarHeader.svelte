@@ -34,7 +34,7 @@
 </script>
 
 <div
-  class="@container border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 sticky top-(--app-sticky-top,0px) z-10 transition-all duration-300"
+  class="@container border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 transition-all duration-300"
 >
   <div class="flex flex-wrap items-center justify-between gap-2 p-4">
     <div class="flex items-center gap-4">

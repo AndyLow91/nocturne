@@ -375,7 +375,7 @@
     </div>
 
     <div
-      class="print:hidden"
+      class="sticky top-(--app-sticky-top,0px) z-10 print:hidden"
       {@attach coachmark({
         key: "feature-intro.calendar-views",
         title: "View modes",
