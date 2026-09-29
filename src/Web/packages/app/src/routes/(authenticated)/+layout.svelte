@@ -238,7 +238,7 @@
         />
         <AlertSurfaces />
       {/if}
-      <main class="flex-1 overflow-auto">
+      <main class="flex-1 overflow-x-clip">
         <svelte:boundary>
           {@render children()}
 
