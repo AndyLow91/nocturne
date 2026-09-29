@@ -747,6 +747,8 @@ public class StateSpanRepository : IStateSpanRepository
         if (!string.IsNullOrEmpty(type))
             query = query.Where(s => s.State == type);
 
+        query = query.ExcludeNonPrimary(_context, RecordType.StateSpan);
+
         var entities = await query
             .OrderByDescending(s => s.StartTimestamp)
             .Skip(skip)
