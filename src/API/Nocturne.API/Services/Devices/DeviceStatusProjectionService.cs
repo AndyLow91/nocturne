@@ -281,25 +281,20 @@ public class DeviceStatusProjectionService
     }
 
     /// <summary>
-    /// Returns the total number of projected <see cref="DeviceStatus"/> documents matching the
-    /// optional <paramref name="find"/> filter. Sums APS snapshot count and orphan pump snapshot
-    /// count to approximate the total for V3 pagination.
+    /// Returns the number of <see cref="DeviceStatus"/> documents <see cref="GetAsync"/> projects for
+    /// <paramref name="find"/> without a page limit: every APS snapshot plus every pump snapshot
+    /// no APS snapshot in the same window and device correlates with.
     /// </summary>
     /// <param name="find">MongoDB-style query filter (same format as <see cref="GetAsync"/>).</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task<long> CountAsync(string? find, CancellationToken ct)
     {
-        var (_, from, to) = ParseFindQuery(find);
+        var (device, from, to) = ParseFindQuery(find);
 
-        var apsCount = await _apsRepo.CountAsync(from, to, ct);
-        var pumpCount = await _pumpRepo.CountAsync(from, to, ct);
+        var apsCount = await _apsRepo.CountAsync(from, to, device, ct);
+        var orphanPumpCount = await _pumpRepo.CountUncorrelatedAsync(from, to, device, ct);
 
-        // Orphan pump count is estimated as total pumps minus APS count (each APS correlates
-        // to at most one pump). This is a rough estimate — the real orphan count requires
-        // a correlation join, which is too expensive for a count-only query.
-        var orphanPumpEstimate = Math.Max(0, pumpCount - apsCount);
-
-        return apsCount + orphanPumpEstimate;
+        return apsCount + orphanPumpCount;
     }
 
     #region Projection Logic
