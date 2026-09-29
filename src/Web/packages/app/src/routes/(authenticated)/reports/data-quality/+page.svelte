@@ -77,7 +77,7 @@
 </svelte:head>
 
 {#if suggestionsResource.current}
-	<div class="@container mx-auto max-w-4xl space-y-6">
+	<div class="@container space-y-6">
 		<div class="flex items-center gap-3">
 			<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 print:hidden">
 				<ShieldCheck class="h-5 w-5 text-primary" />

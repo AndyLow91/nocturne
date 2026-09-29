@@ -66,7 +66,7 @@
 </svelte:head>
 
 {#if resource.current}
-  <div class="@container mx-auto max-w-6xl space-y-6">
+  <div class="@container space-y-6">
     <!-- Header -->
     <div class="space-y-3">
       <a

@@ -82,7 +82,7 @@
 </svelte:head>
 
 {#if resource.current}
-  <div class="@container mx-auto max-w-5xl space-y-6">
+  <div class="@container space-y-6">
     <div class="space-y-3">
       <a
         href={resolve("/reports/data-quality")}
