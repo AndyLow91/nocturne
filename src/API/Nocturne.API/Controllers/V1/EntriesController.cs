@@ -519,18 +519,6 @@ public class EntriesController : ControllerBase
                 );
             }
 
-            if (entriesToCreate.Count == 0)
-            {
-                return BadRequest(
-                    new
-                    {
-                        status = 400,
-                        message = "No valid entries provided",
-                        type = "client",
-                    }
-                );
-            }
-
             // Fill in derived fields for every submitted entry, not just the ones that will be
             // written: a refused entry is still echoed, and the echo has to be a well-formed v1
             // object. Doing this before the refusal check cannot change which entries are refused
@@ -555,19 +543,12 @@ public class EntriesController : ControllerBase
                 }
             }
 
+            LogRefusedEntries(entriesToCreate.Count, entriesToCreate.Count - acceptedIndices.Count);
+
             if (acceptedIndices.Count == 0)
             {
-                return BadRequest(
-                    new
-                    {
-                        status = 400,
-                        message = "No valid entries with meaningful data provided",
-                        type = "client",
-                    }
-                );
+                return Ok(entriesToCreate.ToArray().ToV1Responses());
             }
-
-            LogRefusedEntries(entriesToCreate.Count, entriesToCreate.Count - acceptedIndices.Count);
 
             var validEntries = acceptedIndices.ConvertAll(i => entriesToCreate[i]);
 
@@ -600,7 +581,7 @@ public class EntriesController : ControllerBase
 
             var echo = BuildSubmittedOrderEcho(entriesToCreate, acceptedIndices, responseEntries);
 
-            return StatusCode(201, echo.ToV1Responses());
+            return Ok(echo.ToV1Responses());
         }
         catch (JsonException ex)
         {
