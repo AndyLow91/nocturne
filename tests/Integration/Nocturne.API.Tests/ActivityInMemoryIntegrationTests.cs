@@ -293,7 +293,9 @@ public class ActivityInMemoryIntegrationTests : ApiIntegrationTestBase
     [Fact]
     public async Task GetActivities_WithPaginationParameters_ShouldRespectParameters()
     {
-        // Arrange - Create multiple activities
+        // Arrange - Create multiple activities an hour apart: same-type spans from one source
+        // inside the dedup window collapse to one primary, and the list hides the rest
+        var start = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds();
         var activities = Enumerable
             .Range(1, 15)
             .Select(i => new Activity
@@ -301,6 +303,7 @@ public class ActivityInMemoryIntegrationTests : ApiIntegrationTestBase
                 Type = "Exercise",
                 Description = $"Activity {i}",
                 Duration = i * 5,
+                Mills = start + i * (long)TimeSpan.FromHours(1).TotalMilliseconds,
             })
             .ToArray();
 
