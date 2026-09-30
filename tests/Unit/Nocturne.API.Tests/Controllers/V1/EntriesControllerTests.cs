@@ -848,12 +848,11 @@ public class EntriesControllerTests
             .Setup(x =>
                 x.CheckForDuplicateEntriesAsync(
                     It.IsAny<IReadOnlyList<EntryDuplicateProbe>>(),
-                    It.IsAny<int>(),
                     It.IsAny<CancellationToken>()
                 )
             )
             .ReturnsAsync(
-                (IReadOnlyList<EntryDuplicateProbe> probes, int _, CancellationToken _) =>
+                (IReadOnlyList<EntryDuplicateProbe> probes, CancellationToken _) =>
                     probes
                         .Select(probe => byMills.GetValueOrDefault(probe.Mills))
                         .ToArray()
