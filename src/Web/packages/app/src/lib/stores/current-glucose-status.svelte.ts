@@ -68,8 +68,8 @@ interface GlucoseSource {
  * A reading's value, trend and server status as one unit, so a tile never shows
  * a new number in another reading's colour. While the summary refresh for a
  * newer reading is in flight the reading displayed just before it stays up, for
- * at most {@link PAIR_HOLD_MS} of wall-clock time (a hidden tab throttles
- * timers, and the title and favicon are all it shows). A hold that expires or
+ * at most {@link PAIR_HOLD_MS} (a hidden tab throttles the timer, so the wall
+ * clock is re-checked on visibilitychange and focus). A hold that expires or
  * whose refresh fails discards the pair for good, so an older reading can never
  * come back after the tile has moved on. Accepts an absent store. Call during
  * component initialisation.
@@ -86,6 +86,30 @@ export function displayedGlucose(
   let previousMills: number | undefined;
   let arrivedAt = 0;
 
+  function expireIfElapsed() {
+    if (
+      arrivedMills !== undefined &&
+      Date.now() - arrivedAt >= PAIR_HOLD_MS &&
+      currentGlucoseStatus(arrivedMills) === undefined
+    ) {
+      lastPaired = undefined;
+      holdExpiredFor = arrivedMills;
+    }
+  }
+
+  // A hidden tab throttles the timer below, so the wall clock is re-checked when the tab returns.
+  $effect(() => {
+    const recheck = () => {
+      if (document.visibilityState !== "hidden") expireIfElapsed();
+    };
+    document.addEventListener("visibilitychange", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+  });
+
   $effect(() => {
     const mills = store?.currentEntry?.mills;
     if (!mills) return;
@@ -94,12 +118,9 @@ export function displayedGlucose(
       arrivedMills = mills;
       arrivedAt = Date.now();
     }
-    if (failedRefreshMills === mills) {
-      lastPaired = undefined;
-      return;
-    }
     const status = currentGlucoseStatus(mills);
     if (status !== undefined) {
+      if (failedRefreshMills === mills) failedRefreshMills = undefined;
       lastPaired = {
         mills,
         currentBG: store!.currentBG,
@@ -107,6 +128,10 @@ export function displayedGlucose(
         direction: store!.direction,
         status,
       };
+      return;
+    }
+    if (failedRefreshMills === mills) {
+      lastPaired = undefined;
       return;
     }
     const remaining = Math.max(0, PAIR_HOLD_MS - (Date.now() - arrivedAt));
@@ -117,7 +142,7 @@ export function displayedGlucose(
     return () => clearTimeout(timer);
   });
 
-  // Not a $derived: the clock is read on every access, so expiry holds even when the timer is late.
+  // Reads tracked state only, so every derived sees value and status flip together at expiry.
   function held() {
     const mills = store?.currentEntry?.mills;
     if (!mills || !lastPaired || lastPaired.mills === mills) return undefined;
@@ -126,8 +151,6 @@ export function displayedGlucose(
     if (lastPaired.mills !== previous) return undefined;
     if (currentGlucoseStatus(mills) !== undefined) return undefined;
     if (holdExpiredFor === mills || failedRefreshMills === mills) return undefined;
-    if (mills === arrivedMills && Date.now() - arrivedAt >= PAIR_HOLD_MS)
-      return undefined;
     if (mills - lastPaired.mills > STALE_THRESHOLD_MS) return undefined;
     return lastPaired;
   }

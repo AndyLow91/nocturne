@@ -162,7 +162,6 @@
   const isDisconnected = $derived(connection.isDisconnected);
   const isStale = $derived(now - lastUpdated > STALE_THRESHOLD_MS);
   const glucose = displayedGlucose(realtimeStore);
-  const glucoseVariant = $derived(getGlucoseTileVariant(glucose.status));
 
   $effect(() => {
     // Determine if we should update
@@ -173,6 +172,7 @@
     const title = timeSinceReading;
     const delta = glucose.bgDelta;
     const dir = glucose.direction;
+    const variant = getGlucoseTileVariant(glucose.status);
 
     if (enabled && bg > 0) {
       titleFaviconService.update(
@@ -180,7 +180,7 @@
         dir,
         delta,
         titleFaviconSettings,
-        glucoseVariant,
+        variant,
         isDisconnected,
         isStale,
         title

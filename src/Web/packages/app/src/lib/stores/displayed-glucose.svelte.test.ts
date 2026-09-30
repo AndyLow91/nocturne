@@ -182,16 +182,82 @@ describe("displayedGlucose", () => {
     expect(pair.status).toBeUndefined();
   });
 
-  it("expires the hold by the wall clock when timers are throttled", () => {
+  function observe(pair: ReturnType<typeof displayedGlucose>) {
+    const seen: Array<[number, GlucoseStatus | undefined]> = [];
+    let value!: () => number;
+    let status!: () => GlucoseStatus | undefined;
+    roots.push(
+      $effect.root(() => {
+        const v = $derived(pair.currentBG);
+        const s = $derived(pair.status);
+        value = () => v;
+        status = () => s;
+        $effect(() => {
+          seen.push([v, s]);
+        });
+      })
+    );
+    flushSync();
+    return { seen, value, status };
+  }
+
+  it("flips value and status together through a derived when the timer fires", () => {
     const pair = mount();
     reading(1_000_000, 100);
     summaryLands(1_000_000, GlucoseStatus.InRange);
-
     reading(1_400_000, 250);
-    expect(pair.currentBG).toBe(100);
+    const view = observe(pair);
+    expect(view.seen.at(-1)).toEqual([100, GlucoseStatus.InRange]);
+
+    vi.advanceTimersByTime(PAIR_HOLD_MS);
+    flushSync();
+
+    expect(view.seen.at(-1)).toEqual([250, undefined]);
+    expect(view.seen).not.toContainEqual([250, GlucoseStatus.InRange]);
+    expect(view.seen).not.toContainEqual([100, undefined]);
+  });
+
+  it("does not expire on the clock alone: a stalled timer leaves the derived pair intact", () => {
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+    reading(1_400_000, 250);
+    const view = observe(pair);
 
     vi.setSystemTime(Date.now() + PAIR_HOLD_MS + 1);
-    expect(pair.currentBG).toBe(250);
-    expect(pair.status).toBeUndefined();
+    flushSync();
+
+    expect([view.value(), view.status()]).toEqual([100, GlucoseStatus.InRange]);
+  });
+
+  it("expires at once on visibilitychange when the timer stalled, value and status together", () => {
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+    reading(1_400_000, 250);
+    const view = observe(pair);
+
+    vi.setSystemTime(Date.now() + PAIR_HOLD_MS + 1);
+    document.dispatchEvent(new Event("visibilitychange"));
+    flushSync();
+
+    expect(view.seen.at(-1)).toEqual([250, undefined]);
+    expect(view.seen).not.toContainEqual([250, GlucoseStatus.InRange]);
+  });
+
+  it("holds a fresh reading again after a failed refresh's summary lands late", async () => {
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+    holder.refresh.mockImplementation(() => Promise.reject(new Error("down")));
+    reading(1_060_000, 90);
+    await vi.advanceTimersByTimeAsync(0);
+    flushSync();
+    summaryLands(1_060_000, GlucoseStatus.InRange);
+
+    holder.refresh.mockImplementation(() => new Promise(() => {}));
+    reading(1_120_000, 80);
+    expect(pair.currentBG).toBe(90);
+    expect(pair.status).toBe(GlucoseStatus.InRange);
   });
 });
