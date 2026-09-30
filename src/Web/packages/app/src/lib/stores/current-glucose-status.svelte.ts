@@ -151,7 +151,8 @@ export function displayedGlucose(
     if (lastPaired.mills !== previous) return undefined;
     if (currentGlucoseStatus(mills) !== undefined) return undefined;
     if (holdExpiredFor === mills || failedRefreshMills === mills) return undefined;
-    if (mills - lastPaired.mills > STALE_THRESHOLD_MS) return undefined;
+    const gap = mills - lastPaired.mills;
+    if (gap < 0 || gap > STALE_THRESHOLD_MS) return undefined;
     return lastPaired;
   }
 
