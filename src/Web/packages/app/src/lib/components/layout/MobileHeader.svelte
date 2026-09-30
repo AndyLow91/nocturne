@@ -24,12 +24,7 @@
   let scrollThreshold = 10; // Minimum scroll amount to trigger hide/show
 
   // Get direction info for arrow display
-  const glucose = displayedGlucose({
-    get currentEntry() { return realtimeStore?.currentEntry; },
-    get currentBG() { return realtimeStore?.currentBG ?? 0; },
-    get bgDelta() { return realtimeStore?.bgDelta ?? 0; },
-    get direction() { return realtimeStore?.direction ?? ""; },
-  });
+  const glucose = displayedGlucose(realtimeStore);
   const directionInfo = $derived(getDirectionInfo(glucose.direction));
 
   // This header is the only glucose surface on a phone — CurrentBGDisplay hides

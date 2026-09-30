@@ -65,7 +65,7 @@ function summaryLands(mills: number, status: GlucoseStatus) {
 }
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   summaryState.current = undefined;
   source.currentEntry = null;
   source.currentBG = 0;
@@ -142,6 +142,55 @@ describe("displayedGlucose", () => {
 
     reading(1_000_000 + 11 * 60 * 1000, 250);
 
+    expect(pair.currentBG).toBe(250);
+    expect(pair.status).toBeUndefined();
+  });
+
+  it("does not bring an older reading back after a hold expired (refresh hangs)", () => {
+    holder.refresh.mockImplementation(() => new Promise(() => {}));
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+
+    reading(1_060_000, 60);
+    expect(pair.currentBG).toBe(100);
+    vi.advanceTimersByTime(PAIR_HOLD_MS);
+    flushSync();
+    expect(pair.currentBG).toBe(60);
+    expect(pair.status).toBeUndefined();
+
+    reading(1_120_000, 50);
+    expect(pair.currentBG).toBe(50);
+    expect(pair.mills).toBe(1_120_000);
+    expect(pair.status).toBeUndefined();
+  });
+
+  it("does not bring an older reading back after a failed refresh", async () => {
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+
+    holder.refresh.mockImplementation(() => Promise.reject(new Error("down")));
+    reading(1_300_000, 60);
+    await vi.advanceTimersByTimeAsync(0);
+    flushSync();
+    expect(pair.currentBG).toBe(60);
+
+    holder.refresh.mockImplementation(() => new Promise(() => {}));
+    reading(1_000_000 + 590_000, 55);
+    expect(pair.currentBG).toBe(55);
+    expect(pair.status).toBeUndefined();
+  });
+
+  it("expires the hold by the wall clock when timers are throttled", () => {
+    const pair = mount();
+    reading(1_000_000, 100);
+    summaryLands(1_000_000, GlucoseStatus.InRange);
+
+    reading(1_400_000, 250);
+    expect(pair.currentBG).toBe(100);
+
+    vi.setSystemTime(Date.now() + PAIR_HOLD_MS + 1);
     expect(pair.currentBG).toBe(250);
     expect(pair.status).toBeUndefined();
   });

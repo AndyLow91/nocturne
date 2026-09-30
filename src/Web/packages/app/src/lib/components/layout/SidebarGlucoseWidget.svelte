@@ -49,12 +49,7 @@
   };
 
   // Collapsed state needs basic BG info
-  const glucose = displayedGlucose({
-    get currentEntry() { return realtimeStore?.currentEntry; },
-    get currentBG() { return realtimeStore?.currentBG ?? 0; },
-    get bgDelta() { return realtimeStore?.bgDelta ?? 0; },
-    get direction() { return realtimeStore?.direction ?? ""; },
-  });
+  const glucose = displayedGlucose(realtimeStore);
   const rawCurrentBG = $derived(glucose.currentBG);
   const lastUpdated = $derived(realtimeStore?.lastUpdated ?? 0);
   const tileVariant = $derived(

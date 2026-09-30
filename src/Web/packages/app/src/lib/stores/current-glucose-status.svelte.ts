@@ -67,60 +67,86 @@ interface GlucoseSource {
 /**
  * A reading's value, trend and server status as one unit, so a tile never shows
  * a new number in another reading's colour. While the summary refresh for a
- * newer reading is in flight the previous pair stays up, for at most
- * {@link PAIR_HOLD_MS}; a failed refresh, an expired hold or a previous reading
- * that was already stale falls back to the newest value with no status (neutral).
- * Call during component initialisation.
+ * newer reading is in flight the reading displayed just before it stays up, for
+ * at most {@link PAIR_HOLD_MS} of wall-clock time (a hidden tab throttles
+ * timers, and the title and favicon are all it shows). A hold that expires or
+ * whose refresh fails discards the pair for good, so an older reading can never
+ * come back after the tile has moved on. Accepts an absent store. Call during
+ * component initialisation.
  */
-export function displayedGlucose(store: GlucoseSource): DisplayedGlucose {
+export function displayedGlucose(
+  store: GlucoseSource | null | undefined
+): DisplayedGlucose {
   let lastPaired = $state.raw<Omit<DisplayedGlucose, "status"> & {
     mills: number;
     status: GlucoseStatus;
   }>();
   let holdExpiredFor = $state<number | undefined>();
+  let arrivedMills: number | undefined;
+  let previousMills: number | undefined;
+  let arrivedAt = 0;
 
   $effect(() => {
-    const mills = store.currentEntry?.mills;
+    const mills = store?.currentEntry?.mills;
     if (!mills) return;
+    if (mills !== arrivedMills) {
+      previousMills = arrivedMills;
+      arrivedMills = mills;
+      arrivedAt = Date.now();
+    }
+    if (failedRefreshMills === mills) {
+      lastPaired = undefined;
+      return;
+    }
     const status = currentGlucoseStatus(mills);
     if (status !== undefined) {
       lastPaired = {
         mills,
-        currentBG: store.currentBG,
-        bgDelta: store.bgDelta,
-        direction: store.direction,
+        currentBG: store!.currentBG,
+        bgDelta: store!.bgDelta,
+        direction: store!.direction,
         status,
       };
       return;
     }
-    const timer = setTimeout(() => (holdExpiredFor = mills), PAIR_HOLD_MS);
+    const remaining = Math.max(0, PAIR_HOLD_MS - (Date.now() - arrivedAt));
+    const timer = setTimeout(() => {
+      lastPaired = undefined;
+      holdExpiredFor = mills;
+    }, remaining);
     return () => clearTimeout(timer);
   });
 
-  const held = $derived.by(() => {
-    const mills = store.currentEntry?.mills;
+  // Not a $derived: the clock is read on every access, so expiry holds even when the timer is late.
+  function held() {
+    const mills = store?.currentEntry?.mills;
     if (!mills || !lastPaired || lastPaired.mills === mills) return undefined;
+    // Until the effect has seen this reading, the last one it saw is the predecessor.
+    const previous = mills === arrivedMills ? previousMills : arrivedMills;
+    if (lastPaired.mills !== previous) return undefined;
     if (currentGlucoseStatus(mills) !== undefined) return undefined;
     if (holdExpiredFor === mills || failedRefreshMills === mills) return undefined;
+    if (mills === arrivedMills && Date.now() - arrivedAt >= PAIR_HOLD_MS)
+      return undefined;
     if (mills - lastPaired.mills > STALE_THRESHOLD_MS) return undefined;
     return lastPaired;
-  });
+  }
 
   return {
     get mills() {
-      return held?.mills ?? store.currentEntry?.mills;
+      return held()?.mills ?? store?.currentEntry?.mills;
     },
     get currentBG() {
-      return held?.currentBG ?? store.currentBG;
+      return held()?.currentBG ?? store?.currentBG ?? 0;
     },
     get bgDelta() {
-      return held?.bgDelta ?? store.bgDelta;
+      return held()?.bgDelta ?? store?.bgDelta ?? 0;
     },
     get direction() {
-      return held?.direction ?? store.direction;
+      return held()?.direction ?? store?.direction ?? "";
     },
     get status() {
-      return held?.status ?? currentGlucoseStatus(store.currentEntry?.mills);
+      return held()?.status ?? currentGlucoseStatus(store?.currentEntry?.mills);
     },
   };
 }
