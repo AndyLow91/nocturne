@@ -4,24 +4,14 @@
 # its test pass. See tests/README.md.
 #
 # <FullyQualifiedName (no theory arguments)> | <bug>
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.ActivityWorkflow_FullCrudCycle_ShouldWorkCorrectly | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.CreateActivities_WithMultipleActivities_ShouldCreateAllActivities | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.CreateActivity_WithValidData_ShouldCreateAndReturnActivity | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.DeleteActivity_WithExistingId_ShouldDeleteAndReturnSuccess | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.GetActivity_AfterCreation_ShouldReturnCreatedActivity | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
-Nocturne.API.Tests.Integration.ActivityInMemoryIntegrationTests.UpdateActivity_WithValidData_ShouldUpdateAndReturnActivity | Core.Models.Activity serializes Id twice (_id and Id); POST echoes the stray id:null, which overwrites _id on read
 Nocturne.API.Tests.Integration.Auth.GuestLinkLifecycleIntegrationTests.GuestSession_CannotWriteV4TherapySettings | a guest session writing v4 therapy settings gets 500 instead of 401/403
 Nocturne.API.Tests.Integration.Auth.MultitenantIsolationIntegrationTests.TenantA_CannotSee_TenantB_Profiles | PUT /api/v1/profile is not routed (405); Nightscout accepts it
 Nocturne.API.Tests.Integration.Auth.TokenRevocationIntegrationTests.Introspect_ValidToken_ReturnsActive | /api/oauth/introspect names its fields tokenType/clientId; RFC 7662 has token_type/client_id
-Nocturne.API.Tests.Integration.DeviceStatusIntegrationTests.DeleteDeviceStatusById_ShouldRemoveEntry | devicestatus reads return nothing after a POST, so there is no id to delete
 Nocturne.API.Tests.Integration.DeviceStatusIntegrationTests.GetDeviceStatusById_ShouldReturnMatchingEntry | devicestatus reads return nothing after a POST
 Nocturne.API.Tests.Integration.DeviceStatusIntegrationTests.GetDeviceStatus_ShouldReturnCreatedEntries | devicestatus reads return nothing after a POST
-Nocturne.API.Tests.Integration.DeviceStatusIntegrationTests.PostDeviceStatus_ShouldCreateAndReturnEntry | POST /api/v1/devicestatus response has no _id
 Nocturne.API.Tests.Integration.EntriesIntegrationTests.DeleteEntry_ShouldRemoveEntry | GET /api/v1/entries/{id} answers [] and PUT/DELETE 404 for an entry just created
 Nocturne.API.Tests.Integration.EntriesIntegrationTests.GetEntries_WithSkip_ShouldOffsetResults | GET /api/v1/entries ignores skip, so pages overlap (Nightscout behaviour to confirm)
-Nocturne.API.Tests.Integration.EntriesIntegrationTests.GetEntryById_ShouldReturnSpecificEntry | POST /api/v1/entries answers 201; Nightscout 200
-Nocturne.API.Tests.Integration.EntriesIntegrationTests.PostEntries_Array_ShouldCreateMultipleEntries | POST /api/v1/entries answers 201; Nightscout 200
-Nocturne.API.Tests.Integration.EntriesIntegrationTests.PostEntry_Single_ShouldCreateAndReturnEntry | POST /api/v1/entries answers 201; Nightscout 200
+Nocturne.API.Tests.Integration.EntriesIntegrationTests.GetEntryById_ShouldReturnSpecificEntry | GET /api/v1/entries/{id} answers [] and PUT/DELETE 404 for an entry just created
 Nocturne.API.Tests.Integration.EntriesIntegrationTests.PutEntry_ShouldUpdateExistingEntry | GET /api/v1/entries/{id} answers [] and PUT/DELETE 404 for an entry just created
 Nocturne.API.Tests.Integration.Migration.ApiMigrationTests.MigrateEntries_FromApi_AllFieldsPreserved | v3 filter {dataSource: mongodb-import} matches none of the imported entries
 Nocturne.API.Tests.Integration.Migration.ApiMigrationTests.MigrateTreatments_DuplicateRun_NoDuplicatesCreated | a second import of the same source reports every document as migrated again
@@ -35,11 +25,6 @@ Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.GetDeviceStatus
 Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.GetDeviceStatus_WithCreatedAtDateRangeFilter_ReturnsSameShape | devicestatus reads return nothing after a POST
 Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.GetDeviceStatus_WithData_ReturnsSameShape | devicestatus reads return nothing after a POST
 Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.GetDeviceStatus_WithFindFilter_ReturnsSameShape | devicestatus reads return nothing after a POST
-Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.PostDeviceStatus_MissingDevice_ReturnsSameShape | POST /api/v1/devicestatus response has no _id
-Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.PostDeviceStatus_Simple_ReturnsSameShape | POST /api/v1/devicestatus response has no _id
-Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.PostDeviceStatus_WithLoop_ReturnsSameShape | POST /api/v1/devicestatus response has no _id
-Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.PostDeviceStatus_WithOpenAPS_ReturnsSameShape | POST /api/v1/devicestatus response has no _id
-Nocturne.API.Tests.Integration.Parity.V1.DeviceStatusParityTests.PostDeviceStatus_WithPump_ReturnsSameShape | POST /api/v1/devicestatus response has no _id
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntriesByType_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntriesCurrent_WithData_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntries_TopLevelTypeParam_IsIgnored_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
@@ -48,8 +33,6 @@ Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntries_WithCount
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntries_WithData_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntries_WithFindFilter_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
 Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.GetEntries_WithFindTypeFilter_ReturnsSameShape | entries lose rssi and delta (and, filtered, sgv/direction/noise) on read
-Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.PostEntries_Batch_ReturnsSameShape | POST /api/v1/entries answers 201; Nightscout 200
-Nocturne.API.Tests.Integration.Parity.V1.EntriesParityTests.PostEntries_Single_ReturnsSameShape | POST /api/v1/entries answers 201; Nightscout 200
 Nocturne.API.Tests.Integration.Parity.V1.FoodParityTests.GetFoodQuickpicks_WithData_ReturnsSameShape | food/quickpicks returns a food Nightscout does not list
 Nocturne.API.Tests.Integration.Parity.V1.ProfileParityTests.GetProfileCurrent_Empty_ReturnsSameShape | /api/v1/profile/current with no profile answers []; Nightscout null
 Nocturne.API.Tests.Integration.Parity.V1.ProfileParityTests.GetProfileCurrent_WithData_ReturnsSameShape | null-valued profile store fields (perGIvalues, carbs_hr_*, delay_*) are dropped

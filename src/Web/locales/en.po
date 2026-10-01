@@ -3843,6 +3843,7 @@ msgstr "Sensor"
 msgid "<0/> BG Check"
 msgstr "<0/> BG Check"
 
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 #: src/lib/components/entries/BGCheckSection.svelte
 #: src/lib/components/trackers/ReservoirReportDialog.svelte
 #: src/lib/components/treatments/edit-dialog/BGCheckFormFields.svelte
@@ -4233,9 +4234,9 @@ msgstr "PumpBatteryChange"
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
 #: src/lib/components/dashboard/glucose-chart/ChartLegend.svelte
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
-#: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
+#: src/lib/components/dashboard/glucose-chart/engine/chart-data-view.svelte.ts
 #: src/lib/components/icons/PumpModeIcon.svelte
 #: src/lib/components/treatments/edit-dialog/BolusFormFields.svelte
 msgid "Automatic"
@@ -4537,7 +4538,6 @@ msgstr "Therapy"
 
 #: src/lib/navigation/app-navigation.svelte.ts
 #: src/lib/navigation/report-navigation.svelte.ts
-#: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/settings/data-quality/+page.svelte
 msgid "Data Quality"
 msgstr "Data Quality"
@@ -7154,7 +7154,6 @@ msgstr "Flash the title and favicon during urgent glucose levels"
 #: src/lib/components/settings/TokenScopeSelector.svelte
 #: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/heart-rate/+page.svelte
-#: src/routes/(authenticated)/reports/heart-rate/+page.svelte
 msgid "Heart Rate"
 msgstr "Heart Rate"
 
@@ -7162,7 +7161,6 @@ msgstr "Heart Rate"
 #: src/lib/components/rbac/PermissionSummary.svelte
 #: src/lib/components/settings/TokenScopeSelector.svelte
 #: src/lib/navigation/report-navigation.svelte.ts
-#: src/routes/(authenticated)/reports/steps/+page.svelte
 msgid "Step Count"
 msgstr "Step Count"
 
@@ -10249,7 +10247,6 @@ msgstr "Contact Name"
 msgid "Close Emergency View"
 msgstr "Close Emergency View"
 
-#: src/lib/components/reports/year-overview/YearOverviewFilters.svelte
 #: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/year-overview/+page.svelte
 msgid "Year Overview"
@@ -11136,9 +11133,8 @@ msgstr "Ambulatory Glucose Profile - Nocturne Reports"
 msgid "Standard AGP report with glucose pattern overlay, percentile bands, and time-in-range analysis"
 msgstr "Standard AGP report with glucose pattern overlay, percentile bands, and time-in-range analysis"
 
-#: src/routes/(authenticated)/reports/agp/+page.svelte
-msgid "<0/> Ambulatory Glucose Profile"
-msgstr "<0/> Ambulatory Glucose Profile"
+#~ msgid "<0/> Ambulatory Glucose Profile"
+#~ msgstr "<0/> Ambulatory Glucose Profile"
 
 #: src/routes/(authenticated)/reports/agp/+page.svelte
 msgid "Your typical daily glucose pattern — a standardized clinical report"
@@ -11303,9 +11299,8 @@ msgstr "Basal Rate Analysis - Nocturne Reports"
 msgid "Analyze your basal insulin delivery patterns with percentile visualization"
 msgstr "Analyze your basal insulin delivery patterns with percentile visualization"
 
-#: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
-msgid "<0/> Basal Rate Analysis"
-msgstr "<0/> Basal Rate Analysis"
+#~ msgid "<0/> Basal Rate Analysis"
+#~ msgstr "<0/> Basal Rate Analysis"
 
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 msgid "Understand your background insulin delivery patterns over time"
@@ -11420,7 +11415,6 @@ msgstr "Insulin Delivery Report <0/>"
 #: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/basal-analysis/BasalAnalysisContent.svelte
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-#: src/routes/(authenticated)/reports/treatments/+page.svelte
 msgid "Treatment Log"
 msgstr "Treatment Log"
 
@@ -11442,9 +11436,8 @@ msgstr "Battery Report - Nocturne"
 msgid "Device battery statistics and charge cycle history"
 msgstr "Device battery statistics and charge cycle history"
 
-#: src/routes/(authenticated)/reports/battery/+page.svelte
-msgid "Battery Report"
-msgstr "Battery Report"
+#~ msgid "Battery Report"
+#~ msgstr "Battery Report"
 
 #: src/routes/(authenticated)/reports/battery/+page.svelte
 msgid "No Battery Data Available"
@@ -11571,7 +11564,6 @@ msgid "Data Quality Categories"
 msgstr "Data Quality Categories"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
-#: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/compression-lows/+page.svelte
 msgid "Compression Lows"
 msgstr "Compression Lows"
@@ -11778,7 +11770,6 @@ msgstr "<0/> Glucose Statistics"
 
 #: src/lib/navigation/report-navigation.svelte.ts
 #: src/routes/(authenticated)/reports/executive-summary/+page.svelte
-#: src/routes/(authenticated)/reports/glucose-distribution/+page.svelte
 msgid "Glucose Distribution"
 msgstr "Glucose Distribution"
 
@@ -11967,9 +11958,8 @@ msgstr "Insulin Delivery Report - Nocturne Reports"
 msgid "Analyze your insulin delivery patterns including basal/bolus ratios and TDD trends"
 msgstr "Analyze your insulin delivery patterns including basal/bolus ratios and TDD trends"
 
-#: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
-msgid "<0/> Insulin Delivery Report"
-msgstr "<0/> Insulin Delivery Report"
+#~ msgid "<0/> Insulin Delivery Report"
+#~ msgstr "<0/> Insulin Delivery Report"
 
 #: src/routes/(authenticated)/reports/insulin-delivery/+page.svelte
 msgid "Comprehensive analysis of your basal and bolus insulin patterns"
@@ -12158,9 +12148,8 @@ msgstr "Insulin Dosing Profile - Nocturne Reports"
 msgid "Insulin Dosing Profile report with delivery statistics, glucose metrics, basal analysis, and bolus distribution"
 msgstr "Insulin Dosing Profile report with delivery statistics, glucose metrics, basal analysis, and bolus distribution"
 
-#: src/routes/(authenticated)/reports/idp/+page.svelte
-msgid "<0/> Insulin Dosing Profile"
-msgstr "<0/> Insulin Dosing Profile"
+#~ msgid "<0/> Insulin Dosing Profile"
+#~ msgstr "<0/> Insulin Dosing Profile"
 
 #: src/routes/(authenticated)/reports/idp/+page.svelte
 msgid "Comprehensive insulin delivery analysis with glucose context"
@@ -12293,7 +12282,6 @@ msgid "Sleep pattern actogram with glucose overlay"
 msgstr "Sleep pattern actogram with glucose overlay"
 
 #: src/lib/navigation/report-navigation.svelte.ts
-#: src/routes/(authenticated)/reports/sleep/+page.svelte
 msgid "Sleep & Overnight"
 msgstr "Sleep & Overnight"
 
@@ -12334,9 +12322,8 @@ msgstr "Site Change Impact - Nocturne Reports"
 msgid "Analyze how pump site changes affect your glucose control"
 msgstr "Analyze how pump site changes affect your glucose control"
 
-#: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
-msgid "<0/> Site Change Impact"
-msgstr "<0/> Site Change Impact"
+#~ msgid "<0/> Site Change Impact"
+#~ msgstr "<0/> Site Change Impact"
 
 #: src/routes/(authenticated)/reports/site-change-impact/+page.svelte
 msgid "Analyze glucose patterns before and after pump site changes"
@@ -15328,7 +15315,7 @@ msgstr "<0/> Running…"
 msgid "Window: {0}"
 msgstr "Window: {0}"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events would have fired in this window."
 msgstr "No events would have fired in this window."
 
@@ -15836,7 +15823,7 @@ msgstr "Drag to reorder"
 msgid "Turn off"
 msgstr "Turn off"
 
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "No events yet — playhead at start of window."
 msgstr "No events yet — playhead at start of window."
 
@@ -15899,7 +15886,7 @@ msgid "No leaves to evaluate."
 msgstr "No leaves to evaluate."
 
 #: ../portal/src/lib/components/features/AlarmsDemo.svelte
-#: src/lib/components/alerts/ReplayPanel.svelte
+#: src/lib/components/alerts/ReplayView.svelte
 msgid "Resolved"
 msgstr "Resolved"
 
@@ -18228,7 +18215,6 @@ msgid "Battery statistics are calculated from device status reports sent by your
 msgstr "Battery statistics are calculated from device status reports sent by your uploader app."
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
-#: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/sensor-integrity/+page.svelte
 msgid "Signal Integrity"
 msgstr "Signal Integrity"
@@ -22007,7 +21993,6 @@ msgstr "Report generated from {0} basal events between {1} and {2}"
 
 #: src/routes/(authenticated)/reports/data-quality/+page.svelte
 #: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
-#: src/routes/(authenticated)/reports/data-quality/cgm-comparison/+page.svelte
 msgid "CGM Comparison"
 msgstr "CGM Comparison"
 
@@ -23876,8 +23861,10 @@ msgstr "Protein <0>optional</0>"
 msgid "Energy <0>auto</0>"
 msgstr "Energy <0>auto</0>"
 
+#. 0: rule.name
 #. 0: perm
 #. 0: item.l
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 #: src/lib/components/admin/RoleDialog.svelte
 #: src/routes/(authenticated)/tools/packing/list/+page.svelte
 msgid "Remove {0}"
@@ -25544,53 +25531,42 @@ msgstr "Mute for me"
 msgid "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 msgstr "You can press Mute for me on an alert to stop it reaching you. Other people keep getting it until someone who manages alerts acknowledges it, or it ends."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "NOT applies to: "
-msgstr "NOT applies to: "
+#~ msgid "NOT applies to: "
+#~ msgstr "NOT applies to: "
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "No alert over this trace."
-msgstr "No alert over this trace."
+#~ msgid "No alert over this trace."
+#~ msgstr "No alert over this trace."
 
-#. 0: active.label.toLowerCase()
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
-msgstr "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+#~ msgid "Glucose readings for the {0} example, with the times each rule was alerting shaded."
+#~ msgstr "Glucose readings for the {0} example, with the times each rule was alerting shaded."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Whole rule is true"
-msgstr "Whole rule is true"
+#~ msgid "Whole rule is true"
+#~ msgstr "Whole rule is true"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "Alerting"
-msgstr "Alerting"
+#~ msgid "Alerting"
+#~ msgstr "Alerting"
 
 #. 0: issues[index].map((i) => issueText[i.reason] ?? i.reason).join(", ")
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "A save would be refused: this rule needs {0}."
 msgstr "A save would be refused: this rule needs {0}."
 
-#. 0: Math.round(hovered.age)
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· last reading {0} min ago"
-msgstr "· last reading {0} min ago"
+#~ msgid "· last reading {0} min ago"
+#~ msgstr "· last reading {0} min ago"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "· no reading yet"
-msgstr "· no reading yet"
+#~ msgid "· no reading yet"
+#~ msgstr "· no reading yet"
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "<0/> Reset the example"
-msgstr "<0/> Reset the example"
+#~ msgid "<0/> Reset the example"
+#~ msgstr "<0/> Reset the example"
 
 #. 0: failure
 #: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
 msgid "The alert engine could not run here ({0}). The rest of this page still applies."
 msgstr "The alert engine could not run here ({0}). The rest of this page still applies."
 
-#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
-msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
-msgstr "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+#~ msgid "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
+#~ msgstr "This runs Nocturne's own alert engine in your browser, one check every 5 minutes, as <0>Replay</0> does in the app. The readings are made up to show one behaviour; they are not anyone's data, and nothing here is medical advice."
 
 #: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
 msgid "Group: match"
@@ -25722,3 +25698,27 @@ msgstr "Change coming up"
 #: src/lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte.ts
 msgid "The chart data could not be loaded."
 msgstr "The chart data could not be loaded."
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Add an example rule"
+msgstr "<0/> Add an example rule"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "<0/> Start over"
+msgstr "<0/> Start over"
+
+#: ../portal/src/lib/components/docs/alert-simulator/AlertSimulator.svelte
+msgid "Nocturne's own alert engine and Replay, running in your browser on made-up readings. Not anyone's data, and not medical advice."
+msgstr "Nocturne's own alert engine and Replay, running in your browser on made-up readings. Not anyone's data, and not medical advice."
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Grams"
+msgstr "Grams"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "Minutes since carbs"
+msgstr "Minutes since carbs"
+
+#: ../portal/src/lib/components/docs/alert-simulator/ConditionEditor.svelte
+msgid "min ago"
+msgstr "min ago"
