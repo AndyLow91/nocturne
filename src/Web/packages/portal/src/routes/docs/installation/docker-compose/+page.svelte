@@ -95,7 +95,8 @@
             <CodeBlock code="POSTGRES_DATA_PATH=/srv/nocturne/postgres-data" class="mt-3" />
         </li>
         <li>
-            Start the stack with both files. Keep both <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
+            This replaces the default <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker compose up -d</code>
+            command in Step 3 below; do not run both commands. Start the stack with both files. Keep both <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
             arguments on every later Compose command, including updates and shutdown:
             <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml up -d" class="mt-3" />
         </li>
