@@ -83,6 +83,12 @@
         the separate bind-data override. It fixes the mount type to <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">bind</code>
         and requires one path, so the mount type and source cannot be accidentally mismatched.
     </p>
+    <p class="text-muted-foreground mb-4">
+        Keep every active override in the same ordered <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
+        list on every Compose command for this stack. Include the bind-data file, the BYO-proxy
+        file, and any local override file you use. Omitting an active override can restore the
+        named-volume mount or bundled proxy configuration.
+    </p>
     <ol class="list-decimal list-inside space-y-3 text-muted-foreground mb-4">
         <li>
             Create the directory on the machine running the Docker daemon, not merely on the
@@ -142,6 +148,8 @@
                     in <code class="text-xs bg-muted/50 px-1 py-0.5 rounded">.env</code> and start
                     with both Compose files:
                     <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml up -d" class="mt-3" />
+                    If you also use the BYO-proxy override, include it as well:
+                    <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml -f docker-compose.byo-proxy.yaml up -d" class="mt-3" />
                 </li>
                 <li>
                     Verify the PostgreSQL logs and your existing Nocturne data before allowing
@@ -149,6 +157,9 @@
                     is complete. To roll back before new writes, stop the override stack without
                     deleting volumes, then start the original Compose file again:
                     <CodeBlock code={'docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml down\ndocker compose up -d'} class="mt-3" />
+                    For a stack that also uses BYO proxy, keep that override when stopping and
+                    when returning to the named-volume configuration:
+                    <CodeBlock code={'docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml -f docker-compose.byo-proxy.yaml down\ndocker compose -f docker-compose.yaml -f docker-compose.byo-proxy.yaml up -d'} class="mt-3" />
                 </li>
             </ol>
             <p class="text-muted-foreground">
@@ -191,6 +202,10 @@
         gateway on plain HTTP port 8080 for your proxy to forward to:
     </p>
     <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.byo-proxy.yaml up -d" class="mb-4" />
+    <p class="text-muted-foreground mb-4">
+        If you also use the bind-data override, include both overrides in the same command:
+    </p>
+    <CodeBlock code="docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml -f docker-compose.byo-proxy.yaml up -d" class="mb-4" />
     <p class="text-muted-foreground mb-8">
         Your proxy must forward the original <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">Host</code>
         along with <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">X-Forwarded-Proto</code> and
@@ -215,12 +230,14 @@
         to pick them up. That first run recreates the containers, which clears their
         old logs; your database data is kept.
     </p>
+    <p class="text-muted-foreground mb-4">
+        Keep every active override in both the pull and update commands. For bind-data only:
+    </p>
+    <CodeBlock code={'docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml pull\ndocker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml up -d'} class="mb-4" />
+    <p class="text-muted-foreground mb-4">For bind-data with the BYO-proxy override:</p>
+    <CodeBlock code={'docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml -f docker-compose.byo-proxy.yaml pull\ndocker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml -f docker-compose.byo-proxy.yaml up -d'} class="mb-8" />
     <p class="text-muted-foreground mb-8">
-        If you use the bind-data override, use the same two <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">-f</code>
-        arguments when pulling and updating:
-        <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">docker compose -f docker-compose.yaml -f docker-compose.bind-data.yaml pull</code>
-        followed by the same command with <code class="text-xs bg-muted/50 px-1.5 py-0.5 rounded">up -d</code>.
-        Omitting the override changes the declared storage back to the named volume.
+        Omitting the bind-data override changes the declared storage back to the named volume.
     </p>
 
     <h2 class="text-2xl font-bold mt-8 mb-4">Restarts and logs</h2>
