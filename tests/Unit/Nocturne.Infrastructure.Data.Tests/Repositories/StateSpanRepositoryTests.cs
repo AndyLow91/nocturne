@@ -471,6 +471,24 @@ public class StateSpanRepositoryTests : IDisposable
         spans.Should().ContainSingle().Which.Source.Should().Be("primary");
     }
 
+    [Fact]
+    public async Task GetActivityStateSpansAsync_ExcludesNonPrimaryDeduplicatedSpans()
+    {
+        var start = new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc);
+        var primaryEntity = SpanEntity(_context.TenantId, StateSpanCategory.Exercise, "Running", start, null);
+        primaryEntity.Source = "primary";
+        var duplicateEntity = SpanEntity(_context.TenantId, StateSpanCategory.Exercise, "Running", start, null);
+        duplicateEntity.Source = "duplicate";
+
+        _context.StateSpans.AddRange(primaryEntity, duplicateEntity);
+        _context.LinkedRecords.Add(Link(Guid.NewGuid(), duplicateEntity.Id, isPrimary: false));
+        await _context.SaveChangesAsync();
+
+        var spans = await _repository.GetActivityStateSpansAsync();
+
+        spans.Should().ContainSingle().Which.Source.Should().Be("primary");
+    }
+
     private static LinkedRecordEntity Link(Guid canonicalId, Guid recordId, bool isPrimary) => new()
     {
         Id = Guid.NewGuid(),
@@ -1111,6 +1129,20 @@ public class StateSpanRepositoryTests : IDisposable
         rows["pr-x"].EndTimestamp.Should().Be(BatchDay.AddHours(2));
         rows["pr-x"].SupersededById.Should().BeNull();
         rows["pr-c"].EndTimestamp.Should().Be(BatchDay.AddHours(5));
+    }
+
+    [Fact]
+    public async Task UpsertStateSpanAsync_SupersededSpanReUploadedOpen_StaysClosedAtItsSuccessorsStart()
+    {
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Override, "Custom", 9, "ov-a"));
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Override, "Custom", 10, "ov-b"));
+
+        await _repository.UpsertStateSpanAsync(Span(StateSpanCategory.Override, "Custom", 9, "ov-a"));
+
+        var rows = await LiveRowsAsync();
+        rows["ov-a"].EndTimestamp.Should().Be(BatchDay.AddHours(10));
+        rows["ov-a"].SupersededById.Should().Be(rows["ov-b"].Id);
+        rows["ov-b"].EndTimestamp.Should().BeNull();
     }
 
     [Fact]
