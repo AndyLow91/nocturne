@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from "$app/paths";
   import { tryGetRealtimeStore } from "$lib/stores/realtime-store.svelte";
   import { STALE_THRESHOLD_MS } from "$lib/constants/staleness";
   import {
@@ -14,12 +15,13 @@
   import ThresholdRules from "$lib/components/dashboard/glucose-chart/tracks/ThresholdRules.svelte";
   import { Tween, prefersReducedMotion } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
-  import ArrowRight from "lucide-svelte/icons/arrow-right";
+  import ArrowRight from "@lucide/svelte/icons/arrow-right";
+  import { displayedGlucose } from "$lib/stores/current-glucose-status.svelte";
+  import { getGlucoseTileVariant } from "$lib/utils/glucose-status";
 
   const realtimeStore = tryGetRealtimeStore();
 
   // Engine for the sidebar chart — no predictions, no inspection
-  // svelte-ignore state_referenced_locally
   const sidebarEngine = createChartDataEngine({
     enablePredictions: false,
     focusHours: 3,
@@ -46,8 +48,12 @@
   };
 
   // Collapsed state needs basic BG info
-  const rawCurrentBG = $derived(realtimeStore?.currentBG ?? 0);
+  const glucose = displayedGlucose(realtimeStore);
+  const rawCurrentBG = $derived(glucose.currentBG);
   const lastUpdated = $derived(realtimeStore?.lastUpdated ?? 0);
+  const tileVariant = $derived(
+    getGlucoseTileVariant(glucose.status)
+  );
   const now = $derived(realtimeStore?.now ?? Date.now());
   const isStale = $derived(now - lastUpdated > STALE_THRESHOLD_MS);
 
@@ -59,8 +65,8 @@
   const displayBG = $derived(formatGlucoseValue(rawCurrentBG, units));
 
   // Trend metadata
-  const bgDelta = $derived(realtimeStore?.bgDelta ?? 0);
-  const direction = $derived(realtimeStore?.direction ?? "");
+  const bgDelta = $derived(glucose.bgDelta);
+  const direction = $derived(glucose.direction);
   const timeSinceReading = $derived(realtimeStore?.timeSinceReading ?? "");
   const displayDelta = $derived(formatGlucoseDelta(bgDelta, units));
   const hasData = $derived(!isLoading && rawCurrentBG > 0);
@@ -80,7 +86,7 @@
     <div class="flex items-center justify-center gap-2">
       <GlucoseValueIndicator
         displayValue={displayBG}
-        rawBgMgdl={rawCurrentBG}
+        variant={tileVariant}
         {isLoading}
         {isStale}
         {isDisconnected}
@@ -91,12 +97,12 @@
         <div class="flex flex-col items-center gap-0.5">
           <div class="flex items-center gap-0.5 {deltaColorClass(direction)}">
             <ArrowRight
-              class="size-4"
-              style="transform: rotate({arrowAngle.current}deg)"
+              class="size-4 rotate-(--arrow-angle)"
+              style="--arrow-angle: {arrowAngle.current}deg"
             />
             <span class="text-sm font-medium">{displayDelta}</span>
           </div>
-          <span class="text-[10px] text-muted-foreground leading-tight">
+          <span class="text-2xs text-muted-foreground leading-tight">
             {timeSinceReading}
           </span>
         </div>
@@ -105,7 +111,7 @@
     <div
       class="px-2 border border-sidebar-border hover:border-sidebar-ring rounded"
     >
-      <a href="/">
+      <a href={resolve("/")}>
         <GlucoseChartShell
           engine={sidebarEngine}
           legend={sidebarLegend}
@@ -130,7 +136,7 @@
 <div class="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-0.5">
   <GlucoseValueIndicator
     displayValue={displayBG}
-    rawBgMgdl={rawCurrentBG}
+    variant={tileVariant}
     {isLoading}
     {isStale}
     {isDisconnected}
@@ -140,10 +146,10 @@
   {#if hasData && !isStale}
     <div class="flex items-center gap-0.5 {deltaColorClass(direction)}">
       <ArrowRight
-        class="size-3"
-        style="transform: rotate({arrowAngle.current}deg)"
+        class="size-3 rotate-(--arrow-angle)"
+        style="--arrow-angle: {arrowAngle.current}deg"
       />
-      <span class="text-[10px] font-medium">{displayDelta}</span>
+      <span class="text-2xs font-medium">{displayDelta}</span>
     </div>
   {/if}
 </div>

@@ -10,6 +10,8 @@
   import { STALE_THRESHOLD_MS } from "$lib/constants/staleness";
   import { GlucoseValueIndicator } from "$lib/components/shared";
   import * as Sidebar from "$lib/components/ui/sidebar";
+  import { displayedGlucose } from "$lib/stores/current-glucose-status.svelte";
+  import { getGlucoseTileVariant } from "$lib/utils/glucose-status";
 
   const realtimeStore = tryGetRealtimeStore();
 
@@ -21,12 +23,16 @@
   let scrollThreshold = 10; // Minimum scroll amount to trigger hide/show
 
   // Get direction info for arrow display
-  const directionInfo = $derived(getDirectionInfo(realtimeStore?.direction));
+  const glucose = displayedGlucose(realtimeStore);
+  const directionInfo = $derived(getDirectionInfo(glucose.direction));
 
   // This header is the only glucose surface on a phone — CurrentBGDisplay hides
   // itself below @md — so it carries the same stale/disconnected states.
-  const rawCurrentBG = $derived(realtimeStore?.currentBG ?? 0);
+  const rawCurrentBG = $derived(glucose.currentBG);
   const lastUpdated = $derived(realtimeStore?.lastUpdated ?? 0);
+  const tileVariant = $derived(
+    getGlucoseTileVariant(glucose.status)
+  );
   const now = $derived(realtimeStore?.now ?? Date.now());
   const displayCurrentBG = $derived(formatGlucoseValue(rawCurrentBG, units));
   const isStale = $derived(now - lastUpdated > STALE_THRESHOLD_MS);
@@ -57,6 +63,13 @@
 
     lastScrollY = currentScrollY;
   }
+
+  // The layout's sticky banner strip reads this to sit flush under the header as it slides.
+  $effect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--mobile-header-offset", isVisible ? "3.5rem" : "0px");
+    return () => root.style.removeProperty("--mobile-header-offset");
+  });
 </script>
 
 <svelte:window onscroll={handleScroll} />
@@ -75,7 +88,7 @@
     <div class="flex items-center gap-2">
       <GlucoseValueIndicator
         displayValue={displayCurrentBG}
-        rawBgMgdl={rawCurrentBG}
+        variant={tileVariant}
         {isLoading}
         {isStale}
         {isDisconnected}
@@ -95,7 +108,7 @@
             {/if}
           </span>
           <span class="text-muted-foreground">
-            {formatGlucoseDelta(realtimeStore.bgDelta, units)}
+            {formatGlucoseDelta(glucose.bgDelta, units)}
           </span>
         </div>
       {/if}
