@@ -43,7 +43,7 @@ import {
   type EntryRecord,
 } from "$lib/constants/entry-categories";
 import { toast } from "svelte-sonner";
-import { isErrorStatus } from "./connection-indicator.svelte";
+import { isErrorStatus, presentConnection } from "./connection-indicator.svelte";
 import * as alarmState from "$lib/stores/alarm-state.svelte";
 import { getContext, setContext } from "svelte";
 import { getApiClient } from "$lib/api/client";
@@ -130,12 +130,9 @@ export class RealtimeStore {
   private backgroundPollInterval: ReturnType<typeof setInterval> | null = null;
   private static readonly BACKGROUND_POLL_MS = 30_000; // 30s — browsers throttle setInterval to ~60s in hidden tabs, so aim for ~1 poll per minute worst-case
 
-  /** Whether a working socket has ever been established this session, so the
-   *  expected first connect isn't announced as a recovery. */
-  private hasEverConnected = false;
   /** Whether the user has been told the connection is down, so the recovery
    *  notice only appears if there was a loss to recover from. */
-  private announcedDisconnect = false;
+  private announcedDisconnect = $state(false);
   private disconnectNoticeTimer: ReturnType<typeof setTimeout> | null = null;
   /** Socket.io disconnects on transport churn and page teardown, so wait to see
    *  whether the loss is real before interrupting the user. */
@@ -178,8 +175,17 @@ export class RealtimeStore {
   connectionError = $derived(this.websocketClient?.lastError || null);
   /** The user-facing "Connection Error": latched only once the socket has stayed
    *  in an error status for `DISCONNECT_NOTICE_DELAY_MS` while the page is
-   *  visible, so a background-tab suspension never presents as an outage. */
-  connectionUnavailable = $state(false);
+   *  visible, so a background-tab suspension never presents as an outage. A
+   *  definitive denial ends it: that session is shown as not live, not failed. */
+  connectionUnavailable = $derived(
+    this.announcedDisconnect &&
+      this.connectionStatus !== "connected" &&
+      this.connectionStatus !== "unauthorized"
+  );
+  /** The one connection state every indicator renders. */
+  connectionPresentation = $derived(
+    presentConnection(this.connectionStatus, this.connectionUnavailable)
+  );
   connectionStats = $derived(
     this.websocketClient?.stats || {
       connectedClients: 0,
@@ -476,14 +482,12 @@ export class RealtimeStore {
   private setupEventHandlers(): void {
     this.websocketClient.on("connect", () => {
       this.clearDisconnectNotice();
-      this.connectionUnavailable = false;
       // Connecting on page load is expected and needs no announcement; only
       // report a recovery from a loss the user was actually told about.
-      if (this.announcedDisconnect && this.hasEverConnected) {
+      if (this.announcedDisconnect) {
         toast.success("Reconnected to real-time data");
       }
       this.announcedDisconnect = false;
-      this.hasEverConnected = true;
       // Always force backfill on reconnection — any disconnection may have
       // caused missed data, even if the gap was under 5 minutes.
       this.performBackfillIfNeeded(true);
@@ -905,7 +909,6 @@ export class RealtimeStore {
       this.disconnectNoticeTimer = null;
       if (!isErrorStatus(this.websocketClient.connectionStatus)) return;
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      this.connectionUnavailable = true;
       this.announcedDisconnect = true;
       toast.warning("Real-time data unavailable");
     }, RealtimeStore.DISCONNECT_NOTICE_DELAY_MS);

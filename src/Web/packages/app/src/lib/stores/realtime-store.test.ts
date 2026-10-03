@@ -63,6 +63,7 @@ type TestStore = StoreInternals &
   Pick<
     RealtimeStore,
     | "connectionUnavailable"
+    | "connectionPresentation"
     | "currentReservoir"
     | "entries"
     | "currentEntry"
@@ -178,6 +179,33 @@ describe("RealtimeStore connection presentation", () => {
     store.destroy();
   });
 
+  it("announces the recovery of a first connect it reported as unavailable", async () => {
+    const store = makeStore();
+    store.websocketClient.connectionStatus = "error";
+    store.websocketClient.eventHandlers.connect_error?.(new Error("network down"));
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    connected(store);
+
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(store.connectionPresentation).toBe("live");
+    store.destroy();
+  });
+
+  it("shows a reported outage that ends in a denial as not live, not failed", async () => {
+    const store = makeStore();
+    connected(store);
+    dropped(store);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(store.connectionPresentation).toBe("unavailable");
+
+    store.websocketClient.connectionStatus = "unauthorized";
+
+    expect(store.connectionUnavailable).toBe(false);
+    expect(store.connectionPresentation).toBe("denied");
+    store.destroy();
+  });
+
   it("does not present a disconnect while the page is hidden", async () => {
     const page = {
       visibilityState: "hidden",
@@ -209,6 +237,7 @@ describe("RealtimeStore connection presentation", () => {
 
     expect(ensureConnected).toHaveBeenCalledTimes(1);
     expect(store.connectionUnavailable).toBe(false);
+    expect(store.connectionPresentation).toBe("pending");
     await vi.advanceTimersByTimeAsync(5_000);
     connected(store);
     await vi.advanceTimersByTimeAsync(10_000);
@@ -259,6 +288,7 @@ describe("RealtimeStore connection presentation", () => {
     await vi.advanceTimersByTimeAsync(20_000);
 
     expect(store.connectionUnavailable).toBe(false);
+    expect(store.connectionPresentation).toBe("denied");
     expect(toast.warning).not.toHaveBeenCalled();
     store.destroy();
   });
